@@ -1,0 +1,31 @@
+# Gradle
+.gradle/
+build/
+/app/build/
+/captures/
+/local.properties
+*.iml
+.idea/
+.DS_Store
+
+# Android / native
+.externalNativeBuild/
+.cxx/
+*.apk
+*.aab
+*.keystore
+*.jks
+
+# Local dev environment (not part of the app)
+/toolchain/
+/.dsh-test/
+/tools/
+/_dsh_src/
+/_dsh_agent_loop/
+/_dsh_session/
+/screen_*.png
+/rot*.png
+/mumu_host.png
+
+# Logs
+*.log
