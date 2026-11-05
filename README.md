@@ -25,7 +25,7 @@
 
 ### 直接安装 APK
 
-构建产物在：
+已构建的 APK 在 `dist/HarnessPocket-0.1.0-debug.apk`；重新构建的产物在：
 
 ```text
 app/build/outputs/apk/debug/app-debug.apk
@@ -71,7 +71,7 @@ sdk.dir=C\:\\path\\to\\android-sdk
 
 ## 连接你的 Harness
 
-1. 在电脑上启动 `dsh web`（或使用你已经在运行的实例）。启动日志会打印一条带一次性令牌的链接，例如：
+1. 在电脑上启动 `dsh web`（或使用你已经在运行的实例）。启动日志会打印一条带启动令牌的链接，例如：
 
    ```text
    http://127.0.0.1:8080/?token=xxxxxxxx
@@ -131,6 +131,7 @@ app/src/main/java/dev/harness/pocket/
 - **附件与模型选择**：暂不支持图片/文件附件，也不支持在 App 内切换模型；使用服务端默认模型。
 - **明文 HTTP**：为了连接自建服务，Manifest 开启了 `usesCleartextTraffic`。公网使用请务必套 HTTPS 或 VPN。
 - **令牌存储**：保存在应用私有的 `SharedPreferences`，未做额外加密；不要在已 root 的设备上使用敏感环境。
+- **令牌轮换**：`dsh web` 重启或连接重载后，启动令牌可能变化。此时在 App 里重新粘贴新链接即可；自动续期只在旧令牌仍然有效时生效。
 
 ## Roadmap
 
