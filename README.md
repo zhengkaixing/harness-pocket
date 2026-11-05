@@ -45,6 +45,10 @@ Harness Pocket 是一个**非官方的原生 Android 客户端**，用来远程�
     <td width="50%"><img src="docs/screenshots/model-effort.png" alt="模型与推理强度" /><br/><sub><b>模型</b>：按 provider 分组，支持推理强度</sub></td>
     <td width="50%"><img src="docs/screenshots/permission.png" alt="权限模式" /><br/><sub><b>权限</b>：仅可查看 / 工作区内修改 / 完全权限</sub></td>
   </tr>
+  <tr>
+    <td width="50%"><img src="docs/screenshots/chat-table.png" alt="Markdown 表格" /><br/><sub><b>富文本</b>：表格、有序列表、代码块按块渲染</sub></td>
+    <td width="50%"><img src="docs/screenshots/voice.png" alt="语音输入" /><br/><sub><b>语音输入</b>：麦克风调用系统语音识别，结果回填输入框</sub></td>
+  </tr>
 </table>
 
 ## 功能
@@ -58,8 +62,9 @@ Harness Pocket 是一个**非官方的原生 Android 客户端**，用来远程�
 - **模型与推理强度**：从 `session/modelCatalog` 选择模型，再选择 Off / Minimal / Low / Medium / High / Xhigh / Max 等推理强度。
 - **权限模式**：仅可查看、工作区内修改、完全权限；通过 `/permission <preset>` 命令真正写入会话策略。
 - **附件**：图片直接内联为 base64，任意文件先走 `fileUploads/upload` 换 `receiptId`；单文件上限 20 MB。
+- **语音输入**：输入框左侧麦克风调用系统语音识别（`RecognizerIntent`），识别结果直接回填草稿；没有识别服务时会给出提示。
 - **工具调用可视化**：把 `tool/call`、`tool/result` 渲染成可展开卡片，参数和结果都能看。
-- **Markdown**：标题、列表、引用、粗体、行内代码、代码块；代码块支持一键复制。
+- **Markdown 与富文本**：标题、有序/无序/嵌套列表、引用、粗体、行内代码、代码块和表格；表格按列宽铺排，代码块支持一键复制。
 - **自动续期**：API Cookie 过期后，用本地保存的启动令牌自动重新 `/connect`。
 - **无遥测**：不接入任何统计 SDK，令牌和会话只保存在本机。
 
@@ -94,6 +99,11 @@ Harness Pocket 是一个**非官方的原生 Android 客户端**，用来远程�
 ![远程会话实测](docs/screenshots/remote-chat.png)
 
 工具调用卡片、Markdown 代码块、停止任务、重命名与错误提示也都做了回归。
+
+0.5.0 额外验证了：
+
+- 让模型输出三行水果表格，App 正确渲染成带表头、边框和隔行底色的表格（见 `docs/screenshots/chat-table.png`）。
+- 麦克风按钮可拉起系统语音识别；当前 MuMu 模拟器没有识别 Activity，App 显示“当前设备没有可用的语音识别服务”。手机安装 Google/系统语音服务后即可使用。
 
 0.4.0 额外验证了：
 
@@ -135,7 +145,7 @@ Harness Pocket 是一个**非官方的原生 Android 客户端**，用来远程�
 
 ### 直接安装 APK
 
-本地预构建的 APK 在 `dist/HarnessPocket-0.4.0-debug.apk`（二进制不提交到 Git 仓库）；从源码重新构建的产物在：
+本地预构建的 APK 在 `dist/HarnessPocket-0.5.0-debug.apk`（二进制不提交到 Git 仓库）；从源码重新构建的产物在：
 
 ```text
 app/build/outputs/apk/debug/app-debug.apk
@@ -266,6 +276,13 @@ app/src/main/java/dev/harness/pocket/
 - [ ] 可配置的 HTTPS / 证书校验
 
 ## 更新日志
+
+### 0.5.0
+
+- 输入区新增麦克风：调用系统 `RecognizerIntent` 做语音转文字，结果回填草稿。
+- Markdown 渲染重做：新增表格、有序列表、嵌套缩进；表格支持表头、隔行底色和列宽自适应。
+- 调整消息间距，空助手消息不再显示“正在思考”占位。
+- 新增 `docs/screenshots/chat-table.png` 与 `voice.png`。
 
 ### 0.4.0
 

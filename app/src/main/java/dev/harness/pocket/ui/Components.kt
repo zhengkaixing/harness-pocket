@@ -75,6 +75,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import dev.harness.pocket.BuildConfig
 import dev.harness.pocket.data.NoticeItem
 import dev.harness.pocket.data.ToolItem
 import kotlinx.coroutines.delay
@@ -447,6 +448,7 @@ fun MarkdownText(text: String, modifier: Modifier = Modifier) {
                     Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.Top
                 ) {
+                    Spacer(Modifier.width((block.depth * 14).dp))
                     Text(
                         "•",
                         color = Blue,
@@ -455,6 +457,31 @@ fun MarkdownText(text: String, modifier: Modifier = Modifier) {
                         modifier = Modifier.padding(top = 1.dp)
                     )
                     Spacer(Modifier.width(8.dp))
+                    Box(Modifier.weight(1f)) {
+                        Text(
+                            inlineMarkdown(block.text),
+                            color = Ink,
+                            fontSize = 15.sp,
+                            lineHeight = 24.sp
+                        )
+                    }
+                }
+
+                is MdBlock.Ordered -> Row(
+                    Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.Top
+                ) {
+                    Spacer(Modifier.width((block.depth * 14).dp))
+                    Text(
+                        "${block.number}.",
+                        color = Blue,
+                        fontSize = 12.5.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier
+                            .width(22.dp)
+                            .padding(top = 2.dp)
+                    )
+                    Spacer(Modifier.width(6.dp))
                     Box(Modifier.weight(1f)) {
                         Text(
                             inlineMarkdown(block.text),
@@ -487,6 +514,8 @@ fun MarkdownText(text: String, modifier: Modifier = Modifier) {
                     )
                 }
 
+                is MdBlock.Table -> MarkdownTable(block.header, block.rows)
+
                 is MdBlock.Code -> CodeBlock(block.code, block.language)
                 MdBlock.Divider -> Box(
                     Modifier
@@ -494,6 +523,80 @@ fun MarkdownText(text: String, modifier: Modifier = Modifier) {
                         .height(1.dp)
                         .background(Line)
                 )
+            }
+        }
+    }
+}
+
+@Composable
+private fun MarkdownTable(header: List<String>, rows: List<List<String>>) {
+    val cols = maxOf(header.size, rows.maxOfOrNull { it.size } ?: 0)
+    if (cols == 0) return
+    val weights = remember(header, rows, cols) {
+        (0 until cols).map { column ->
+            val longest = maxOf(
+                header.getOrNull(column)?.length ?: 0,
+                rows.maxOfOrNull { it.getOrNull(column)?.length ?: 0 } ?: 0
+            )
+            longest.coerceIn(4, 28).toFloat()
+        }
+    }
+
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(12.dp),
+        color = Color.White,
+        border = BorderStroke(1.dp, Line)
+    ) {
+        Column(Modifier.fillMaxWidth()) {
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .background(Color(0xFFF1F5FD))
+            ) {
+                for (column in 0 until cols) {
+                    Box(
+                        Modifier
+                            .weight(weights[column])
+                            .padding(horizontal = 8.dp, vertical = 7.dp)
+                    ) {
+                        Text(
+                            inlineMarkdown(header.getOrNull(column).orEmpty()),
+                            color = Ink,
+                            fontSize = 11.5.sp,
+                            lineHeight = 16.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                }
+            }
+            rows.forEachIndexed { index, row ->
+                Box(
+                    Modifier
+                        .fillMaxWidth()
+                        .height(1.dp)
+                        .background(Line)
+                )
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .background(if (index % 2 == 1) Color(0xFFFAFBFE) else Color.White)
+                ) {
+                    for (column in 0 until cols) {
+                        Box(
+                            Modifier
+                                .weight(weights[column])
+                                .padding(horizontal = 8.dp, vertical = 7.dp)
+                        ) {
+                            Text(
+                                inlineMarkdown(row.getOrNull(column).orEmpty()),
+                                color = InkSoft,
+                                fontSize = 12.sp,
+                                lineHeight = 17.sp
+                            )
+                        }
+                    }
+                }
             }
         }
     }
@@ -772,7 +875,7 @@ fun SettingsDialog(
                         .background(Line)
                 )
                 Spacer(Modifier.height(12.dp))
-                Text("Harness Pocket 0.1.0", color = Muted, fontSize = 11.sp)
+                Text("Harness Pocket ${BuildConfig.VERSION_NAME}", color = Muted, fontSize = 11.sp)
             }
         },
         confirmButton = {

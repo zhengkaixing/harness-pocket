@@ -1,6 +1,13 @@
 package dev.harness.pocket.ui
 
+import android.app.Activity
+import android.content.ActivityNotFoundException
+import android.content.Intent
+import android.speech.RecognizerIntent
+import android.widget.Toast
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -42,6 +49,7 @@ import androidx.compose.material.icons.rounded.Folder
 import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.Menu
+import androidx.compose.material.icons.rounded.Mic
 import androidx.compose.material.icons.rounded.MoreHoriz
 import androidx.compose.material.icons.rounded.PhotoCamera
 import androidx.compose.material.icons.rounded.Refresh
@@ -71,6 +79,7 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -115,6 +124,38 @@ fun ChatScreen(
     var renameOpen by remember { mutableStateOf(false) }
     val focusManager = LocalFocusManager.current
     val focusRequester = remember { FocusRequester() }
+    val context = LocalContext.current
+    val voiceLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            val spoken = result.data
+                ?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)
+                ?.firstOrNull()
+                ?.trim()
+            if (!spoken.isNullOrBlank()) {
+                draft = if (draft.isBlank()) spoken else draft.trimEnd() + " " + spoken
+                focusRequester.requestFocus()
+            }
+        }
+    }
+
+    fun startVoiceInput() {
+        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+            putExtra(
+                RecognizerIntent.EXTRA_LANGUAGE_MODEL,
+                RecognizerIntent.LANGUAGE_MODEL_FREE_FORM
+            )
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE, "zh-CN")
+            putExtra(RecognizerIntent.EXTRA_PROMPT, "请说出要输入的内容")
+            putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
+        }
+        try {
+            voiceLauncher.launch(intent)
+        } catch (_: ActivityNotFoundException) {
+            Toast.makeText(context, "当前设备没有可用的语音识别服务", Toast.LENGTH_SHORT).show()
+        }
+    }
 
     BackHandler(onBack = onBack)
 
@@ -209,7 +250,7 @@ fun ChatScreen(
                         state = listState,
                         modifier = Modifier.fillMaxSize(),
                         contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 20.dp),
-                        verticalArrangement = Arrangement.spacedBy(2.dp)
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         if (chat.allItems.isEmpty()) {
                             item(key = "welcome") {
@@ -249,6 +290,7 @@ fun ChatScreen(
             onStop = onStop,
             onAttach = onAttach,
             onPickImage = onPickImage,
+            onVoice = ::startVoiceInput,
             onRemoveAttachment = onRemoveAttachment,
             focusRequester = focusRequester
         )
@@ -749,9 +791,7 @@ private fun AssistantBubble(text: String) {
             .fillMaxWidth()
             .padding(top = 10.dp, bottom = 2.dp)
     ) {
-        if (text.isBlank()) {
-            TypingDots()
-        } else {
+        if (text.isNotBlank()) {
             AssistantRow(text)
         }
     }
@@ -999,6 +1039,7 @@ private fun ChatComposer(
     onStop: () -> Unit,
     onAttach: () -> Unit,
     onPickImage: () -> Unit,
+    onVoice: () -> Unit,
     onRemoveAttachment: (String) -> Unit,
     focusRequester: FocusRequester
 ) {
@@ -1046,6 +1087,21 @@ private fun ChatComposer(
                         contentDescription = "拍照或选择图片",
                         tint = if (sending || running) Color(0xFFC4C9D3) else InkSoft,
                         modifier = Modifier.size(20.dp)
+                    )
+                }
+                Spacer(Modifier.width(1.dp))
+                Box(
+                    Modifier
+                        .size(34.dp)
+                        .clip(CircleShape)
+                        .clickable(enabled = !sending && !running) { onVoice() },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        Icons.Rounded.Mic,
+                        contentDescription = "语音输入",
+                        tint = if (sending || running) Color(0xFFC4C9D3) else InkSoft,
+                        modifier = Modifier.size(19.dp)
                     )
                 }
                 Spacer(Modifier.width(2.dp))

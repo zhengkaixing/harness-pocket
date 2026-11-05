@@ -12,14 +12,18 @@ import androidx.compose.ui.graphics.Color
 sealed interface MdBlock {
     data class Paragraph(val text: String) : MdBlock
     data class Heading(val text: String, val level: Int) : MdBlock
-    data class Bullet(val text: String) : MdBlock
+    data class Bullet(val text: String, val depth: Int = 0) : MdBlock
+    data class Ordered(val number: String, val text: String, val depth: Int = 0) : MdBlock
     data class Quote(val text: String) : MdBlock
     data class Code(val code: String, val language: String?) : MdBlock
+    data class Table(val header: List<String>, val rows: List<List<String>>) : MdBlock
     object Divider : MdBlock
 }
 
 object MarkdownParser {
-    private val ordered = Regex("^\\d+[.)]\\s+")
+    private val orderedLine = Regex("^(\\s*)(\\d+)[.)]\\s+(.*)$")
+    private val bulletLine = Regex("^(\\s*)[-*+]\\s+(.*)$")
+    private val separatorCell = Regex("^:?-{2,}:?$")
 
     fun parse(source: String): List<MdBlock> {
         val lines = source.replace("\r\n", "\n").replace('\r', '\n').split('\n')
@@ -56,6 +60,21 @@ object MarkdownParser {
                     index++
                 }
 
+                isTableStart(lines, index) -> {
+                    flushParagraph()
+                    val header = splitRow(lines[index])
+                    index += 2
+                    val rows = ArrayList<List<String>>()
+                    while (index < lines.size) {
+                        val row = lines[index].trim()
+                        if (row.isEmpty() || !row.contains('|')) break
+                        if (row.startsWith("```")) break
+                        rows.add(splitRow(row))
+                        index++
+                    }
+                    out.add(MdBlock.Table(header, rows))
+                }
+
                 trimmed == "---" || trimmed == "***" -> {
                     flushParagraph()
                     out.add(MdBlock.Divider)
@@ -69,15 +88,28 @@ object MarkdownParser {
                     index++
                 }
 
-                trimmed.startsWith("- ") || trimmed.startsWith("* ") -> {
+                bulletLine.matches(line) -> {
                     flushParagraph()
-                    out.add(MdBlock.Bullet(trimmed.substring(2).trim()))
+                    val match = bulletLine.matchEntire(line)!!
+                    out.add(
+                        MdBlock.Bullet(
+                            text = match.groupValues[2].trim(),
+                            depth = depthOf(match.groupValues[1])
+                        )
+                    )
                     index++
                 }
 
-                ordered.containsMatchIn(trimmed) -> {
+                orderedLine.matches(line) -> {
                     flushParagraph()
-                    out.add(MdBlock.Bullet(ordered.replaceFirst(trimmed, "")))
+                    val match = orderedLine.matchEntire(line)!!
+                    out.add(
+                        MdBlock.Ordered(
+                            number = match.groupValues[2],
+                            text = match.groupValues[3].trim(),
+                            depth = depthOf(match.groupValues[1])
+                        )
+                    )
                     index++
                 }
 
@@ -96,6 +128,46 @@ object MarkdownParser {
         }
         flushParagraph()
         return out
+    }
+
+    private fun depthOf(indent: String): Int =
+        (indent.replace("\t", "  ").length / 2).coerceIn(0, 4)
+
+    private fun isTableStart(lines: List<String>, index: Int): Boolean {
+        val header = lines[index].trim()
+        if (!header.contains('|') || header.startsWith("```")) return false
+        val separator = lines.getOrNull(index + 1)?.trim() ?: return false
+        if (!separator.contains('-') || !separator.contains('|')) return false
+        val headerCells = splitRow(header)
+        val separatorCells = splitRow(separator)
+        return headerCells.size >= 2 &&
+            separatorCells.size == headerCells.size &&
+            separatorCells.all { separatorCell.matches(it) }
+    }
+
+    private fun splitRow(line: String): List<String> {
+        var text = line.trim()
+        if (text.startsWith("|")) text = text.substring(1)
+        if (text.endsWith("|")) text = text.dropLast(1)
+        val cells = ArrayList<String>()
+        val cell = StringBuilder()
+        var escaped = false
+        for (ch in text) {
+            when {
+                escaped -> {
+                    cell.append(ch)
+                    escaped = false
+                }
+                ch == '\\' -> escaped = true
+                ch == '|' -> {
+                    cells.add(cell.toString().trim())
+                    cell.setLength(0)
+                }
+                else -> cell.append(ch)
+            }
+        }
+        cells.add(cell.toString().trim())
+        return cells
     }
 }
 
