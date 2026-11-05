@@ -29,7 +29,7 @@ Set-Cookie: dsh-auth-<authority-hash>=v2...; Max-Age=2592000; Path=/; HttpOnly; 
 
 - 必须把 `token` 放在 query 中，不能用 `Authorization` 头。
 - `interactions=none` 表示客户端不接收/回答审批交互；`interactions=answer` 才会收到审批事件。
-- 同一个服务进程对同一个 principal 只允许声明一次 interaction 模式，重复声明会返回 400。
+- 同一次请求里 `interactions` 只能声明一次；重复 query 参数会返回 400。
 - Cookie 名称以 `dsh-auth-` 开头，绑定 Host（authority）；换域名或端口后需要重新 `/connect`。
 - 后续 HTTP 和 WebSocket 都带上这个 Cookie。
 
