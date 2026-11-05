@@ -1,5 +1,6 @@
 package dev.harness.pocket.ui
 
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -24,6 +25,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.ChatBubbleOutline
 import androidx.compose.material.icons.rounded.Folder
+import androidx.compose.material.icons.rounded.KeyboardArrowDown
+import androidx.compose.material.icons.rounded.KeyboardArrowUp
 import androidx.compose.material.icons.rounded.PushPin
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Settings
@@ -34,6 +37,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -41,20 +45,24 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.harness.pocket.data.AppState
 import dev.harness.pocket.data.SessionSummary
+import dev.harness.pocket.data.WorkspaceInfo
 import androidx.compose.material3.MaterialTheme
 
 private val DrawerBg = Color(0xFFFDFDFB)
 private val DrawerDivider = Color(0x0F171A21)
+private val TreeLine = Color(0x24171A21)
 
 @Composable
 fun HarnessDrawer(
@@ -70,6 +78,7 @@ fun HarnessDrawer(
 ) {
     var searchOpen by remember { mutableStateOf(false) }
     var query by rememberSaveable { mutableStateOf("") }
+    val expanded = remember { mutableStateMapOf<String, Boolean>() }
     val active = state.activeSession
     val archivedIds = state.archivedSessionIds.toSet()
     val visible = state.sessions.filterNot { it.sessionId in archivedIds }
@@ -77,10 +86,9 @@ fun HarnessDrawer(
         visible.firstOrNull { it.sessionId == id }
     }
     val pinnedIds = pinnedSessions.map { it.sessionId }.toSet()
-    val recents = visible
-        .filterNot { it.sessionId in pinnedIds }
+    val treeSessions = (if (query.isBlank()) visible.filterNot { it.sessionId in pinnedIds } else visible)
         .filter { query.isBlank() || sessionTitle(it.title, it.blank).contains(query, ignoreCase = true) }
-        .take(9)
+    val groups = groupSessions(state.workspaces, treeSessions)
 
     ModalDrawerSheet(
         modifier = Modifier
@@ -154,10 +162,6 @@ fun HarnessDrawer(
                 onClose()
                 onNewChat()
             }
-            DrawerAction(Icons.Rounded.Folder, "工作区") {
-                onClose()
-                onWorkspace()
-            }
             DrawerAction(Icons.Rounded.Settings, "连接设置") {
                 onClose()
                 onSettings()
@@ -188,17 +192,28 @@ fun HarnessDrawer(
             Row(
                 Modifier
                     .fillMaxWidth()
-                    .padding(start = 20.dp, end = 14.dp, top = 12.dp, bottom = 4.dp),
+                    .padding(start = 20.dp, end = 12.dp, top = 12.dp, bottom = 2.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                SectionLabel("最近", modifier = Modifier.padding(0.dp))
+                SectionLabel("工作区", modifier = Modifier.padding(0.dp))
                 Spacer(Modifier.weight(1f))
-                if (state.sessionsLoading) {
+                if (state.sessionsLoading || state.workspacesLoading) {
                     Text("同步中", color = Muted, fontSize = 10.sp)
                 }
+                Spacer(Modifier.width(4.dp))
+                SoftIconButton(
+                    icon = Icons.Rounded.Add,
+                    onClick = {
+                        onClose()
+                        onWorkspace()
+                    },
+                    contentDescription = "管理工作区",
+                    background = Color.Transparent,
+                    size = 28.dp
+                )
             }
 
-            if (recents.isEmpty()) {
+            if (groups.isEmpty()) {
                 Text(
                     if (query.isBlank()) "还没有会话" else "没有匹配的会话",
                     color = Muted,
@@ -206,18 +221,32 @@ fun HarnessDrawer(
                     modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)
                 )
             } else {
-                recents.forEach { session ->
-                    DrawerSessionRow(
-                        session = session,
-                        selected = session.sessionId == active?.sessionId,
-                        pinned = false,
-                        onClick = {
-                            onClose()
-                            onOpenSession(session)
-                        },
-                        onTogglePin = { onPinSession(session) },
-                        onArchive = { onArchiveSession(session) }
+                groups.forEach { group ->
+                    val key = group.workspace.workspaceId
+                    val open = query.isNotBlank() || expanded[key] != false
+                    DrawerWorkspaceHeader(
+                        group = group,
+                        open = open,
+                        onClick = { expanded[key] = !open }
                     )
+                    if (open) {
+                        group.sessions.forEachIndexed { index, session ->
+                            DrawerSessionRow(
+                                session = session,
+                                selected = session.sessionId == active?.sessionId,
+                                pinned = false,
+                                onClick = {
+                                    onClose()
+                                    onOpenSession(session)
+                                },
+                                onTogglePin = { onPinSession(session) },
+                                onArchive = { onArchiveSession(session) },
+                                indent = 16.dp,
+                                tree = true,
+                                last = index == group.sessions.lastIndex
+                            )
+                        }
+                    }
                 }
             }
 
@@ -309,18 +338,105 @@ private fun SectionLabel(text: String, modifier: Modifier = Modifier.padding(sta
 }
 
 @Composable
+private fun DrawerWorkspaceHeader(
+    group: WorkspaceGroup,
+    open: Boolean,
+    onClick: () -> Unit
+) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(start = 14.dp, end = 14.dp, top = 7.dp, bottom = 3.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            Modifier
+                .size(22.dp)
+                .background(Color(0xFFEFF4FF), RoundedCornerShape(7.dp)),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                Icons.Rounded.Folder,
+                contentDescription = null,
+                tint = Blue,
+                modifier = Modifier.size(13.dp)
+            )
+        }
+        Spacer(Modifier.width(7.dp))
+        Column(Modifier.weight(1f)) {
+            Text(
+                group.workspace.title.ifBlank {
+                    cwdLabel(group.workspace.path) ?: "工作区"
+                },
+                color = Ink,
+                fontSize = 12.5.sp,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            if (group.workspace.path.isNotBlank()) {
+                Text(
+                    group.workspace.path,
+                    color = Muted,
+                    fontSize = 9.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+        }
+        Text(
+            "${group.sessions.size}",
+            color = Muted,
+            fontSize = 10.sp,
+            modifier = Modifier.padding(horizontal = 5.dp)
+        )
+        Icon(
+            if (open) Icons.Rounded.KeyboardArrowUp else Icons.Rounded.KeyboardArrowDown,
+            contentDescription = if (open) "收起工作区" else "展开工作区",
+            tint = Muted,
+            modifier = Modifier.size(17.dp)
+        )
+    }
+}
+
+@Composable
+private fun TreeGuide(last: Boolean) {
+    Canvas(Modifier.width(13.dp).height(26.dp)) {
+        val x = size.width * 0.3f
+        val mid = size.height / 2f
+        drawLine(
+            TreeLine,
+            Offset(x, 0f),
+            Offset(x, if (last) mid else size.height),
+            strokeWidth = 1.dp.toPx()
+        )
+        drawLine(
+            TreeLine,
+            Offset(x, mid),
+            Offset(size.width, mid),
+            strokeWidth = 1.dp.toPx()
+        )
+    }
+    Spacer(Modifier.width(2.dp))
+}
+
+@Composable
 private fun DrawerSessionRow(
     session: SessionSummary,
     selected: Boolean,
     pinned: Boolean,
     onClick: () -> Unit,
     onTogglePin: () -> Unit,
-    onArchive: () -> Unit
+    onArchive: () -> Unit,
+    indent: Dp = 0.dp,
+    tree: Boolean = false,
+    last: Boolean = false
 ) {
     Row(
         Modifier
             .fillMaxWidth()
-            .padding(horizontal = 10.dp, vertical = 2.dp)
+            .padding(start = 10.dp + indent, end = 10.dp, top = 2.dp, bottom = 2.dp)
             .clip(RoundedCornerShape(14.dp))
             .background(if (selected) Color(0xFFF0F4FF) else Color.Transparent)
             .padding(horizontal = 10.dp, vertical = 9.dp),
@@ -332,6 +448,9 @@ private fun DrawerSessionRow(
                 .clickable(onClick = onClick),
             verticalAlignment = Alignment.CenterVertically
         ) {
+            if (tree) {
+                TreeGuide(last = last)
+            }
             SessionDot(session.sessionId)
             Spacer(Modifier.width(10.dp))
             Column(Modifier.weight(1f)) {
@@ -400,4 +519,43 @@ private fun SessionDot(seed: String) {
             modifier = Modifier.size(14.dp)
         )
     }
+}
+
+private data class WorkspaceGroup(
+    val workspace: WorkspaceInfo,
+    val sessions: List<SessionSummary>
+)
+
+private fun groupSessions(
+    workspaces: List<WorkspaceInfo>,
+    sessions: List<SessionSummary>
+): List<WorkspaceGroup> {
+    val buckets = LinkedHashMap<String, MutableList<SessionSummary>>()
+    sessions.forEach { session ->
+        val key = session.cwd
+            ?.trim()
+            ?.trimEnd('\\', '/')
+            ?.lowercase()
+            .orEmpty()
+        buckets.getOrPut(key) { mutableListOf() }.add(session)
+    }
+
+    return buckets.map { (_, items) ->
+        val sorted = items.sortedByDescending { it.updatedAt }
+        val cwd = sorted.firstOrNull()?.cwd
+        val registered = workspaces.firstOrNull { samePath(it.path, cwd) }
+        val workspace = registered ?: WorkspaceInfo(
+            workspaceId = "cwd:${cwd.orEmpty().lowercase()}",
+            path = cwd.orEmpty(),
+            title = cwdLabel(cwd) ?: "未关联工作区"
+        )
+        WorkspaceGroup(workspace, sorted)
+    }.sortedByDescending { it.sessions.firstOrNull()?.updatedAt ?: 0L }
+}
+
+private fun samePath(left: String?, right: String?): Boolean {
+    if (left.isNullOrBlank() || right.isNullOrBlank()) return false
+    val a = left.trim().trimEnd('\\', '/')
+    val b = right.trim().trimEnd('\\', '/')
+    return a.equals(b, ignoreCase = true)
 }
