@@ -1,6 +1,8 @@
 package dev.harness.pocket.data
 
 import android.content.Context
+import org.json.JSONArray
+import org.json.JSONObject
 
 class Prefs(context: Context) {
     private val sp = context.getSharedPreferences("harness_pocket", Context.MODE_PRIVATE)
@@ -28,6 +30,41 @@ class Prefs(context: Context) {
 
     fun clearConnection() {
         sp.edit().remove("base_url").remove("token").remove("cookie").apply()
+    }
+
+    fun loadWorkspaces(): List<WorkspaceInfo> {
+        val raw = sp.getString("workspaces", null) ?: return emptyList()
+        return runCatching {
+            val array = JSONArray(raw)
+            buildList {
+                for (i in 0 until array.length()) {
+                    val item = array.optJSONObject(i) ?: continue
+                    val id = item.optString("id")
+                    val path = item.optString("path")
+                    if (id.isBlank() || path.isBlank()) continue
+                    add(
+                        WorkspaceInfo(
+                            workspaceId = id,
+                            path = path,
+                            title = item.optString("title").ifBlank { path.substringAfterLast('\\') }
+                        )
+                    )
+                }
+            }
+        }.getOrDefault(emptyList())
+    }
+
+    fun saveWorkspaces(workspaces: List<WorkspaceInfo>) {
+        val array = JSONArray()
+        workspaces.forEach { workspace ->
+            array.put(
+                JSONObject()
+                    .put("id", workspace.workspaceId)
+                    .put("path", workspace.path)
+                    .put("title", workspace.title)
+            )
+        }
+        sp.edit().putString("workspaces", array.toString()).apply()
     }
 
     companion object {

@@ -118,6 +118,10 @@ private fun AppRoot(
         }
     }
 
+    LaunchedEffect(drawerState.isOpen) {
+        if (drawerState.isOpen) vm.refreshWorkspaces()
+    }
+
     LaunchedEffect(pendingSessionId, state.sessions) {
         val id = pendingSessionId ?: return@LaunchedEffect
         val session = state.sessions.firstOrNull { it.sessionId == id }

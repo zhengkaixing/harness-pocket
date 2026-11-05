@@ -5,6 +5,7 @@ import android.net.Uri
 import android.provider.OpenableColumns
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import dev.harness.pocket.data.ApiException
 import dev.harness.pocket.data.AppState
 import dev.harness.pocket.data.Attachment
 import dev.harness.pocket.data.AuthException
@@ -18,6 +19,7 @@ import dev.harness.pocket.data.PromptPart
 import dev.harness.pocket.data.SessionSummary
 import dev.harness.pocket.data.UserMessage
 import dev.harness.pocket.data.WorkspaceInfo
+import dev.harness.pocket.data.WorkspaceSnapshot
 import dev.harness.pocket.data.friendlyError
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -51,7 +53,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             _state.value = AppState(
                 restoring = false,
                 savedBase = saved.baseUrl,
-                connection = saved
+                connection = saved,
+                workspaces = prefs.loadWorkspaces()
             )
             loadSessions()
             loadCatalogs()
@@ -294,18 +297,35 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             _state.update { it.copy(workspacesLoading = true, workspacesError = null) }
             try {
-                val snapshot = api.listWorkspaces()
+                var snapshot: WorkspaceSnapshot? = null
+                var lastError: Exception? = null
+                for (attempt in 0 until 3) {
+                    try {
+                        val candidate = api.listWorkspaces()
+                        if (candidate.workspaces.isNotEmpty()) {
+                            snapshot = candidate
+                            break
+                        }
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                        lastError = e
+                    }
+                    if (attempt < 2) delay(350L * (attempt + 1))
+                }
+                val loaded = snapshot ?: throw (lastError ?: ApiException("工作区列表为空"))
+                prefs.saveWorkspaces(loaded.workspaces)
                 _state.update { st ->
                     val selected = st.selectedWorkspace
                         ?.let { old ->
-                            snapshot.workspaces.firstOrNull { it.workspaceId == old.workspaceId }
+                            loaded.workspaces.firstOrNull { it.workspaceId == old.workspaceId }
                         }
                     st.copy(
-                        workspaces = snapshot.workspaces,
+                        workspaces = loaded.workspaces,
                         workspacesLoading = false,
                         selectedWorkspace = selected,
-                        pinnedSessionIds = snapshot.pinnedSessionIds,
-                        archivedSessionIds = snapshot.archivedSessionIds
+                        pinnedSessionIds = loaded.pinnedSessionIds,
+                        archivedSessionIds = loaded.archivedSessionIds
                     )
                 }
             } catch (e: CancellationException) {
