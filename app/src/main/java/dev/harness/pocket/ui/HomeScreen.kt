@@ -18,11 +18,13 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
@@ -31,16 +33,25 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.ArrowUpward
 import androidx.compose.material.icons.rounded.ChatBubbleOutline
+import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.ErrorOutline
+import androidx.compose.material.icons.rounded.Folder
+import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Settings
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -55,6 +66,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.harness.pocket.data.AppState
 import dev.harness.pocket.data.SessionSummary
+import dev.harness.pocket.data.WorkspaceInfo
 
 @Composable
 fun HomeScreen(
@@ -62,8 +74,13 @@ fun HomeScreen(
     onNewChat: () -> Unit,
     onOpenSession: (SessionSummary) -> Unit,
     onRefresh: () -> Unit,
-    onSettings: () -> Unit
+    onSettings: () -> Unit,
+    onSelectWorkspace: (WorkspaceInfo?) -> Unit,
+    onRefreshWorkspaces: () -> Unit,
+    onCreateWorkspace: (String) -> Unit
 ) {
+    var workspaceOpen by remember { mutableStateOf(false) }
+
     HarnessBackground {
         Box(Modifier.fillMaxSize()) {
             Column(
@@ -78,6 +95,16 @@ fun HomeScreen(
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     item { Hero() }
+                    item {
+                        WorkspaceBar(
+                            selected = state.selectedWorkspace,
+                            loading = state.workspacesLoading,
+                            onClick = {
+                                workspaceOpen = true
+                                if (state.workspaces.isEmpty()) onRefreshWorkspaces()
+                            }
+                        )
+                    }
                     item {
                         Row(
                             Modifier
@@ -166,6 +193,247 @@ fun HomeScreen(
                 creating = state.creating,
                 onClick = onNewChat
             )
+        }
+    }
+
+    if (workspaceOpen) {
+        WorkspaceDialog(
+            state = state,
+            onDismiss = { workspaceOpen = false },
+            onSelect = {
+                onSelectWorkspace(it)
+                workspaceOpen = false
+            },
+            onRefresh = onRefreshWorkspaces,
+            onCreate = onCreateWorkspace
+        )
+    }
+}
+
+@Composable
+private fun WorkspaceBar(
+    selected: WorkspaceInfo?,
+    loading: Boolean,
+    onClick: () -> Unit
+) {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 6.dp),
+        onClick = onClick,
+        shape = RoundedCornerShape(16.dp),
+        color = Color.White.copy(alpha = 0.9f),
+        border = BorderStroke(1.dp, Line)
+    ) {
+        Row(
+            Modifier.padding(horizontal = 13.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                Modifier
+                    .size(32.dp)
+                    .background(Color(0xFFF3F6FC), RoundedCornerShape(10.dp)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    Icons.Rounded.Folder,
+                    contentDescription = null,
+                    tint = InkSoft,
+                    modifier = Modifier.size(17.dp)
+                )
+            }
+            Spacer(Modifier.width(10.dp))
+            Column(Modifier.weight(1f)) {
+                Text("工作区", color = Muted, fontSize = 9.5.sp)
+                Spacer(Modifier.height(1.dp))
+                Text(
+                    selected?.path?.takeIf { it.isNotBlank() } ?: "默认工作区（由 Harness 自动选择）",
+                    color = Ink,
+                    fontSize = 12.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+            if (loading) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(13.dp),
+                    color = Blue,
+                    strokeWidth = 1.6.dp
+                )
+            } else {
+                Icon(
+                    Icons.Rounded.KeyboardArrowDown,
+                    contentDescription = "选择工作区",
+                    tint = Muted,
+                    modifier = Modifier.size(19.dp)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun WorkspaceDialog(
+    state: AppState,
+    onDismiss: () -> Unit,
+    onSelect: (WorkspaceInfo?) -> Unit,
+    onRefresh: () -> Unit,
+    onCreate: (String) -> Unit
+) {
+    var path by remember { mutableStateOf("") }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = Color.White,
+        shape = RoundedCornerShape(24.dp),
+        title = {
+            Text("选择工作区", color = Ink, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+        },
+        text = {
+            Column(Modifier.heightIn(max = 430.dp)) {
+                Text(
+                    "新建会话会在所选目录里运行。不指定时，由 Harness 使用默认工作区。",
+                    color = Muted,
+                    fontSize = 11.5.sp,
+                    lineHeight = 17.sp
+                )
+                Spacer(Modifier.height(10.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("已有工作区", color = InkSoft, fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold)
+                    Spacer(Modifier.weight(1f))
+                    Box(
+                        Modifier
+                            .size(26.dp)
+                            .clickable(enabled = !state.workspacesLoading) { onRefresh() },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            Icons.Rounded.Refresh,
+                            contentDescription = "刷新工作区",
+                            tint = Muted,
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
+                }
+                LazyColumn(Modifier.heightIn(max = 210.dp)) {
+                    item(key = "default-workspace") {
+                        WorkspaceOption(
+                            title = "默认工作区",
+                            subtitle = "不指定目录，由 Harness 决定",
+                            selected = state.selectedWorkspace == null,
+                            onClick = { onSelect(null) }
+                        )
+                    }
+                    items(state.workspaces, key = { it.workspaceId }) { workspace ->
+                        WorkspaceOption(
+                            title = workspace.title.ifBlank {
+                                workspace.path.trimEnd('/').substringAfterLast('/')
+                            },
+                            subtitle = workspace.path,
+                            selected = state.selectedWorkspace?.workspaceId == workspace.workspaceId,
+                            onClick = { onSelect(workspace) }
+                        )
+                    }
+                }
+                if (state.workspacesLoading) {
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 6.dp),
+                        horizontalArrangement = Arrangement.Center
+                    ) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(14.dp),
+                            color = Blue,
+                            strokeWidth = 1.7.dp
+                        )
+                    }
+                }
+                if (!state.workspacesError.isNullOrBlank()) {
+                    Text(
+                        state.workspacesError,
+                        color = Color(0xFF9F2D3A),
+                        fontSize = 10.sp,
+                        lineHeight = 14.sp,
+                        modifier = Modifier.padding(top = 4.dp)
+                    )
+                }
+                Spacer(Modifier.height(12.dp))
+                Text("添加目录", color = InkSoft, fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold)
+                Spacer(Modifier.height(5.dp))
+                OutlinedTextField(
+                    value = path,
+                    onValueChange = { path = it },
+                    singleLine = true,
+                    placeholder = { Text("/path/to/workspace", color = Muted, fontSize = 12.sp) },
+                    colors = harnessFieldColors(),
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                    TextButton(
+                        onClick = {
+                            onCreate(path.trim())
+                            path = ""
+                        },
+                        enabled = path.isNotBlank() && !state.workspacesLoading
+                    ) {
+                        Text("添加工作区", color = if (path.isNotBlank()) Blue else Muted)
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("完成", color = Blue, fontWeight = FontWeight.SemiBold)
+            }
+        }
+    )
+}
+
+@Composable
+private fun WorkspaceOption(
+    title: String,
+    subtitle: String,
+    selected: Boolean,
+    onClick: () -> Unit
+) {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 2.dp),
+        onClick = onClick,
+        shape = RoundedCornerShape(11.dp),
+        color = if (selected) Color(0xFFF0F5FF) else Color.Transparent
+    ) {
+        Row(
+            Modifier.padding(horizontal = 9.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(Modifier.weight(1f)) {
+                Text(
+                    title,
+                    color = Ink,
+                    fontSize = 12.5.sp,
+                    fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    subtitle,
+                    color = Muted,
+                    fontSize = 9.5.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+            if (selected) {
+                Icon(
+                    Icons.Rounded.Check,
+                    contentDescription = null,
+                    tint = Blue,
+                    modifier = Modifier.size(16.dp)
+                )
+            }
         }
     }
 }

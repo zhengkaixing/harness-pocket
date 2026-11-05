@@ -1,19 +1,28 @@
 package dev.harness.pocket.data
 
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
+import okhttp3.Response
+import okhttp3.WebSocket
+import okhttp3.WebSocketListener
 import org.json.JSONArray
 import org.json.JSONObject
 import java.net.URLEncoder
+import java.util.Base64
 import java.util.TimeZone
 import java.util.UUID
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
+import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
 
 open class ApiException(message: String, val code: String? = null) : Exception(message)
 
@@ -89,6 +98,22 @@ class HarnessApi {
                 null
             }
             val cwd = if (row.isNull("cwd")) null else row.optString("cwd").takeIf { it.isNotBlank() }
+            val modelObject = values?.optJSONObject("modelSelection")?.let {
+                it.optJSONObject("next") ?: it.optJSONObject("lastUsed")
+            }
+            val model = modelObject?.let {
+                val provider = it.optString("provider")
+                val name = it.optString("model")
+                if (provider.isBlank() || name.isBlank()) null
+                else ModelChoice(
+                    provider = provider,
+                    model = name,
+                    effort = it.optString("reasoningEffort").takeIf { value -> value.isNotBlank() }
+                )
+            }
+            val permission = values?.optJSONObject("permissions")
+                ?.optString("currentValue")
+                ?.takeIf { it.isNotBlank() }
             result.add(
                 SessionSummary(
                     sessionId = row.optString("sessionId"),
@@ -97,7 +122,9 @@ class HarnessApi {
                     running = row.optBoolean("running", false),
                     cwd = cwd,
                     asOfSeq = projections?.optInt("asOfSeq", 0) ?: 0,
-                    blank = row.optBoolean("blank", false)
+                    blank = row.optBoolean("blank", false),
+                    model = model,
+                    permission = permission
                 )
             )
         }
@@ -117,15 +144,43 @@ class HarnessApi {
         )
     }
 
-    suspend fun createSession(): String {
-        val value = rpc("session/create", JSONObject().put("request", JSONObject()))
+    suspend fun createSession(workspaceId: String? = null, cwd: String? = null): String {
+        val request = JSONObject()
+        when {
+            !workspaceId.isNullOrBlank() -> request.put("workspaceId", workspaceId)
+            !cwd.isNullOrBlank() -> request.put("cwd", cwd)
+        }
+        val value = rpc("session/create", JSONObject().put("request", request))
         val id = value.optString("sessionId")
         if (id.isBlank()) throw ApiException("服务器没有返回会话 ID")
         return id
     }
 
-    suspend fun prompt(sessionId: String, text: String, requestId: String): String {
-        val content = JSONArray().put(JSONObject().put("type", "text").put("text", text))
+    suspend fun prompt(
+        sessionId: String,
+        text: String,
+        requestId: String,
+        parts: List<PromptPart> = emptyList()
+    ): String {
+        val content = JSONArray()
+        if (text.isNotBlank()) {
+            content.put(JSONObject().put("type", "text").put("text", text))
+        }
+        parts.forEach { part ->
+            val item = JSONObject().put("type", part.type)
+            when (part.type) {
+                "text" -> item.put("text", part.text.orEmpty())
+                "image" -> {
+                    item.put("mediaType", part.mediaType.orEmpty())
+                    item.put("data", part.data.orEmpty())
+                    if (!part.name.isNullOrBlank()) item.put("name", part.name)
+                }
+                "file" -> item.put("receiptId", part.receiptId.orEmpty())
+            }
+            content.put(item)
+        }
+        if (content.length() == 0) throw ApiException("消息内容不能为空")
+
         val request = JSONObject()
             .put("requestId", requestId)
             .put("sessionId", sessionId)
@@ -134,6 +189,213 @@ class HarnessApi {
             .put("clientTimeZone", TimeZone.getDefault().id)
         rpc("session/prompt", JSONObject().put("request", request))
         return requestId
+    }
+
+    suspend fun uploadFile(sessionId: String, bytes: ByteArray, name: String): UploadReceipt {
+        val encoded = Base64.getEncoder().encodeToString(bytes)
+        val request = JSONObject().put("data", encoded).put("name", name)
+        val value = rpc(
+            "fileUploads/upload",
+            JSONObject().put("agentId", sessionId).put("request", request)
+        )
+        val receiptId = value.optString("receiptId")
+        if (receiptId.isBlank()) throw ApiException("文件上传没有返回 receipt")
+        val file = value.optJSONObject("file")
+        return UploadReceipt(
+            receiptId = receiptId,
+            name = file?.optString("name")?.takeIf { it.isNotBlank() } ?: name,
+            bytes = file?.optLong("bytes", bytes.size.toLong()) ?: bytes.size.toLong()
+        )
+    }
+
+    suspend fun modelCatalog(): ModelCatalog {
+        val value = rpc("session/modelCatalog", JSONObject())
+        val groups = ArrayList<ModelGroup>()
+        val rawGroups = value.optJSONArray("groups") ?: JSONArray()
+        for (i in 0 until rawGroups.length()) {
+            val group = rawGroups.optJSONObject(i) ?: continue
+            val models = ArrayList<AiModel>()
+            val rawModels = group.optJSONArray("models") ?: JSONArray()
+            for (j in 0 until rawModels.length()) {
+                val model = rawModels.optJSONObject(j) ?: continue
+                val efforts = ArrayList<ModelEffort>()
+                val reasoning = model.optJSONObject("reasoning")
+                val rawEfforts = reasoning?.optJSONArray("efforts") ?: JSONArray()
+                for (k in 0 until rawEfforts.length()) {
+                    val effort = rawEfforts.optJSONObject(k) ?: continue
+                    efforts.add(
+                        ModelEffort(
+                            id = effort.optString("id"),
+                            name = effort.optString("name"),
+                            description = effort.optString("description").takeIf { it.isNotBlank() }
+                        )
+                    )
+                }
+                models.add(
+                    AiModel(
+                        id = model.optString("id"),
+                        name = model.optString("name").ifBlank { model.optString("id") },
+                        description = model.optString("description").takeIf { it.isNotBlank() },
+                        efforts = efforts,
+                        defaultEffort = reasoning?.optString("defaultEffort")?.takeIf { it.isNotBlank() }
+                    )
+                )
+            }
+            groups.add(
+                ModelGroup(
+                    id = group.optString("id"),
+                    name = group.optString("name").ifBlank { group.optString("id") },
+                    models = models
+                )
+            )
+        }
+        val failures = ArrayList<String>()
+        val rawFailures = value.optJSONArray("failures") ?: JSONArray()
+        for (i in 0 until rawFailures.length()) {
+            val failure = rawFailures.optJSONObject(i)
+            failures.add(
+                failure?.optString("message")?.takeIf { it.isNotBlank() }
+                    ?: rawFailures.optString(i)
+            )
+        }
+        val rawDefault = value.optJSONObject("default")
+        val defaultChoice = rawDefault?.let {
+            val provider = it.optString("provider")
+            val model = it.optString("model")
+            if (provider.isBlank() || model.isBlank()) null
+            else ModelChoice(provider, model, it.optString("reasoningEffort").takeIf { e -> e.isNotBlank() })
+        }
+        return ModelCatalog(defaultChoice, groups, failures)
+    }
+
+    suspend fun permissionCatalog(): PermissionCatalog {
+        val value = rpc("permissionPresets/catalog", JSONObject())
+        val options = ArrayList<PermissionOption>()
+        val raw = value.optJSONArray("options") ?: JSONArray()
+        for (i in 0 until raw.length()) {
+            val option = raw.optJSONObject(i) ?: continue
+            options.add(
+                PermissionOption(
+                    value = option.optString("value"),
+                    name = option.optString("name").ifBlank { option.optString("value") }
+                )
+            )
+        }
+        return PermissionCatalog(
+            options = options,
+            defaultPreset = value.optString("defaultPreset").takeIf { it.isNotBlank() }
+        )
+    }
+
+    suspend fun selectModel(
+        sessionId: String,
+        provider: String,
+        model: String,
+        effort: String?
+    ): ModelChoice {
+        val request = JSONObject()
+            .put("sessionId", sessionId)
+            .put("provider", provider)
+            .put("model", model)
+        if (!effort.isNullOrBlank()) request.put("reasoningEffort", effort)
+        val value = rpc("session/selectModel", JSONObject().put("request", request))
+        val selected = value.optJSONObject("selected")
+        return ModelChoice(
+            provider = selected?.optString("provider")?.takeIf { it.isNotBlank() } ?: provider,
+            model = selected?.optString("model")?.takeIf { it.isNotBlank() } ?: model,
+            effort = selected?.optString("reasoningEffort")?.takeIf { it.isNotBlank() } ?: effort
+        )
+    }
+
+    suspend fun executeCommand(sessionId: String, line: String): String {
+        val args = JSONObject()
+            .put("agentId", sessionId)
+            .put("line", line)
+            .put("submittedAttachments", JSONArray())
+        val value = rpc("commands/execute", args)
+        return value.optJSONObject("result")?.optString("text").orEmpty()
+    }
+
+    suspend fun createWorkspace(path: String): WorkspaceInfo {
+        val value = rpc(
+            "workspace/create",
+            JSONObject().put("request", JSONObject().put("path", path))
+        )
+        return parseWorkspace(value.optJSONObject("workspace"))
+    }
+
+    suspend fun listWorkspaces(): List<WorkspaceInfo> = withTimeout(20_000) {
+        suspendCancellableCoroutine { continuation ->
+            val conn = connection ?: run {
+                continuation.resumeWithException(AuthException("尚未连接"))
+                return@suspendCancellableCoroutine
+            }
+            val wsBase = conn.baseUrl
+                .replaceFirst("https://", "wss://")
+                .replaceFirst("http://", "ws://")
+            val request = Request.Builder()
+                .url("$wsBase/api/remote.mux")
+                .header("Cookie", conn.cookie)
+                .header("Origin", conn.baseUrl)
+                .build()
+            val resumed = AtomicBoolean(false)
+            val streamId = "workspace-${UUID.randomUUID()}"
+            val socket = client.newWebSocket(request, object : WebSocketListener() {
+                override fun onOpen(webSocket: WebSocket, response: Response) {
+                    val open = JSONObject()
+                        .put("type", "open")
+                        .put("streamId", streamId)
+                        .put("endpoint", "workspace/follow")
+                        .put("payload", JSONObject().put("args", JSONObject()))
+                    webSocket.send(open.toString())
+                }
+
+                override fun onMessage(webSocket: WebSocket, text: String) {
+                    val message = runCatching { JSONObject(text) }.getOrNull() ?: return
+                    if (message.optString("type") != "item") return
+                    val frame = message.optJSONObject("value") ?: return
+                    if (frame.optString("type") != "baseline") return
+                    val payload = frame.optJSONObject("value") ?: return
+                    val items = payload.optJSONArray("items") ?: JSONArray()
+                    val result = ArrayList<WorkspaceInfo>()
+                    for (i in 0 until items.length()) {
+                        runCatching { parseWorkspace(items.optJSONObject(i)) }
+                            .getOrNull()
+                            ?.let { result.add(it) }
+                    }
+                    if (resumed.compareAndSet(false, true)) {
+                        continuation.resume(result)
+                        webSocket.close(1000, "done")
+                    }
+                }
+
+                override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
+                    if (resumed.compareAndSet(false, true)) {
+                        continuation.resumeWithException(
+                            ApiException("工作区加载失败：${t.message ?: "连接中断"}")
+                        )
+                    }
+                }
+
+                override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
+                    if (resumed.compareAndSet(false, true)) {
+                        continuation.resumeWithException(ApiException("工作区连接已关闭"))
+                    }
+                }
+            })
+            continuation.invokeOnCancellation { socket.cancel() }
+        }
+    }
+
+    private fun parseWorkspace(objectValue: JSONObject?): WorkspaceInfo {
+        val obj = objectValue ?: throw ApiException("服务器没有返回工作区信息")
+        val id = obj.optString("workspaceId")
+        if (id.isBlank()) throw ApiException("服务器没有返回工作区 ID")
+        return WorkspaceInfo(
+            workspaceId = id,
+            path = obj.optString("path"),
+            title = obj.optString("title").ifBlank { obj.optString("path") }
+        )
     }
 
     suspend fun cancel(sessionId: String) {

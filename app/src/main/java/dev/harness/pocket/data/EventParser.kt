@@ -22,14 +22,18 @@ object EventParser {
                     val message = data.optJSONObject("message") ?: data
                     val source = message.optJSONObject("source")
                     if (source?.optString("kind") != "user") continue
-                    val text = blocksText(message.optJSONArray("content"))
-                    if (text.isBlank()) continue
+                    val content = message.optJSONArray("content")
+                    val text = plainText(content)
+                    val attachments = attachmentLabels(content)
+                    if (text.isBlank() && attachments.isEmpty()) continue
+                    if (text.trimStart().startsWith("/permission ")) continue
                     out.add(
                         UserMessage(
                             key = "user:$seq",
                             seq = seq,
                             text = text,
-                            rpcId = source.optString("rpcId").takeIf { it.isNotBlank() }
+                            rpcId = source.optString("rpcId").takeIf { it.isNotBlank() },
+                            attachments = attachments
                         )
                     )
                 }
@@ -133,6 +137,35 @@ object EventParser {
             }
         }
         return out
+    }
+
+    private fun plainText(blocks: JSONArray?): String {
+        if (blocks == null) return ""
+        val builder = StringBuilder()
+        for (i in 0 until blocks.length()) {
+            val block = blocks.optJSONObject(i) ?: continue
+            if (block.optString("type") == "text") builder.append(block.optString("text"))
+        }
+        return builder.toString().trim()
+    }
+
+    private fun attachmentLabels(blocks: JSONArray?): List<String> {
+        if (blocks == null) return emptyList()
+        val result = ArrayList<String>()
+        for (i in 0 until blocks.length()) {
+            val block = blocks.optJSONObject(i) ?: continue
+            when (block.optString("type")) {
+                "image" -> result.add(
+                    block.optString("name").takeIf { it.isNotBlank() } ?: "图片"
+                )
+                "file" -> result.add(
+                    block.optString("name").takeIf { it.isNotBlank() }
+                        ?: block.optString("fileName").takeIf { it.isNotBlank() }
+                        ?: "附件"
+                )
+            }
+        }
+        return result
     }
 
     private fun blocksText(blocks: JSONArray?): String {

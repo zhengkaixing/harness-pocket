@@ -188,8 +188,10 @@ session page through seq 999999 is past cursor 18
 `content` 是判别联合，已知类型：
 
 - `{"type":"text","text":"..."}`
-- `{"type":"image","data":"<base64>","mimeType":"image/png"}`（字段名以服务端 schema 为准）
+- `{"type":"image","mediaType":"image/png","data":"<base64>","name":"photo.png"}`
 - `{"type":"file","receiptId":"..."}`
+
+`image.mediaType` 只接受 `image/png`、`image/jpeg`、`image/webp`、`image/gif`。图片可以直接内联；任意文件需要先调用 `fileUploads/upload` 换取 `receiptId`。至少要有一个非空白 `text` 或附件。
 
 ### 其他
 
@@ -199,10 +201,143 @@ session page through seq 999999 is past cursor 18
 | `session/rename` | `{"request":{"sessionId":"...","title":"..."}}` | 重命名 |
 | `session/selectModel` | `{"request":{"sessionId":"...","provider":"...","model":"...","reasoningEffort":"low"}}` | 切换模型 |
 | `session/modelCatalog` | `{}` | 模型目录 |
+| `permissionPresets/catalog` | `{}` | 权限预设目录 |
+| `commands/execute` | `{"agentId":"...","line":"/permission read-only","submittedAttachments":[]}` | 执行斜杠命令（权限切换也走这里） |
+| `fileUploads/upload` | `{"agentId":"...","request":{"data":"<base64>","name":"..."}}` | 上传文件换 receiptId |
+| `workspace/create` | `{"request":{"path":"C:\\work"}}` | 创建工作区 |
 | `skills/list` | `{"_request":{}}` | 技能列表（未在 App 中使用） |
 | `fileReferences/list` | 视 schema | 文件引用（未使用） |
 
-## 4. WebSocket mux（尚未在 App 中实现）
+### session/modelCatalog
+
+无参数，返回：
+
+```json
+{
+  "default": { "provider": "opencode-go", "model": "deepseek-v4.1-flash", "reasoningEffort": "max" },
+  "routableProviders": ["opencode-go"],
+  "groups": [
+    {
+      "id": "opencode-go",
+      "name": "opencode-go",
+      "models": [
+        {
+          "id": "deepseek-v4.1-flash",
+          "name": "DeepSeek V4.1 Flash",
+          "reasoning": {
+            "efforts": [{ "id": "max", "name": "Max" }],
+            "defaultEffort": "max"
+          }
+        }
+      ]
+    }
+  ],
+  "failures": []
+}
+```
+
+`group.id` 是 provider，`models[].id` 是 model，`reasoning.efforts[].id` 是 `reasoningEffort`。部分模型的 `defaultEffort` 为空，客户端需要让用户显式选择；否则服务端可能落到 `off`。
+
+### permissionPresets/catalog
+
+无参数，返回：
+
+```json
+{
+  "options": [
+    { "value": "read-only", "name": "仅可查看" },
+    { "value": "workspace-write", "name": "工作区内修改" },
+    { "value": "danger-full-access", "name": "完全权限" }
+  ],
+  "defaultPreset": "workspace-write"
+}
+```
+
+权限切换没有独立 mutation RPC，必须执行命令：
+
+```json
+{
+  "args": {
+    "agentId": "session-...",
+    "line": "/permission read-only",
+    "submittedAttachments": []
+  }
+}
+```
+
+`agentId` 就是 sessionId。返回：
+
+```json
+{
+  "commandId": "cmd-...",
+  "result": { "kind": "success", "text": "preset read-only" }
+}
+```
+
+`/permission`（不带参数）可以查询当前值与可选项。
+
+### fileUploads/upload
+
+```json
+{
+  "args": {
+    "agentId": "session-...",
+    "request": { "data": "<base64>", "name": "notes.txt" }
+  }
+}
+```
+
+返回：
+
+```json
+{
+  "receiptId": "receipt-...",
+  "file": { "attachmentId": "...", "name": "notes.txt", "bytes": 1234 }
+}
+```
+
+把 `receiptId` 放进 `session/prompt` 的 `{"type":"file","receiptId":"..."}`。
+
+### 工作区
+
+工作区列表只能通过 WebSocket 的 `workspace/follow` 流获取。`open` 帧：
+
+```json
+{
+  "type": "open",
+  "streamId": "ws1",
+  "endpoint": "workspace/follow",
+  "payload": { "args": {} }
+}
+```
+
+首帧：
+
+```json
+{
+  "type": "baseline",
+  "value": {
+    "items": [
+      {
+        "workspaceId": "ws-...",
+        "path": "C:\\work\\project",
+        "title": "project",
+        "sessionIds": ["session-..."],
+        "createdAt": 1760000000000,
+        "updatedAt": 1760000000000
+      }
+    ],
+    "archivedSessionIds": [],
+    "pinnedSessionIds": []
+  }
+}
+```
+
+后续还有 upsert / remove / order / archived / pinned 帧。新建会话时传 `workspaceId` 或 `cwd`，二者互斥。
+
+## 4. WebSocket mux
+
+工作区列表已经通过这里实现；会话消息仍用 `session/page` 轮询。
 
 建立连接：
 

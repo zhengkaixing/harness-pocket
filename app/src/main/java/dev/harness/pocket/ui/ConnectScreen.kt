@@ -126,7 +126,7 @@ fun ConnectScreen(
                         onValueChange = { server = it },
                         modifier = Modifier.fillMaxWidth(),
                         label = { Text("服务器地址") },
-                        placeholder = { Text("http://8.130.48.9:18080") },
+                        placeholder = { Text("http://127.0.0.1:8080") },
                         leadingIcon = {
                             Icon(Icons.Rounded.Dns, contentDescription = null)
                         },

@@ -267,7 +267,11 @@ fun TypingDots(color: Color = Muted) {
 }
 
 @Composable
-fun UserBubble(text: String, pending: Boolean = false) {
+fun UserBubble(
+    text: String,
+    pending: Boolean = false,
+    attachments: List<String> = emptyList()
+) {
     val maxWidth = (LocalConfiguration.current.screenWidthDp * 0.78f).dp
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
         Column(
@@ -287,12 +291,24 @@ fun UserBubble(text: String, pending: Boolean = false) {
                 )
                 .padding(horizontal = 15.dp, vertical = 11.dp)
         ) {
-            Text(
-                text = text,
-                color = Color.White,
-                fontSize = 15.5.sp,
-                lineHeight = 24.sp
-            )
+            attachments.forEach { name ->
+                Text(
+                    text = "📎 $name",
+                    color = Color.White.copy(alpha = 0.92f),
+                    fontSize = 11.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(bottom = 3.dp)
+                )
+            }
+            if (text.isNotBlank()) {
+                Text(
+                    text = text,
+                    color = Color.White,
+                    fontSize = 15.5.sp,
+                    lineHeight = 24.sp
+                )
+            }
             if (pending) {
                 Spacer(Modifier.height(3.dp))
                 Text(

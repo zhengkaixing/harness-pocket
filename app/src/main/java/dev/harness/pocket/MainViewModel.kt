@@ -1,19 +1,26 @@
 package dev.harness.pocket
 
 import android.app.Application
+import android.net.Uri
+import android.provider.OpenableColumns
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import dev.harness.pocket.data.AppState
+import dev.harness.pocket.data.Attachment
 import dev.harness.pocket.data.AuthException
 import dev.harness.pocket.data.ChatState
 import dev.harness.pocket.data.ConnectionInput
 import dev.harness.pocket.data.EventParser
 import dev.harness.pocket.data.HarnessApi
+import dev.harness.pocket.data.ModelChoice
 import dev.harness.pocket.data.Prefs
+import dev.harness.pocket.data.PromptPart
 import dev.harness.pocket.data.SessionSummary
 import dev.harness.pocket.data.UserMessage
+import dev.harness.pocket.data.WorkspaceInfo
 import dev.harness.pocket.data.friendlyError
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -22,6 +29,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.util.Base64
 import java.util.UUID
 
 class MainViewModel(app: Application) : AndroidViewModel(app) {
@@ -33,6 +42,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     private var pollJob: Job? = null
     private var pageSeq = -1
+    private var lastModelChoice: ModelChoice? = null
 
     init {
         val saved = prefs.loadConnection()
@@ -44,6 +54,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 connection = saved
             )
             loadSessions()
+            loadCatalogs()
         } else {
             _state.value = AppState(
                 restoring = false,
@@ -71,6 +82,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     )
                 }
                 loadSessions()
+                loadCatalogs()
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -111,7 +123,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     loading = true,
                     title = session.title,
                     running = session.running,
-                    asOfSeq = session.asOfSeq
+                    asOfSeq = session.asOfSeq,
+                    model = session.model ?: lastModelChoice,
+                    permission = session.permission
                 )
             )
         }
@@ -120,18 +134,27 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     fun newSession() {
         if (_state.value.creating) return
+        val workspace = _state.value.selectedWorkspace
         _state.update { it.copy(creating = true, sessionsError = null) }
         viewModelScope.launch {
             try {
-                val id = api.createSession()
+                val id = api.createSession(workspaceId = workspace?.workspaceId)
+                val choice = lastModelChoice
+                if (choice != null) {
+                    runCatching {
+                        api.selectModel(id, choice.provider, choice.model, choice.effort)
+                    }
+                }
                 val summary = SessionSummary(
                     sessionId = id,
                     title = null,
                     updatedAt = System.currentTimeMillis(),
                     running = false,
-                    cwd = null,
+                    cwd = workspace?.path,
                     asOfSeq = 0,
-                    blank = true
+                    blank = true,
+                    model = choice,
+                    permission = _state.value.permissionCatalog?.defaultPreset
                 )
                 _state.update {
                     it.copy(
@@ -155,18 +178,38 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     fun send(text: String) {
         val clean = text.trim()
-        if (clean.isEmpty()) return
         val current = _state.value
         val session = current.activeSession ?: return
         if (current.chat.sending || current.chat.running) return
+        if (current.chat.attachments.any { it.uploading }) {
+            _state.update { it.copy(chat = it.chat.copy(error = "文件还在上传，请稍候再发送")) }
+            return
+        }
+        val attachments = current.chat.attachments.filter { it.ready }
+        if (clean.isEmpty() && attachments.isEmpty()) return
 
         val requestId = UUID.randomUUID().toString()
+        val parts = attachments.mapNotNull { attachment ->
+            if (attachment.isImage) {
+                val bytes = attachment.bytes ?: return@mapNotNull null
+                PromptPart(
+                    type = "image",
+                    mediaType = attachment.mime ?: "image/png",
+                    data = Base64.getEncoder().encodeToString(bytes),
+                    name = attachment.name
+                )
+            } else {
+                val receipt = attachment.receiptId ?: return@mapNotNull null
+                PromptPart(type = "file", receiptId = receipt, name = attachment.name)
+            }
+        }
         val pending = UserMessage(
             key = "pending:$requestId",
             seq = Int.MAX_VALUE,
             text = clean,
             rpcId = requestId,
-            pending = true
+            pending = true,
+            attachments = attachments.map { it.name }
         )
         _state.update {
             it.copy(chat = it.chat.copy(pending = pending, sending = true, error = null))
@@ -174,9 +217,15 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
         viewModelScope.launch {
             try {
-                api.prompt(session.sessionId, clean, requestId)
+                api.prompt(session.sessionId, clean, requestId, parts)
                 _state.update {
-                    it.copy(chat = it.chat.copy(sending = false, running = true))
+                    it.copy(
+                        chat = it.chat.copy(
+                            sending = false,
+                            running = true,
+                            attachments = emptyList()
+                        )
+                    )
                 }
                 startPolling(session.sessionId, reset = false)
             } catch (e: CancellationException) {
@@ -199,6 +248,275 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             }
         }
     }
+
+    fun loadCatalogs() {
+        if (_state.value.connection == null) return
+        viewModelScope.launch {
+            _state.update { it.copy(modelsLoading = true) }
+            try {
+                val catalog = api.modelCatalog()
+                lastModelChoice = lastModelChoice ?: catalog.defaultChoice
+                _state.update { it.copy(modelCatalog = catalog, modelsLoading = false) }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _state.update {
+                    it.copy(modelsLoading = false, sessionsError = friendlyError(e))
+                }
+            }
+        }
+        viewModelScope.launch {
+            _state.update { it.copy(permissionsLoading = true) }
+            try {
+                val catalog = api.permissionCatalog()
+                _state.update {
+                    it.copy(permissionCatalog = catalog, permissionsLoading = false)
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _state.update {
+                    it.copy(permissionsLoading = false, sessionsError = friendlyError(e))
+                }
+            }
+        }
+        loadWorkspaces()
+    }
+
+    fun loadWorkspaces() {
+        if (_state.value.connection == null) return
+        viewModelScope.launch {
+            _state.update { it.copy(workspacesLoading = true, workspacesError = null) }
+            try {
+                val workspaces = api.listWorkspaces()
+                _state.update { st ->
+                    val selected = st.selectedWorkspace
+                        ?.let { old -> workspaces.firstOrNull { it.workspaceId == old.workspaceId } }
+                    st.copy(
+                        workspaces = workspaces,
+                        workspacesLoading = false,
+                        selectedWorkspace = selected
+                    )
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _state.update {
+                    it.copy(workspacesLoading = false, workspacesError = friendlyError(e))
+                }
+            }
+        }
+    }
+
+    fun refreshWorkspaces() = loadWorkspaces()
+
+    fun selectWorkspace(workspace: WorkspaceInfo?) {
+        _state.update { it.copy(selectedWorkspace = workspace) }
+    }
+
+    fun createWorkspace(path: String) {
+        val clean = path.trim()
+        if (clean.isEmpty()) return
+        viewModelScope.launch {
+            _state.update { it.copy(workspacesLoading = true, workspacesError = null) }
+            try {
+                val workspace = api.createWorkspace(clean)
+                _state.update { st ->
+                    st.copy(
+                        workspaces = (listOf(workspace) + st.workspaces)
+                            .distinctBy { it.workspaceId },
+                        workspacesLoading = false,
+                        selectedWorkspace = workspace
+                    )
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _state.update {
+                    it.copy(workspacesLoading = false, workspacesError = friendlyError(e))
+                }
+            }
+        }
+    }
+
+    fun selectModel(choice: ModelChoice) {
+        val session = _state.value.activeSession ?: return
+        if (_state.value.chat.modelBusy) return
+        _state.update { it.copy(chat = it.chat.copy(modelBusy = true, error = null)) }
+        viewModelScope.launch {
+            try {
+                val selected = api.selectModel(
+                    session.sessionId,
+                    choice.provider,
+                    choice.model,
+                    choice.effort
+                )
+                lastModelChoice = selected
+                _state.update { st ->
+                    st.copy(
+                        activeSession = st.activeSession?.copy(model = selected),
+                        sessions = st.sessions.map {
+                            if (it.sessionId == session.sessionId) it.copy(model = selected) else it
+                        },
+                        chat = st.chat.copy(model = selected, modelBusy = false)
+                    )
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: AuthException) {
+                _state.update { it.copy(chat = it.chat.copy(modelBusy = false)) }
+                handleAuthFailure(e.message ?: "登录已过期，请重新连接")
+            } catch (e: Exception) {
+                _state.update {
+                    it.copy(chat = it.chat.copy(modelBusy = false, error = friendlyError(e)))
+                }
+            }
+        }
+    }
+
+    fun selectPermission(value: String) {
+        val session = _state.value.activeSession ?: return
+        val chat = _state.value.chat
+        if (chat.permissionBusy) return
+        val previous = chat.permission
+        _state.update {
+            it.copy(
+                chat = it.chat.copy(
+                    permissionBusy = true,
+                    error = null
+                )
+            )
+        }
+        viewModelScope.launch {
+            try {
+                api.executeCommand(session.sessionId, "/permission $value")
+                _state.update { st ->
+                    st.copy(
+                        activeSession = st.activeSession?.copy(permission = value),
+                        sessions = st.sessions.map {
+                            if (it.sessionId == session.sessionId) it.copy(permission = value) else it
+                        },
+                        chat = st.chat.copy(permission = value, permissionBusy = false)
+                    )
+                }
+                loadSessions()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: AuthException) {
+                _state.update {
+                    it.copy(chat = it.chat.copy(permissionBusy = false, permission = previous))
+                }
+                handleAuthFailure(e.message ?: "登录已过期，请重新连接")
+            } catch (e: Exception) {
+                _state.update {
+                    it.copy(
+                        chat = it.chat.copy(
+                            permissionBusy = false,
+                            permission = previous,
+                            error = friendlyError(e)
+                        )
+                    )
+                }
+            }
+        }
+    }
+
+    fun attachFile(uri: Uri) {
+        val session = _state.value.activeSession
+        if (session == null) {
+            _state.update { it.copy(chat = it.chat.copy(error = "请先打开一个会话")) }
+            return
+        }
+        viewModelScope.launch {
+            try {
+                val file = withContext(Dispatchers.IO) { readFile(uri) }
+                if (file.bytes.size > 20 * 1024 * 1024) {
+                    throw IllegalArgumentException("文件不能超过 20 MB")
+                }
+                val mime = file.mime?.lowercase()
+                val isImage = mime in setOf(
+                    "image/png", "image/jpeg", "image/webp", "image/gif"
+                )
+                val attachment = Attachment(
+                    id = UUID.randomUUID().toString(),
+                    name = file.name,
+                    size = file.bytes.size.toLong(),
+                    mime = file.mime,
+                    isImage = isImage,
+                    bytes = if (isImage) file.bytes else null,
+                    uploading = !isImage
+                )
+                _state.update {
+                    it.copy(chat = it.chat.copy(attachments = it.chat.attachments + attachment))
+                }
+                if (!isImage) {
+                    try {
+                        val receipt = api.uploadFile(session.sessionId, file.bytes, file.name)
+                        updateAttachment(attachment.id) {
+                            it.copy(receiptId = receipt.receiptId, uploading = false)
+                        }
+                    } catch (e: Exception) {
+                        updateAttachment(attachment.id) {
+                            it.copy(uploading = false, error = friendlyError(e))
+                        }
+                    }
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _state.update {
+                    it.copy(chat = it.chat.copy(error = friendlyError(e)))
+                }
+            }
+        }
+    }
+
+    fun removeAttachment(id: String) {
+        _state.update { st ->
+            st.copy(chat = st.chat.copy(attachments = st.chat.attachments.filterNot { it.id == id }))
+        }
+    }
+
+    private fun updateAttachment(id: String, transform: (Attachment) -> Attachment) {
+        _state.update { st ->
+            st.copy(
+                chat = st.chat.copy(
+                    attachments = st.chat.attachments.map {
+                        if (it.id == id) transform(it) else it
+                    }
+                )
+            )
+        }
+    }
+
+    private fun readFile(uri: Uri): ReadFile {
+        val resolver = getApplication<Application>().contentResolver
+        var name = uri.lastPathSegment?.substringAfterLast('/') ?: "附件"
+        resolver.query(
+            uri,
+            arrayOf(OpenableColumns.DISPLAY_NAME),
+            null,
+            null,
+            null
+        )?.use { cursor ->
+            if (cursor.moveToFirst()) {
+                val index = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                if (index >= 0) {
+                    val value = cursor.getString(index)
+                    if (!value.isNullOrBlank()) name = value
+                }
+            }
+        }
+        val bytes = resolver.openInputStream(uri)?.use { it.readBytes() }
+            ?: throw IllegalArgumentException("无法读取这个文件")
+        return ReadFile(name, resolver.getType(uri), bytes)
+    }
+
+    private data class ReadFile(
+        val name: String,
+        val mime: String?,
+        val bytes: ByteArray
+    )
 
     fun stop() {
         val session = _state.value.activeSession ?: return
@@ -309,7 +627,22 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                         }
                         if (first || row.asOfSeq != pageSeq) {
                             val page = api.page(sessionId, row.asOfSeq)
-                            val parsed = EventParser.parse(page.records)
+                            val pendingAttachments = _state.value.chat.pending
+                                ?.attachments
+                                .orEmpty()
+                            val pendingRpcId = _state.value.chat.pending?.rpcId
+                            val parsed = EventParser.parse(page.records).map { item ->
+                                if (item is UserMessage &&
+                                    item.rpcId != null &&
+                                    item.rpcId == pendingRpcId &&
+                                    item.attachments.isEmpty() &&
+                                    pendingAttachments.isNotEmpty()
+                                ) {
+                                    item.copy(attachments = pendingAttachments)
+                                } else {
+                                    item
+                                }
+                            }
                             val oldPending = _state.value.chat.pending
                             val stillPending = oldPending?.takeIf { pending ->
                                 parsed.none { item ->

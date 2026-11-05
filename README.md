@@ -7,8 +7,8 @@
 <p align="center">
   <img src="docs/screenshots/connect.png" width="24%" alt="连接页" />
   <img src="docs/screenshots/home.png" width="24%" alt="会话列表" />
-  <img src="docs/screenshots/new-chat.png" width="24%" alt="新对话" />
-  <img src="docs/screenshots/tool-call.png" width="24%" alt="工具调用" />
+  <img src="docs/screenshots/model-effort.png" width="24%" alt="模型与推理强度" />
+  <img src="docs/screenshots/permission.png" width="24%" alt="权限模式" />
 </p>
 
 ## 功能
@@ -16,6 +16,10 @@
 - **远程连接**：粘贴 `dsh web` 打印的完整访问链接（含 `?token=`），自动拆分服务器地址与令牌。
 - **会话列表**：查看最近会话、运行状态、工作目录和相对更新时间。
 - **继续对话**：打开历史会话，发送新消息，停止当前任务，重命名或刷新会话。
+- **工作区选择**：通过 `workspace/follow` 读取工作区列表，新会话可以绑定到指定目录。
+- **模型与推理强度**：从 `session/modelCatalog` 选择模型，再选择 Off / Minimal / Low / Medium / High / Xhigh / Max 等推理强度。
+- **权限模式**：仅可查看、工作区内修改、完全权限；通过 `/permission <preset>` 命令真正写入会话策略。
+- **附件**：图片直接内联为 base64，任意文件先走 `fileUploads/upload` 换 `receiptId`；单文件上限 20 MB。
 - **工具调用可视化**：把 `tool/call`、`tool/result` 渲染成可展开卡片，参数和结果都能看。
 - **Markdown**：标题、列表、引用、粗体、行内代码、代码块；代码块支持一键复制。
 - **自动续期**：API Cookie 过期后，用本地保存的启动令牌自动重新 `/connect`。
@@ -29,11 +33,19 @@
 
 工具调用卡片、Markdown 代码块、停止任务、重命名与错误提示也都做了回归。
 
+0.2.0 额外验证了：
+
+- 选择 `harnessApk` 工作区并新建会话，`cwd` 正确落到该目录。
+- 打开模型菜单选择 Claude Haiku 5.5，再选择推理强度 `Medium`；`session/list` 的 `modelSelection.next` 同步为 `claude-haiku-5-5 / medium`。
+- 权限菜单选择“仅可查看”，`commands/execute` 返回 `preset read-only`，服务端 `permissions.currentValue` 同步变为 `read-only`。
+- 附件选择 `test-upload.txt` 并发送；服务端读取附件内容后回复代码块。
+- 选择 `test-image.png`，用支持视觉的 Claude Haiku 5.5 发送；模型正确识别图中的 “HARNESS IMAGE OK”。
+
 ## 安装
 
 ### 直接安装 APK
 
-已构建的 APK 在 `dist/HarnessPocket-0.1.0-debug.apk`；重新构建的产物在：
+已构建的 APK 在 `dist/HarnessPocket-0.2.0-debug.apk`；重新构建的产物在：
 
 ```text
 app/build/outputs/apk/debug/app-debug.apk
@@ -136,7 +148,10 @@ app/src/main/java/dev/harness/pocket/
 - **轮询而非长连接**：当前通过 `session/list` + `session/page` 刷新，助手文本在消息落盘后出现，不是逐 token 打字机效果。后续会接入 `session/follow` WebSocket。
 - **历史窗口**：每次最多取 80 条消息、24 条消息 / 4 个 turn 的窗口；很长的会话可能只显示最近部分。
 - **审批交互**：以 `interactions=none` 连接，沙箱内自动放行的工具可以直接执行；需要人工审批的操作目前无法在 App 内点“同意”。请先在 Web 端处理审批，或把相应策略配置为自动允许。
-- **附件与模型选择**：暂不支持图片/文件附件，也不支持在 App 内切换模型；使用服务端默认模型。
+- **图片需要视觉模型**：图片会直接内联发送；如果当前模型不支持图片，服务端会返回 `Model "..." does not support image input`，换用 Claude Haiku 5.5 等视觉模型即可，或先移除图片。
+- **附件大小**：单个附件读取上限 20 MB；普通文件先上传换 `receiptId`，图片直接 base64 内联，超大图片会明显增加请求体。
+- **权限切换依赖命令**：App 通过 `commands/execute` 执行 `/permission <preset>`；如果服务端禁用了命令或协议变化，权限菜单会显示错误而不会静默修改。
+- **工作区列表依赖 WebSocket**：`workspace/follow` 断开时工作区选择器会显示加载失败，但已保存的会话仍可正常使用。
 - **明文 HTTP**：为了连接自建服务，Manifest 开启了 `usesCleartextTraffic`。公网使用请务必套 HTTPS 或 VPN。
 - **令牌存储**：保存在应用私有的 `SharedPreferences`，未做额外加密；不要在已 root 的设备上使用敏感环境。
 - **令牌轮换**：`dsh web` 重启或连接重载后，启动令牌可能变化。此时在 App 里重新粘贴新链接即可；自动续期只在旧令牌仍然有效时生效。
@@ -145,11 +160,27 @@ app/src/main/java/dev/harness/pocket/
 
 - [ ] `session/follow` WebSocket，逐字流式输出
 - [ ] 审批卡片（approval/asked / approval/decided）
-- [ ] 模型与推理强度选择
-- [ ] 图片、文件附件
+- [x] 模型与推理强度选择
+- [x] 图片、文件附件
+- [x] 权限模式与工作区选择
 - [ ] 会话搜索、归档、删除
 - [ ] 深色模式与平板布局
 - [ ] 可配置的 HTTPS / 证书校验
+
+## 更新日志
+
+### 0.2.0
+
+- 模型目录与推理强度选择（`session/modelCatalog`、`session/selectModel`）。
+- 权限模式切换（`permissionPresets/catalog` + `commands/execute` 的 `/permission`）。
+- 工作区列表与新建会话绑定（`workspace/follow`）。
+- 图片内联与任意文件上传（`fileUploads/upload`）。
+- 修复输入框点击不聚焦、键盘不弹出的问题。
+- 新增 `docs/PROTOCOL.md` 中的新端点说明。
+
+### 0.1.0
+
+- 首个可运行版本：连接、会话列表、历史消息、发送、停止、重命名、工具卡与 Markdown。
 
 ## 安全说明
 

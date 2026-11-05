@@ -1,9 +1,12 @@
 package dev.harness.pocket
 
+import android.content.Intent
 import android.graphics.Color
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -11,6 +14,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalContext
 import androidx.core.view.WindowCompat
 import dev.harness.pocket.data.AppState
 import dev.harness.pocket.ui.ChatScreen
@@ -45,6 +49,20 @@ class MainActivity : ComponentActivity() {
 @Composable
 private fun AppRoot(state: AppState, vm: MainViewModel) {
     var showSettings by rememberSaveable { mutableStateOf(false) }
+    val context = LocalContext.current
+    val filePicker = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri != null) {
+            runCatching {
+                context.contentResolver.takePersistableUriPermission(
+                    uri,
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION
+                )
+            }
+            vm.attachFile(uri)
+        }
+    }
 
     when {
         state.restoring -> SplashScreen()
@@ -62,7 +80,11 @@ private fun AppRoot(state: AppState, vm: MainViewModel) {
             onStop = vm::stop,
             onRename = vm::rename,
             onRefresh = vm::refreshChat,
-            onSettings = { showSettings = true }
+            onSettings = { showSettings = true },
+            onModel = vm::selectModel,
+            onPermission = vm::selectPermission,
+            onAttach = { filePicker.launch(arrayOf("*/*")) },
+            onRemoveAttachment = vm::removeAttachment
         )
 
         else -> HomeScreen(
@@ -70,7 +92,10 @@ private fun AppRoot(state: AppState, vm: MainViewModel) {
             onNewChat = vm::newSession,
             onOpenSession = vm::openSession,
             onRefresh = vm::refreshSessions,
-            onSettings = { showSettings = true }
+            onSettings = { showSettings = true },
+            onSelectWorkspace = vm::selectWorkspace,
+            onRefreshWorkspaces = vm::refreshWorkspaces,
+            onCreateWorkspace = vm::createWorkspace
         )
     }
 
