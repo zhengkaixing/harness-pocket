@@ -2,18 +2,20 @@
 
 把 DeepSeek Harness 装进口袋。一个原生 Android 客户端，通过 DSH 的 Remote API 连接你电脑上的 `dsh web`，在手机上继续和 coding agent 一起写代码。
 
-界面参考豆包：暖白底色、蓝紫渐变、圆角卡片、蓝色用户气泡、无气泡的助手回复，以及可展开的工具调用卡片。
+界面参考豆包：暖白底色、蓝紫渐变、圆角卡片、蓝色用户气泡、无气泡的助手回复，以及可展开的工具调用卡片。0.3.0 起采用豆包式侧滑抽屉、居中标题和底部相机/输入/加号布局，并支持任务完成通知。
 
 <p align="center">
   <img src="docs/screenshots/connect.png" width="24%" alt="连接页" />
   <img src="docs/screenshots/home.png" width="24%" alt="会话列表" />
-  <img src="docs/screenshots/model-effort.png" width="24%" alt="模型与推理强度" />
-  <img src="docs/screenshots/permission.png" width="24%" alt="权限模式" />
+  <img src="docs/screenshots/drawer.png" width="24%" alt="豆包式抽屉" />
+  <img src="docs/screenshots/chat-doubao.png" width="24%" alt="对话页" />
 </p>
 
 ## 功能
 
 - **远程连接**：粘贴 `dsh web` 打印的完整访问链接（含 `?token=`），自动拆分服务器地址与令牌。
+- **豆包式布局**：侧滑抽屉、居中标题、新建对话 / 工作区 / 会话主页 / 连接设置，置顶与最近会话。
+- **任务完成通知**：发送消息后启动前台轮询服务，检测到 `turn/end` 就在后台推送本地通知；点击通知回到对应会话。
 - **会话列表**：查看最近会话、运行状态、工作目录和相对更新时间。
 - **继续对话**：打开历史会话，发送新消息，停止当前任务，重命名或刷新会话。
 - **工作区选择**：通过 `workspace/follow` 读取工作区列表，新会话可以绑定到指定目录。
@@ -33,6 +35,18 @@
 
 工具调用卡片、Markdown 代码块、停止任务、重命名与错误提示也都做了回归。
 
+0.3.0 额外验证了：
+
+- 豆包式抽屉：置顶当前会话、最近 9 个会话、工作区 / 会话主页 / 连接设置入口。
+- 对话页顶栏：左侧抽屉与新建，中间会话标题与“AI 生成可能有误”，右侧刷新与更多。
+- 输入区：左侧相机、中间输入、右侧加号与发送/停止。
+- 后台任务通知：把 App 切到后台后，收到“Harness 任务失败”通知；点击通知能回到对应会话。成功分支同样由 `turn/end` 触发，本次回归时上游模型返回了 403。
+- 通知正文会从错误 JSON 中提取可读信息，不再直接展示整段错误对象。
+
+<p align="center">
+  <img src="docs/screenshots/notification.png" width="70%" alt="任务结束通知" />
+</p>
+
 0.2.0 额外验证了：
 
 - 选择 `harnessApk` 工作区并新建会话，`cwd` 正确落到该目录。
@@ -41,11 +55,17 @@
 - 附件选择 `test-upload.txt` 并发送；服务端读取附件内容后回复代码块。
 - 选择 `test-image.png`，用支持视觉的 Claude Haiku 5.5 发送；模型正确识别图中的 “HARNESS IMAGE OK”。
 
+<p align="center">
+  <img src="docs/screenshots/model-effort.png" width="32%" alt="模型与推理强度" />
+  <img src="docs/screenshots/permission.png" width="32%" alt="权限模式" />
+  <img src="docs/screenshots/workspace.png" width="32%" alt="工作区选择" />
+</p>
+
 ## 安装
 
 ### 直接安装 APK
 
-已构建的 APK 在 `dist/HarnessPocket-0.2.0-debug.apk`；重新构建的产物在：
+已构建的 APK 在 `dist/HarnessPocket-0.3.0-debug.apk`；重新构建的产物在：
 
 ```text
 app/build/outputs/apk/debug/app-debug.apk
@@ -122,8 +142,9 @@ sdk.dir=C\:\\path\\to\\android-sdk
 
 ```text
 app/src/main/java/dev/harness/pocket/
-├── MainActivity.kt          # 单 Activity + Compose 路由
+├── MainActivity.kt          # 单 Activity + Compose 路由 + 抽屉 + 通知深链
 ├── MainViewModel.kt         # 连接、会话、轮询、发送、停止
+├── TaskMonitorService.kt    # 前台任务轮询与完成通知
 ├── data/
 │   ├── HarnessApi.kt        # /connect、/api RPC、Cookie 续期
 │   ├── EventParser.kt       # DSH 事件 → UI 模型
@@ -136,6 +157,7 @@ app/src/main/java/dev/harness/pocket/
     ├── ConnectScreen.kt     # 登录页
     ├── HomeScreen.kt        # 会话列表
     ├── ChatScreen.kt        # 对话页
+    ├── Drawer.kt            # 豆包式侧滑抽屉
     ├── Components.kt        # 气泡、工具卡、输入框、设置
     ├── Markdown.kt          # 轻量 Markdown 解析与渲染
     └── Formatters.kt
@@ -152,6 +174,8 @@ app/src/main/java/dev/harness/pocket/
 - **附件大小**：单个附件读取上限 20 MB；普通文件先上传换 `receiptId`，图片直接 base64 内联，超大图片会明显增加请求体。
 - **权限切换依赖命令**：App 通过 `commands/execute` 执行 `/permission <preset>`；如果服务端禁用了命令或协议变化，权限菜单会显示错误而不会静默修改。
 - **工作区列表依赖 WebSocket**：`workspace/follow` 断开时工作区选择器会显示加载失败，但已保存的会话仍可正常使用。
+- **完成通知依赖前台服务**：任务运行期间 App 会启动 `dataSync` 前台服务，每 4 秒轮询一次 `session/list`；最长监控 20 分钟。系统省电策略、强制停止应用或关闭通知权限都会让提醒失效。没有接入 FCM，因此不是真正的远程推送。
+- **通知内容**：通知只包含任务标题/错误摘要，不会展示完整回复；点击通知会打开对应会话。
 - **明文 HTTP**：为了连接自建服务，Manifest 开启了 `usesCleartextTraffic`。公网使用请务必套 HTTPS 或 VPN。
 - **令牌存储**：保存在应用私有的 `SharedPreferences`，未做额外加密；不要在已 root 的设备上使用敏感环境。
 - **令牌轮换**：`dsh web` 重启或连接重载后，启动令牌可能变化。此时在 App 里重新粘贴新链接即可；自动续期只在旧令牌仍然有效时生效。
@@ -163,11 +187,22 @@ app/src/main/java/dev/harness/pocket/
 - [x] 模型与推理强度选择
 - [x] 图片、文件附件
 - [x] 权限模式与工作区选择
+- [x] 豆包式抽屉、顶栏与输入区
+- [x] 任务完成本地通知
+- [ ] 远程推送（FCM / ntfy 等），覆盖 App 进程被杀的场景
 - [ ] 会话搜索、归档、删除
 - [ ] 深色模式与平板布局
 - [ ] 可配置的 HTTPS / 证书校验
 
 ## 更新日志
+
+### 0.3.0
+
+- 豆包式侧滑抽屉：新对话、工作区、会话主页、连接设置、置顶/最近会话。
+- Home / Chat 顶栏改为居中标题；Chat 输入区改为相机 + 输入 + 加号。
+- 新增 `TaskMonitorService`：后台轮询任务状态，完成/失败/停止时发本地通知，点击回到会话。
+- 通知错误信息做可读化处理，不再直接展示整段 JSON。
+- 新增通知渠道、Android 13 通知权限与通知图标。
 
 ### 0.2.0
 

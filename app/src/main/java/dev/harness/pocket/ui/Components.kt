@@ -195,10 +195,11 @@ fun SoftIconButton(
     contentDescription: String? = null,
     tint: Color = InkSoft,
     background: Color = Color.White,
-    size: Dp = 40.dp
+    size: Dp = 40.dp,
+    modifier: Modifier = Modifier
 ) {
     Box(
-        Modifier
+        modifier
             .size(size)
             .clip(CircleShape)
             .background(background)

@@ -114,7 +114,7 @@ object EventParser {
                     val reason = data.optJSONObject("reason") ?: continue
                     if (reason.optString("kind") == "error") {
                         val error = reason.optJSONObject("error")
-                        val message = error?.optString("message").orEmpty()
+                        val message = friendly(error?.optString("message"))
                             .ifBlank { "本轮执行失败" }
                         out.add(
                             NoticeItem(
@@ -129,7 +129,7 @@ object EventParser {
 
                 "step/end" -> {
                     val error = data.optJSONObject("error") ?: continue
-                    val message = error.optString("message").orEmpty()
+                    val message = friendly(error.optString("message"))
                     if (message.isNotBlank()) {
                         out.add(NoticeItem("step-error:$seq", seq, message, true))
                     }
@@ -137,6 +137,18 @@ object EventParser {
             }
         }
         return out
+    }
+
+    private fun friendly(raw: String?): String {
+        if (raw.isNullOrBlank()) return ""
+        val nested = Regex("\"message\"\\s*:\\s*\"([^\"]+)\"")
+            .find(raw)
+            ?.groupValues
+            ?.get(1)
+        return (nested ?: raw)
+            .replace("\\n", " ")
+            .replace("\\\"", "\"")
+            .trim()
     }
 
     private fun plainText(blocks: JSONArray?): String {

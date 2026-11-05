@@ -38,6 +38,7 @@ import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.ErrorOutline
 import androidx.compose.material.icons.rounded.Folder
 import androidx.compose.material.icons.rounded.KeyboardArrowDown
+import androidx.compose.material.icons.rounded.Menu
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material3.AlertDialog
@@ -71,16 +72,13 @@ import dev.harness.pocket.data.WorkspaceInfo
 @Composable
 fun HomeScreen(
     state: AppState,
+    onMenu: () -> Unit,
     onNewChat: () -> Unit,
     onOpenSession: (SessionSummary) -> Unit,
     onRefresh: () -> Unit,
     onSettings: () -> Unit,
-    onSelectWorkspace: (WorkspaceInfo?) -> Unit,
-    onRefreshWorkspaces: () -> Unit,
-    onCreateWorkspace: (String) -> Unit
+    onOpenWorkspace: () -> Unit
 ) {
-    var workspaceOpen by remember { mutableStateOf(false) }
-
     HarnessBackground {
         Box(Modifier.fillMaxSize()) {
             Column(
@@ -88,7 +86,7 @@ fun HomeScreen(
                     .fillMaxSize()
                     .systemBarsPadding()
             ) {
-                HomeTopBar(onSettings)
+                HomeTopBar(onMenu = onMenu, onSettings = onSettings)
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
                     contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 4.dp, bottom = 120.dp),
@@ -99,10 +97,7 @@ fun HomeScreen(
                         WorkspaceBar(
                             selected = state.selectedWorkspace,
                             loading = state.workspacesLoading,
-                            onClick = {
-                                workspaceOpen = true
-                                if (state.workspaces.isEmpty()) onRefreshWorkspaces()
-                            }
+                            onClick = onOpenWorkspace
                         )
                     }
                     item {
@@ -196,18 +191,6 @@ fun HomeScreen(
         }
     }
 
-    if (workspaceOpen) {
-        WorkspaceDialog(
-            state = state,
-            onDismiss = { workspaceOpen = false },
-            onSelect = {
-                onSelectWorkspace(it)
-                workspaceOpen = false
-            },
-            onRefresh = onRefreshWorkspaces,
-            onCreate = onCreateWorkspace
-        )
-    }
 }
 
 @Composable
@@ -273,7 +256,7 @@ private fun WorkspaceBar(
 }
 
 @Composable
-private fun WorkspaceDialog(
+fun WorkspaceDialog(
     state: AppState,
     onDismiss: () -> Unit,
     onSelect: (WorkspaceInfo?) -> Unit,
@@ -439,39 +422,49 @@ private fun WorkspaceOption(
 }
 
 @Composable
-private fun HomeTopBar(onSettings: () -> Unit) {
-    Row(
+private fun HomeTopBar(onMenu: () -> Unit, onSettings: () -> Unit) {
+    Box(
         Modifier
             .fillMaxWidth()
-            .padding(horizontal = 20.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically
+            .padding(horizontal = 10.dp, vertical = 8.dp)
     ) {
-        SparkLogo(34.dp)
-        Spacer(Modifier.width(10.dp))
-        Column {
+        SoftIconButton(
+            icon = Icons.Rounded.Menu,
+            onClick = onMenu,
+            contentDescription = "打开菜单",
+            background = Color.Transparent,
+            size = 38.dp,
+            modifier = Modifier.align(Alignment.CenterStart)
+        )
+        Column(
+            Modifier.align(Alignment.Center),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
             Text(
                 "Harness",
                 color = Ink,
-                fontSize = 17.sp,
+                fontSize = 19.sp,
                 fontWeight = FontWeight.Bold,
-                letterSpacing = (-0.2).sp
+                letterSpacing = (-0.3).sp
             )
-            Text(
-                "口袋里的 coding agent",
-                color = Muted,
-                fontSize = 10.5.sp
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.size(5.dp).background(Green, CircleShape))
+                Spacer(Modifier.width(4.dp))
+                Text(
+                    "已连接 · 口袋里的 coding agent",
+                    color = Muted,
+                    fontSize = 9.5.sp
+                )
+            }
         }
-        Spacer(Modifier.weight(1f))
-        StatusPill("已连接", onClick = onSettings)
-        Spacer(Modifier.width(8.dp))
         SoftIconButton(
             icon = Icons.Rounded.Settings,
             onClick = onSettings,
             contentDescription = "连接设置",
             tint = InkSoft,
-            background = Color.White.copy(alpha = 0.8f),
-            size = 36.dp
+            background = Color.White.copy(alpha = 0.7f),
+            size = 38.dp,
+            modifier = Modifier.align(Alignment.CenterEnd)
         )
     }
 }

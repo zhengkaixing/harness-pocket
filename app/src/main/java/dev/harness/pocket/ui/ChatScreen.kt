@@ -41,7 +41,9 @@ import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.Folder
 import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material.icons.rounded.Lock
+import androidx.compose.material.icons.rounded.Menu
 import androidx.compose.material.icons.rounded.MoreHoriz
+import androidx.compose.material.icons.rounded.PhotoCamera
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.Stop
@@ -93,6 +95,8 @@ import dev.harness.pocket.data.UserMessage
 fun ChatScreen(
     state: AppState,
     onBack: () -> Unit,
+    onMenu: () -> Unit,
+    onNewChat: () -> Unit,
     onSend: (String) -> Unit,
     onStop: () -> Unit,
     onRename: (String) -> Unit,
@@ -101,6 +105,7 @@ fun ChatScreen(
     onModel: (ModelChoice) -> Unit,
     onPermission: (String) -> Unit,
     onAttach: () -> Unit,
+    onPickImage: () -> Unit,
     onRemoveAttachment: (String) -> Unit
 ) {
     val chat = state.chat
@@ -145,15 +150,12 @@ fun ChatScreen(
     ) {
         ChatTopBar(
             title = sessionTitle(chat.title ?: state.activeSession?.title, state.activeSession?.blank ?: false),
-            subtitle = when {
-                chat.running -> "正在生成回复…"
-                chat.allItems.isNotEmpty() -> "${chat.allItems.size} 条消息"
-                else -> "Harness 会话"
-            },
+            subtitle = if (chat.running) "正在生成回复…" else "AI 生成可能有误，注意核实",
             running = chat.running,
             menuOpen = menuOpen,
             onMenuOpenChange = { menuOpen = it },
-            onBack = onBack,
+            onMenu = onMenu,
+            onNewChat = onNewChat,
             onRefresh = onRefresh,
             onRename = {
                 menuOpen = false
@@ -246,6 +248,7 @@ fun ChatScreen(
             onSend = ::submit,
             onStop = onStop,
             onAttach = onAttach,
+            onPickImage = onPickImage,
             onRemoveAttachment = onRemoveAttachment,
             focusRequester = focusRequester
         )
@@ -637,7 +640,8 @@ private fun ChatTopBar(
     running: Boolean,
     menuOpen: Boolean,
     onMenuOpenChange: (Boolean) -> Unit,
-    onBack: () -> Unit,
+    onMenu: () -> Unit,
+    onNewChat: () -> Unit,
     onRefresh: () -> Unit,
     onRename: () -> Unit,
     onSettings: () -> Unit
@@ -645,22 +649,31 @@ private fun ChatTopBar(
     Row(
         Modifier
             .fillMaxWidth()
-            .padding(horizontal = 10.dp, vertical = 8.dp),
+            .padding(horizontal = 8.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         SoftIconButton(
-            icon = Icons.Rounded.ArrowBack,
-            onClick = onBack,
-            contentDescription = "返回",
+            icon = Icons.Rounded.Menu,
+            onClick = onMenu,
+            contentDescription = "打开菜单",
             background = Color.Transparent,
             size = 38.dp
         )
-        Spacer(Modifier.width(4.dp))
-        Column(Modifier.weight(1f)) {
+        SoftIconButton(
+            icon = Icons.Rounded.Edit,
+            onClick = onNewChat,
+            contentDescription = "新建对话",
+            background = Color.Transparent,
+            size = 36.dp
+        )
+        Column(
+            Modifier.weight(1f),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
             Text(
                 text = title,
                 color = Ink,
-                fontSize = 15.sp,
+                fontSize = 14.sp,
                 fontWeight = FontWeight.SemiBold,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
@@ -674,7 +687,7 @@ private fun ChatTopBar(
                 Text(
                     text = subtitle,
                     color = if (running) Color(0xFF208A52) else Muted,
-                    fontSize = 10.5.sp
+                    fontSize = 9.5.sp
                 )
             }
         }
@@ -683,7 +696,7 @@ private fun ChatTopBar(
             onClick = onRefresh,
             contentDescription = "刷新对话",
             background = Color.Transparent,
-            size = 36.dp
+            size = 34.dp
         )
         Box {
             SoftIconButton(
@@ -985,6 +998,7 @@ private fun ChatComposer(
     onSend: () -> Unit,
     onStop: () -> Unit,
     onAttach: () -> Unit,
+    onPickImage: () -> Unit,
     onRemoveAttachment: (String) -> Unit,
     focusRequester: FocusRequester
 ) {
@@ -1024,14 +1038,14 @@ private fun ChatComposer(
                     Modifier
                         .size(36.dp)
                         .clip(CircleShape)
-                        .clickable(enabled = !sending && !running) { onAttach() },
+                        .clickable(enabled = !sending && !running) { onPickImage() },
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
-                        Icons.Rounded.Add,
-                        contentDescription = "添加附件",
+                        Icons.Rounded.PhotoCamera,
+                        contentDescription = "拍照或选择图片",
                         tint = if (sending || running) Color(0xFFC4C9D3) else InkSoft,
-                        modifier = Modifier.size(21.dp)
+                        modifier = Modifier.size(20.dp)
                     )
                 }
                 Spacer(Modifier.width(2.dp))
@@ -1061,7 +1075,22 @@ private fun ChatComposer(
                         keyboardActions = KeyboardActions(onSend = { onSend() })
                     )
                 }
-                Spacer(Modifier.width(8.dp))
+                Spacer(Modifier.width(6.dp))
+                Box(
+                    Modifier
+                        .size(36.dp)
+                        .clip(CircleShape)
+                        .clickable(enabled = !sending && !running) { onAttach() },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        Icons.Rounded.Add,
+                        contentDescription = "添加文件",
+                        tint = if (sending || running) Color(0xFFC4C9D3) else InkSoft,
+                        modifier = Modifier.size(21.dp)
+                    )
+                }
+                Spacer(Modifier.width(6.dp))
                 Box(
                     Modifier
                         .size(40.dp)

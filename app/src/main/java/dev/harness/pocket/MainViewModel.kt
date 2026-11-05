@@ -218,6 +218,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             try {
                 api.prompt(session.sessionId, clean, requestId, parts)
+                TaskMonitorService.start(
+                    getApplication(),
+                    session.sessionId,
+                    session.title?.takeIf { it.isNotBlank() } ?: "Harness 任务",
+                    session.asOfSeq
+                )
                 _state.update {
                     it.copy(
                         chat = it.chat.copy(
