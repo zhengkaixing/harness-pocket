@@ -26,6 +26,7 @@ build/
 /screen_*.png
 /rot*.png
 /mumu_host.png
+/*.png
 /dist/
 
 # Logs
