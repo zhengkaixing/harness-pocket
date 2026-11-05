@@ -161,11 +161,32 @@ fun ChatScreen(
 
     val lastAssistant = chat.allItems.lastOrNull() as? AssistantMessage
     val showTyping = chat.sending || (chat.running && lastAssistant?.text.isNullOrBlank())
+    var didInitialScroll by remember(state.activeSession?.sessionId) { mutableStateOf(false) }
 
-    LaunchedEffect(chat.allItems.size, showTyping) {
-        val count = chat.allItems.size + if (showTyping) 1 else 0
-        if (count > 0) {
-            listState.animateScrollToItem(count)
+    LaunchedEffect(chat.loading) {
+        if (chat.loading) didInitialScroll = false
+    }
+
+    LaunchedEffect(
+        state.activeSession?.sessionId,
+        chat.allItems.size,
+        showTyping,
+        chat.error
+    ) {
+        if (chat.allItems.isEmpty()) return@LaunchedEffect
+        val target = chat.allItems.size +
+            (if (showTyping) 1 else 0) +
+            (if (chat.error != null) 1 else 0)
+        if (!didInitialScroll) {
+            // Opening a conversation should land at the newest message, without
+            // animating through the whole history.
+            listState.scrollToItem(target)
+            didInitialScroll = true
+        } else {
+            val lastVisible = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: -1
+            if (lastVisible >= target - 2) {
+                listState.animateScrollToItem(target)
+            }
         }
     }
 

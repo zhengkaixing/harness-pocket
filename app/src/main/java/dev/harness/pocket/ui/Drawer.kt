@@ -88,7 +88,7 @@ fun HarnessDrawer(
     val pinnedIds = pinnedSessions.map { it.sessionId }.toSet()
     val treeSessions = (if (query.isBlank()) visible.filterNot { it.sessionId in pinnedIds } else visible)
         .filter { query.isBlank() || sessionTitle(it.title, it.blank).contains(query, ignoreCase = true) }
-    val groups = groupSessions(state.workspaces, treeSessions)
+    val groups = groupSessions(state.workspaces, treeSessions, visible)
 
     ModalDrawerSheet(
         modifier = Modifier
@@ -223,7 +223,7 @@ fun HarnessDrawer(
             } else {
                 groups.forEach { group ->
                     val key = group.workspace.workspaceId
-                    val open = query.isNotBlank() || expanded[key] != false
+                    val open = query.isNotBlank() || expanded[key] == true
                     DrawerWorkspaceHeader(
                         group = group,
                         open = open,
@@ -385,6 +385,31 @@ private fun DrawerWorkspaceHeader(
                 )
             }
         }
+        if (group.runningCount > 0) {
+            Surface(
+                shape = RoundedCornerShape(100.dp),
+                color = Color(0xFFE8F8EF)
+            ) {
+                Row(
+                    Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        Modifier
+                            .size(5.dp)
+                            .background(Green, CircleShape)
+                    )
+                    Spacer(Modifier.width(3.dp))
+                    Text(
+                        "${group.runningCount} 运行中",
+                        color = Green,
+                        fontSize = 9.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+            }
+            Spacer(Modifier.width(4.dp))
+        }
         Text(
             "${group.sessions.size}",
             color = Muted,
@@ -523,24 +548,22 @@ private fun SessionDot(seed: String) {
 
 private data class WorkspaceGroup(
     val workspace: WorkspaceInfo,
-    val sessions: List<SessionSummary>
+    val sessions: List<SessionSummary>,
+    val runningCount: Int = 0
 )
 
 private fun groupSessions(
     workspaces: List<WorkspaceInfo>,
-    sessions: List<SessionSummary>
+    sessions: List<SessionSummary>,
+    allSessions: List<SessionSummary>
 ): List<WorkspaceGroup> {
     val buckets = LinkedHashMap<String, MutableList<SessionSummary>>()
     sessions.forEach { session ->
-        val key = session.cwd
-            ?.trim()
-            ?.trimEnd('\\', '/')
-            ?.lowercase()
-            .orEmpty()
+        val key = cwdKey(session.cwd)
         buckets.getOrPut(key) { mutableListOf() }.add(session)
     }
 
-    return buckets.map { (_, items) ->
+    return buckets.map { (key, items) ->
         val sorted = items.sortedByDescending { it.updatedAt }
         val cwd = sorted.firstOrNull()?.cwd
         val registered = workspaces.firstOrNull { samePath(it.path, cwd) }
@@ -549,9 +572,13 @@ private fun groupSessions(
             path = cwd.orEmpty(),
             title = cwdLabel(cwd) ?: "未关联工作区"
         )
-        WorkspaceGroup(workspace, sorted)
+        val running = allSessions.count { it.running && cwdKey(it.cwd) == key }
+        WorkspaceGroup(workspace, sorted, running)
     }.sortedByDescending { it.sessions.firstOrNull()?.updatedAt ?: 0L }
 }
+
+private fun cwdKey(path: String?): String =
+    path?.trim()?.trimEnd('\\', '/')?.lowercase().orEmpty()
 
 private fun samePath(left: String?, right: String?): Boolean {
     if (left.isNullOrBlank() || right.isNullOrBlank()) return false

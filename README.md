@@ -35,7 +35,7 @@ Harness Pocket 是一个**非官方的原生 Android 客户端**，用来远程�
 <table>
   <tr>
     <td width="50%"><img src="docs/screenshots/home.png" alt="主页" /><br/><sub><b>主页</b>：连接状态、工作区与最近会话</sub></td>
-    <td width="50%"><img src="docs/screenshots/drawer.png" alt="工作区树" /><br/><sub><b>工作区树</b>：按工作区分组，可折叠、置顶、归档</sub></td>
+    <td width="50%"><img src="docs/screenshots/drawer.png" alt="工作区树" /><br/><sub><b>工作区树</b>：默认折叠，标题显示运行中会话数</sub></td>
   </tr>
   <tr>
     <td width="50%"><img src="docs/screenshots/chat-doubao.png" alt="对话页" /><br/><sub><b>对话页</b>：豆包式布局，支持 Markdown 与停止任务</sub></td>
@@ -54,9 +54,9 @@ Harness Pocket 是一个**非官方的原生 Android 客户端**，用来远程�
 ## 功能
 
 - **远程连接**：粘贴 `dsh web` 打印的完整访问链接（含 `?token=`），自动拆分服务器地址与令牌。
-- **豆包式布局**：侧滑抽屉、居中标题、新建对话 / 连接设置；抽屉内按工作区分组展示会话树，可折叠、置顶和归档。
+- **豆包式布局**：侧滑抽屉、居中标题、新建对话 / 连接设置；抽屉内按工作区分组展示会话树，默认折叠，工作区标题显示运行中会话数，支持置顶和归档。
 - **任务完成通知**：发送消息后启动前台轮询服务，检测到 `turn/end` 就在后台推送本地通知；点击通知回到对应会话。
-- **会话列表**：按工作区分组查看会话、运行状态、工作目录和相对更新时间；支持置顶排序与归档/恢复。
+- **会话列表**：打开会话自动落到最新消息；按工作区分组查看会话、运行状态、工作目录和相对更新时间；支持置顶排序与归档/恢复。
 - **继续对话**：打开历史会话，发送新消息，停止当前任务，重命名或刷新会话。
 - **工作区选择**：通过 `workspace/follow` 读取工作区列表，新会话可以绑定到指定目录。
 - **模型与推理强度**：从 `session/modelCatalog` 选择模型，再选择 Off / Minimal / Low / Medium / High / Xhigh / Max 等推理强度。
@@ -99,6 +99,12 @@ Harness Pocket 是一个**非官方的原生 Android 客户端**，用来远程�
 ![远程会话实测](docs/screenshots/remote-chat.png)
 
 工具调用卡片、Markdown 代码块、停止任务、重命名与错误提示也都做了回归。
+
+0.5.1 额外验证了：
+
+- 打开长会话直接落在最新消息，不再从顶部慢慢滚到底部。
+- 工作区树默认全部折叠；展开/收起状态仍可手动切换。
+- 工作区标题右侧显示运行中徽标：`default-workspace`、`harnessApk` 各 1 个，`mirror` 2 个；数字随轮询自动更新。
 
 0.5.0 额外验证了：
 
@@ -145,7 +151,7 @@ Harness Pocket 是一个**非官方的原生 Android 客户端**，用来远程�
 
 ### 直接安装 APK
 
-本地预构建的 APK 在 `dist/HarnessPocket-0.5.0-debug.apk`（二进制不提交到 Git 仓库）；从源码重新构建的产物在：
+本地预构建的 APK 在 `dist/HarnessPocket-0.5.1-debug.apk`（二进制不提交到 Git 仓库）；从源码重新构建的产物在：
 
 ```text
 app/build/outputs/apk/debug/app-debug.apk
@@ -276,6 +282,13 @@ app/src/main/java/dev/harness/pocket/
 - [ ] 可配置的 HTTPS / 证书校验
 
 ## 更新日志
+
+### 0.5.1
+
+- 打开会话时直接定位到最新消息；后续新消息仅在用户接近底部时自动跟随。
+- 工作区树默认折叠，避免会话多时抽屉过长。
+- 工作区标题新增运行中徽标，显示该目录下正在运行的任务数量。
+- 更新抽屉效果图为折叠态。
 
 ### 0.5.0
 
