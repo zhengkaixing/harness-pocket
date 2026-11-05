@@ -146,13 +146,15 @@ private fun AppRoot(
                     state = state,
                     onClose = closeDrawer,
                     onNewChat = vm::newSession,
-                    onHome = { vm.closeSession() },
                     onWorkspace = {
                         workspaceOpen = true
                         if (state.workspaces.isEmpty()) vm.refreshWorkspaces()
                     },
                     onOpenSession = vm::openSession,
-                    onSettings = { showSettings = true }
+                    onSettings = { showSettings = true },
+                    onPinSession = vm::togglePin,
+                    onUnpinSession = vm::togglePin,
+                    onArchiveSession = vm::archiveSession
                 )
             }
         ) {
@@ -184,7 +186,11 @@ private fun AppRoot(
                     onOpenWorkspace = {
                         workspaceOpen = true
                         if (state.workspaces.isEmpty()) vm.refreshWorkspaces()
-                    }
+                    },
+                    onPinSession = vm::togglePin,
+                    onUnpinSession = vm::togglePin,
+                    onArchiveSession = vm::archiveSession,
+                    onUnarchiveSession = vm::unarchiveSession
                 )
             }
         }

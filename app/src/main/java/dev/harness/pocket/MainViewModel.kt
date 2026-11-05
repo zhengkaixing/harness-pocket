@@ -294,14 +294,18 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             _state.update { it.copy(workspacesLoading = true, workspacesError = null) }
             try {
-                val workspaces = api.listWorkspaces()
+                val snapshot = api.listWorkspaces()
                 _state.update { st ->
                     val selected = st.selectedWorkspace
-                        ?.let { old -> workspaces.firstOrNull { it.workspaceId == old.workspaceId } }
+                        ?.let { old ->
+                            snapshot.workspaces.firstOrNull { it.workspaceId == old.workspaceId }
+                        }
                     st.copy(
-                        workspaces = workspaces,
+                        workspaces = snapshot.workspaces,
                         workspacesLoading = false,
-                        selectedWorkspace = selected
+                        selectedWorkspace = selected,
+                        pinnedSessionIds = snapshot.pinnedSessionIds,
+                        archivedSessionIds = snapshot.archivedSessionIds
                     )
                 }
             } catch (e: CancellationException) {
@@ -315,6 +319,62 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun refreshWorkspaces() = loadWorkspaces()
+
+    fun togglePin(session: SessionSummary) {
+        val id = session.sessionId
+        val wasPinned = _state.value.isPinned(id)
+        viewModelScope.launch {
+            try {
+                val ids = if (wasPinned) api.unpinSession(id) else api.pinSession(id)
+                _state.update { it.copy(pinnedSessionIds = ids) }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: AuthException) {
+                handleAuthFailure(e.message ?: "登录已过期，请重新连接")
+            } catch (e: Exception) {
+                _state.update { it.copy(sessionsError = friendlyError(e)) }
+            }
+        }
+    }
+
+    fun archiveSession(session: SessionSummary) {
+        val id = session.sessionId
+        viewModelScope.launch {
+            try {
+                val ids = api.archiveSession(id, stopActivity = session.running)
+                val wasActive = _state.value.activeSession?.sessionId == id
+                _state.update {
+                    it.copy(
+                        archivedSessionIds = ids,
+                        pinnedSessionIds = it.pinnedSessionIds.filterNot { pin -> pin == id }
+                    )
+                }
+                if (wasActive) closeSession() else loadSessions()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: AuthException) {
+                handleAuthFailure(e.message ?: "登录已过期，请重新连接")
+            } catch (e: Exception) {
+                _state.update { it.copy(sessionsError = friendlyError(e)) }
+            }
+        }
+    }
+
+    fun unarchiveSession(session: SessionSummary) {
+        viewModelScope.launch {
+            try {
+                val ids = api.unarchiveSession(session.sessionId)
+                _state.update { it.copy(archivedSessionIds = ids) }
+                loadSessions()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: AuthException) {
+                handleAuthFailure(e.message ?: "登录已过期，请重新连接")
+            } catch (e: Exception) {
+                _state.update { it.copy(sessionsError = friendlyError(e)) }
+            }
+        }
+    }
 
     fun selectWorkspace(workspace: WorkspaceInfo?) {
         _state.update { it.copy(selectedWorkspace = workspace) }

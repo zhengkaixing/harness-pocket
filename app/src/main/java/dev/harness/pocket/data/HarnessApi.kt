@@ -324,7 +324,32 @@ class HarnessApi {
         return parseWorkspace(value.optJSONObject("workspace"))
     }
 
-    suspend fun listWorkspaces(): List<WorkspaceInfo> = withTimeout(20_000) {
+    suspend fun pinSession(sessionId: String): List<String> {
+        val request = JSONObject().put("sessionId", sessionId)
+        val value = rpc("workspace/pinSession", JSONObject().put("request", request))
+        return jsonStrings(value.optJSONArray("pinnedSessionIds"))
+    }
+
+    suspend fun unpinSession(sessionId: String): List<String> {
+        val request = JSONObject().put("sessionId", sessionId)
+        val value = rpc("workspace/unpinSession", JSONObject().put("request", request))
+        return jsonStrings(value.optJSONArray("pinnedSessionIds"))
+    }
+
+    suspend fun archiveSession(sessionId: String, stopActivity: Boolean = true): List<String> {
+        val request = JSONObject().put("sessionId", sessionId)
+        if (stopActivity) request.put("stopActivity", true)
+        val value = rpc("workspace/archiveSession", JSONObject().put("request", request))
+        return jsonStrings(value.optJSONArray("archivedSessionIds"))
+    }
+
+    suspend fun unarchiveSession(sessionId: String): List<String> {
+        val request = JSONObject().put("sessionId", sessionId)
+        val value = rpc("workspace/unarchiveSession", JSONObject().put("request", request))
+        return jsonStrings(value.optJSONArray("archivedSessionIds"))
+    }
+
+    suspend fun listWorkspaces(): WorkspaceSnapshot = withTimeout(20_000) {
         suspendCancellableCoroutine { continuation ->
             val conn = connection ?: run {
                 continuation.resumeWithException(AuthException("尚未连接"))
@@ -364,7 +389,13 @@ class HarnessApi {
                             ?.let { result.add(it) }
                     }
                     if (resumed.compareAndSet(false, true)) {
-                        continuation.resume(result)
+                        continuation.resume(
+                            WorkspaceSnapshot(
+                                workspaces = result,
+                                pinnedSessionIds = jsonStrings(payload.optJSONArray("pinnedSessionIds")),
+                                archivedSessionIds = jsonStrings(payload.optJSONArray("archivedSessionIds"))
+                            )
+                        )
                         webSocket.close(1000, "done")
                     }
                 }
@@ -385,6 +416,16 @@ class HarnessApi {
             })
             continuation.invokeOnCancellation { socket.cancel() }
         }
+    }
+
+    private fun jsonStrings(array: JSONArray?): List<String> {
+        if (array == null) return emptyList()
+        val values = ArrayList<String>(array.length())
+        for (i in 0 until array.length()) {
+            val value = array.optString(i)
+            if (value.isNotBlank()) values.add(value)
+        }
+        return values
     }
 
     private fun parseWorkspace(objectValue: JSONObject?): WorkspaceInfo {

@@ -24,7 +24,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.ChatBubbleOutline
 import androidx.compose.material.icons.rounded.Folder
-import androidx.compose.material.icons.rounded.Home
+import androidx.compose.material.icons.rounded.PushPin
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material3.Divider
@@ -61,17 +61,24 @@ fun HarnessDrawer(
     state: AppState,
     onClose: () -> Unit,
     onNewChat: () -> Unit,
-    onHome: () -> Unit,
     onWorkspace: () -> Unit,
     onOpenSession: (SessionSummary) -> Unit,
-    onSettings: () -> Unit
+    onSettings: () -> Unit,
+    onPinSession: (SessionSummary) -> Unit,
+    onUnpinSession: (SessionSummary) -> Unit,
+    onArchiveSession: (SessionSummary) -> Unit
 ) {
     var searchOpen by remember { mutableStateOf(false) }
     var query by rememberSaveable { mutableStateOf("") }
     val active = state.activeSession
-    val pinned = active ?: state.sessions.firstOrNull { it.running }
-    val recents = state.sessions
-        .filter { it.sessionId != pinned?.sessionId }
+    val archivedIds = state.archivedSessionIds.toSet()
+    val visible = state.sessions.filterNot { it.sessionId in archivedIds }
+    val pinnedSessions = state.pinnedSessionIds.mapNotNull { id ->
+        visible.firstOrNull { it.sessionId == id }
+    }
+    val pinnedIds = pinnedSessions.map { it.sessionId }.toSet()
+    val recents = visible
+        .filterNot { it.sessionId in pinnedIds }
         .filter { query.isBlank() || sessionTitle(it.title, it.blank).contains(query, ignoreCase = true) }
         .take(9)
 
@@ -151,10 +158,6 @@ fun HarnessDrawer(
                 onClose()
                 onWorkspace()
             }
-            DrawerAction(Icons.Rounded.Home, "会话主页") {
-                onClose()
-                onHome()
-            }
             DrawerAction(Icons.Rounded.Settings, "连接设置") {
                 onClose()
                 onSettings()
@@ -165,16 +168,21 @@ fun HarnessDrawer(
                 color = DrawerDivider
             )
 
-            if (pinned != null) {
+            if (pinnedSessions.isNotEmpty()) {
                 SectionLabel("置顶")
-                DrawerSessionRow(
-                    session = pinned,
-                    selected = pinned.sessionId == active?.sessionId,
-                    onClick = {
-                        onClose()
-                        onOpenSession(pinned)
-                    }
-                )
+                pinnedSessions.take(4).forEach { session ->
+                    DrawerSessionRow(
+                        session = session,
+                        selected = session.sessionId == active?.sessionId,
+                        pinned = true,
+                        onClick = {
+                            onClose()
+                            onOpenSession(session)
+                        },
+                        onTogglePin = { onUnpinSession(session) },
+                        onArchive = { onArchiveSession(session) }
+                    )
+                }
             }
 
             Row(
@@ -202,28 +210,15 @@ fun HarnessDrawer(
                     DrawerSessionRow(
                         session = session,
                         selected = session.sessionId == active?.sessionId,
+                        pinned = false,
                         onClick = {
                             onClose()
                             onOpenSession(session)
-                        }
+                        },
+                        onTogglePin = { onPinSession(session) },
+                        onArchive = { onArchiveSession(session) }
                     )
                 }
-            }
-
-            if (state.sessions.size > recents.size + if (pinned != null) 1 else 0) {
-                Text(
-                    "查看全部 ${state.sessions.size} 个会话",
-                    color = Blue,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Medium,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable {
-                            onClose()
-                            onHome()
-                        }
-                        .padding(horizontal = 20.dp, vertical = 12.dp)
-                )
             }
 
             Spacer(Modifier.height(20.dp))
@@ -261,7 +256,7 @@ fun HarnessDrawer(
                         fontWeight = FontWeight.SemiBold
                     )
                     Text(
-                        if (state.connection != null) "已连接 · ${state.sessions.size} 个会话" else "未连接",
+                        if (state.connection != null) "已连接 · ${visible.size} 个会话" else "未连接",
                         color = Muted,
                         fontSize = 10.sp,
                         maxLines = 1,
@@ -317,7 +312,10 @@ private fun SectionLabel(text: String, modifier: Modifier = Modifier.padding(sta
 private fun DrawerSessionRow(
     session: SessionSummary,
     selected: Boolean,
-    onClick: () -> Unit
+    pinned: Boolean,
+    onClick: () -> Unit,
+    onTogglePin: () -> Unit,
+    onArchive: () -> Unit
 ) {
     Row(
         Modifier
@@ -325,36 +323,58 @@ private fun DrawerSessionRow(
             .padding(horizontal = 10.dp, vertical = 2.dp)
             .clip(RoundedCornerShape(14.dp))
             .background(if (selected) Color(0xFFF0F4FF) else Color.Transparent)
-            .clickable(onClick = onClick)
             .padding(horizontal = 10.dp, vertical = 9.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        SessionDot(session.sessionId)
-        Spacer(Modifier.width(10.dp))
-        Column(Modifier.weight(1f)) {
-            Text(
-                sessionTitle(session.title, session.blank),
-                color = if (selected) Color(0xFF315BAE) else Ink,
-                fontSize = 13.sp,
-                fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(relativeTime(session.updatedAt), color = Muted, fontSize = 9.5.sp)
-                val folder = cwdLabel(session.cwd)
-                if (folder != null) {
-                    Text(" · $folder", color = Muted, fontSize = 9.5.sp, maxLines = 1)
+        Row(
+            Modifier
+                .weight(1f)
+                .clickable(onClick = onClick),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            SessionDot(session.sessionId)
+            Spacer(Modifier.width(10.dp))
+            Column(Modifier.weight(1f)) {
+                Text(
+                    sessionTitle(session.title, session.blank),
+                    color = if (selected) Color(0xFF315BAE) else Ink,
+                    fontSize = 13.sp,
+                    fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(relativeTime(session.updatedAt), color = Muted, fontSize = 9.5.sp)
+                    val folder = cwdLabel(session.cwd)
+                    if (folder != null) {
+                        Text(" · $folder", color = Muted, fontSize = 9.5.sp, maxLines = 1)
+                    }
                 }
             }
         }
+        if (pinned) {
+            Icon(
+                Icons.Rounded.PushPin,
+                contentDescription = null,
+                tint = Blue,
+                modifier = Modifier.size(12.dp)
+            )
+        }
         if (session.running) {
+            Spacer(Modifier.width(5.dp))
             Box(
                 Modifier
                     .size(6.dp)
                     .background(Green, CircleShape)
             )
         }
+        SessionMoreButton(
+            pinned = pinned,
+            onTogglePin = onTogglePin,
+            onArchive = onArchive,
+            tint = Muted,
+            size = 27.dp
+        )
     }
 }
 

@@ -79,6 +79,12 @@ data class WorkspaceInfo(
     val title: String
 )
 
+data class WorkspaceSnapshot(
+    val workspaces: List<WorkspaceInfo> = emptyList(),
+    val pinnedSessionIds: List<String> = emptyList(),
+    val archivedSessionIds: List<String> = emptyList()
+)
+
 data class SessionSummary(
     val sessionId: String,
     val title: String?,
@@ -201,5 +207,10 @@ data class AppState(
     val workspaces: List<WorkspaceInfo> = emptyList(),
     val workspacesLoading: Boolean = false,
     val workspacesError: String? = null,
-    val selectedWorkspace: WorkspaceInfo? = null
-)
+    val selectedWorkspace: WorkspaceInfo? = null,
+    val pinnedSessionIds: List<String> = emptyList(),
+    val archivedSessionIds: List<String> = emptyList()
+) {
+    fun isPinned(sessionId: String): Boolean = pinnedSessionIds.contains(sessionId)
+    fun isArchived(sessionId: String): Boolean = archivedSessionIds.contains(sessionId)
+}

@@ -36,9 +36,11 @@ import androidx.compose.material.icons.rounded.ChatBubbleOutline
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.ErrorOutline
+import androidx.compose.material.icons.rounded.Archive
 import androidx.compose.material.icons.rounded.Folder
 import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material.icons.rounded.Menu
+import androidx.compose.material.icons.rounded.PushPin
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material3.AlertDialog
@@ -77,8 +79,21 @@ fun HomeScreen(
     onOpenSession: (SessionSummary) -> Unit,
     onRefresh: () -> Unit,
     onSettings: () -> Unit,
-    onOpenWorkspace: () -> Unit
+    onOpenWorkspace: () -> Unit,
+    onPinSession: (SessionSummary) -> Unit,
+    onUnpinSession: (SessionSummary) -> Unit,
+    onArchiveSession: (SessionSummary) -> Unit,
+    onUnarchiveSession: (SessionSummary) -> Unit
 ) {
+    var archivedOpen by remember { mutableStateOf(false) }
+    val archivedIds = state.archivedSessionIds.toSet()
+    val visible = state.sessions.filterNot { it.sessionId in archivedIds }
+    val pinnedIds = state.pinnedSessionIds.toSet()
+    val pinned = state.pinnedSessionIds.mapNotNull { id -> visible.firstOrNull { it.sessionId == id } }
+    val others = visible.filterNot { it.sessionId in pinnedIds }
+    val ordered = pinned + others
+    val archived = state.sessions.filter { it.sessionId in archivedIds }
+
     HarnessBackground {
         Box(Modifier.fillMaxSize()) {
             Column(
@@ -114,9 +129,9 @@ fun HomeScreen(
                                 fontWeight = FontWeight.SemiBold
                             )
                             Spacer(Modifier.width(7.dp))
-                            if (state.sessions.isNotEmpty()) {
+                            if (visible.isNotEmpty()) {
                                 Text(
-                                    "${state.sessions.size}",
+                                    "${visible.size}",
                                     color = Muted,
                                     fontSize = 12.sp
                                 )
@@ -153,11 +168,11 @@ fun HomeScreen(
                     }
 
                     when {
-                        state.sessionsLoading && state.sessions.isEmpty() -> {
+                        state.sessionsLoading && visible.isEmpty() -> {
                             items(4) { SkeletonSessionCard() }
                         }
 
-                        state.sessions.isEmpty() && state.sessionsError != null -> {
+                        visible.isEmpty() && state.sessionsError != null -> {
                             item {
                                 EmptySessions(
                                     title = "同步失败",
@@ -168,14 +183,33 @@ fun HomeScreen(
                             }
                         }
 
-                        state.sessions.isEmpty() -> {
+                        visible.isEmpty() -> {
                             item { EmptySessions() }
                         }
 
                         else -> {
-                            items(state.sessions, key = { it.sessionId }) { session ->
-                                SessionCard(session = session, onClick = { onOpenSession(session) })
+                            items(ordered, key = { it.sessionId }) { session ->
+                                val isPinned = session.sessionId in pinnedIds
+                                SessionCard(
+                                    session = session,
+                                    pinned = isPinned,
+                                    onClick = { onOpenSession(session) },
+                                    onTogglePin = {
+                                        if (isPinned) onUnpinSession(session)
+                                        else onPinSession(session)
+                                    },
+                                    onArchive = { onArchiveSession(session) }
+                                )
                             }
+                        }
+                    }
+
+                    if (archived.isNotEmpty()) {
+                        item {
+                            ArchivedBar(
+                                count = archived.size,
+                                onClick = { archivedOpen = true }
+                            )
                         }
                     }
                 }
@@ -191,6 +225,15 @@ fun HomeScreen(
         }
     }
 
+    if (archivedOpen) {
+        ArchivedSessionsDialog(
+            sessions = archived,
+            onDismiss = { archivedOpen = false },
+            onRestore = { session ->
+                onUnarchiveSession(session)
+            }
+        )
+    }
 }
 
 @Composable
@@ -497,74 +540,101 @@ private fun Hero() {
 }
 
 @Composable
-private fun SessionCard(session: SessionSummary, onClick: () -> Unit) {
+private fun SessionCard(
+    session: SessionSummary,
+    pinned: Boolean,
+    onClick: () -> Unit,
+    onTogglePin: () -> Unit,
+    onArchive: () -> Unit
+) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        onClick = onClick,
         shape = RoundedCornerShape(20.dp),
         color = Color.White,
         border = BorderStroke(1.dp, Color(0x0F171A21))
     ) {
-        Row(
-            Modifier.padding(14.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Box(
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Row(
                 Modifier
-                    .size(44.dp)
-                    .background(Color(0xFFF0F4FF), RoundedCornerShape(14.dp)),
-                contentAlignment = Alignment.Center
+                    .weight(1f)
+                    .clickable(onClick = onClick)
+                    .padding(start = 14.dp, top = 14.dp, bottom = 14.dp, end = 2.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Icon(
-                    Icons.Rounded.ChatBubbleOutline,
-                    contentDescription = null,
-                    tint = Blue,
-                    modifier = Modifier.size(21.dp)
-                )
-            }
-            Spacer(Modifier.width(12.dp))
-            Column(Modifier.weight(1f)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = sessionTitle(session.title, session.blank),
-                        color = Ink,
-                        fontSize = 14.5.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f, fill = false)
+                Box(
+                    Modifier
+                        .size(44.dp)
+                        .background(Color(0xFFF0F4FF), RoundedCornerShape(14.dp)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        Icons.Rounded.ChatBubbleOutline,
+                        contentDescription = null,
+                        tint = Blue,
+                        modifier = Modifier.size(21.dp)
                     )
-                    if (session.running) {
-                        Spacer(Modifier.width(7.dp))
-                        RunningBadge()
-                    }
                 }
-                Spacer(Modifier.height(4.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = relativeTime(session.updatedAt),
-                        color = Muted,
-                        fontSize = 11.sp
-                    )
-                    val folder = cwdLabel(session.cwd)
-                    if (folder != null) {
-                        Text(" · ", color = Muted, fontSize = 11.sp)
+                Spacer(Modifier.width(12.dp))
+                Column(Modifier.weight(1f)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
-                            text = folder,
-                            color = Muted,
-                            fontSize = 11.sp,
+                            text = sessionTitle(session.title, session.blank),
+                            color = Ink,
+                            fontSize = 14.5.sp,
+                            fontWeight = FontWeight.SemiBold,
                             maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f, fill = false)
                         )
+                        if (pinned) {
+                            Spacer(Modifier.width(6.dp))
+                            Icon(
+                                Icons.Rounded.PushPin,
+                                contentDescription = "已置顶",
+                                tint = Blue,
+                                modifier = Modifier.size(13.dp)
+                            )
+                        }
+                        if (session.running) {
+                            Spacer(Modifier.width(7.dp))
+                            RunningBadge()
+                        }
+                    }
+                    Spacer(Modifier.height(4.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = relativeTime(session.updatedAt),
+                            color = Muted,
+                            fontSize = 11.sp
+                        )
+                        val folder = cwdLabel(session.cwd)
+                        if (folder != null) {
+                            Text(" · ", color = Muted, fontSize = 11.sp)
+                            Text(
+                                text = folder,
+                                color = Muted,
+                                fontSize = 11.sp,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
                     }
                 }
             }
-            Spacer(Modifier.width(8.dp))
+            SessionMoreButton(
+                pinned = pinned,
+                onTogglePin = onTogglePin,
+                onArchive = onArchive,
+                tint = Muted,
+                size = 30.dp
+            )
             Icon(
                 Icons.Rounded.ChevronRight,
                 contentDescription = null,
                 tint = Color(0xFFC1C7D3),
-                modifier = Modifier.size(20.dp)
+                modifier = Modifier
+                    .padding(end = 8.dp)
+                    .size(20.dp)
             )
         }
     }
@@ -582,6 +652,98 @@ private fun RunningBadge() {
         Spacer(Modifier.width(4.dp))
         Text("运行中", color = Color(0xFF208A52), fontSize = 9.sp, fontWeight = FontWeight.Medium)
     }
+}
+
+@Composable
+private fun ArchivedBar(count: Int, onClick: () -> Unit) {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 4.dp),
+        onClick = onClick,
+        shape = RoundedCornerShape(18.dp),
+        color = Color.White.copy(alpha = 0.75f),
+        border = BorderStroke(1.dp, Line)
+    ) {
+        Row(
+            Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                Icons.Rounded.Archive,
+                contentDescription = null,
+                tint = Muted,
+                modifier = Modifier.size(19.dp)
+            )
+            Spacer(Modifier.width(10.dp))
+            Column(Modifier.weight(1f)) {
+                Text("已归档", color = Ink, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                Text("$count 个会话", color = Muted, fontSize = 10.sp)
+            }
+            Icon(
+                Icons.Rounded.ChevronRight,
+                contentDescription = null,
+                tint = Color(0xFFC1C7D3),
+                modifier = Modifier.size(19.dp)
+            )
+        }
+    }
+}
+
+@Composable
+private fun ArchivedSessionsDialog(
+    sessions: List<SessionSummary>,
+    onDismiss: () -> Unit,
+    onRestore: (SessionSummary) -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = Color.White,
+        shape = RoundedCornerShape(24.dp),
+        title = {
+            Text("已归档会话", color = Ink, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+        },
+        text = {
+            if (sessions.isEmpty()) {
+                Text("暂无已归档会话", color = Muted, fontSize = 12.sp)
+            } else {
+                LazyColumn(Modifier.heightIn(max = 390.dp)) {
+                    items(sessions, key = { it.sessionId }) { session ->
+                        Row(
+                            Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 5.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(Modifier.weight(1f)) {
+                                Text(
+                                    sessionTitle(session.title, session.blank),
+                                    color = Ink,
+                                    fontSize = 12.5.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                Text(
+                                    relativeTime(session.updatedAt),
+                                    color = Muted,
+                                    fontSize = 9.5.sp
+                                )
+                            }
+                            TextButton(onClick = { onRestore(session) }) {
+                                Text("恢复", color = Blue, fontSize = 12.sp)
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("关闭", color = Blue, fontWeight = FontWeight.SemiBold)
+            }
+        }
+    )
 }
 
 @Composable

@@ -27,15 +27,20 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Archive
 import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.ContentCopy
 import androidx.compose.material.icons.rounded.ErrorOutline
 import androidx.compose.material.icons.rounded.ExpandLess
 import androidx.compose.material.icons.rounded.ExpandMore
+import androidx.compose.material.icons.rounded.MoreVert
+import androidx.compose.material.icons.rounded.PushPin
 import androidx.compose.material.icons.rounded.Terminal
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
@@ -212,6 +217,60 @@ fun SoftIconButton(
             tint = tint,
             modifier = Modifier.size(size * 0.48f)
         )
+    }
+}
+
+@Composable
+fun SessionMoreButton(
+    pinned: Boolean,
+    onTogglePin: () -> Unit,
+    onArchive: () -> Unit,
+    tint: Color = Muted,
+    size: Dp = 30.dp
+) {
+    var open by remember { mutableStateOf(false) }
+    Box {
+        SoftIconButton(
+            icon = Icons.Rounded.MoreVert,
+            onClick = { open = true },
+            contentDescription = "会话操作",
+            tint = tint,
+            background = Color.Transparent,
+            size = size
+        )
+        DropdownMenu(
+            expanded = open,
+            onDismissRequest = { open = false }
+        ) {
+            DropdownMenuItem(
+                text = { Text(if (pinned) "取消置顶" else "置顶会话", fontSize = 13.sp) },
+                leadingIcon = {
+                    Icon(
+                        Icons.Rounded.PushPin,
+                        contentDescription = null,
+                        modifier = Modifier.size(17.dp)
+                    )
+                },
+                onClick = {
+                    open = false
+                    onTogglePin()
+                }
+            )
+            DropdownMenuItem(
+                text = { Text("归档会话", fontSize = 13.sp) },
+                leadingIcon = {
+                    Icon(
+                        Icons.Rounded.Archive,
+                        contentDescription = null,
+                        modifier = Modifier.size(17.dp)
+                    )
+                },
+                onClick = {
+                    open = false
+                    onArchive()
+                }
+            )
+        }
     }
 }
 
