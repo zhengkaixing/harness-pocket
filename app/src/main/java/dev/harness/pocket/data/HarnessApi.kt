@@ -349,6 +349,13 @@ class HarnessApi {
         return jsonStrings(value.optJSONArray("archivedSessionIds"))
     }
 
+    suspend fun moveWorkspace(workspaceId: String, beforeWorkspaceId: String?): List<String> {
+        val request = JSONObject().put("workspaceId", workspaceId)
+        if (beforeWorkspaceId != null) request.put("beforeWorkspaceId", beforeWorkspaceId)
+        val value = rpc("workspace/insertBefore", JSONObject().put("request", request))
+        return jsonStrings(value.optJSONArray("workspaceIds"))
+    }
+
     suspend fun listWorkspaces(): WorkspaceSnapshot = withTimeout(20_000) {
         suspendCancellableCoroutine { continuation ->
             val conn = connection ?: run {

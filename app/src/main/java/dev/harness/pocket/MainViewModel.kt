@@ -320,6 +320,60 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     fun refreshWorkspaces() = loadWorkspaces()
 
+    fun moveWorkspace(workspaceId: String, beforeWorkspaceId: String?) {
+        val current = _state.value.workspaces
+        if (_state.value.workspacesLoading) return
+        if (current.none { it.workspaceId == workspaceId }) return
+        if (workspaceId == beforeWorkspaceId) return
+        val optimistic = reorderWorkspaces(current, workspaceId, beforeWorkspaceId)
+        _state.update {
+            it.copy(workspaces = optimistic, workspacesLoading = true, workspacesError = null)
+        }
+        viewModelScope.launch {
+            try {
+                val ids = api.moveWorkspace(workspaceId, beforeWorkspaceId)
+                val byId = current.associateBy { it.workspaceId }
+                val ordered = ids.mapNotNull { byId[it] }
+                val extras = optimistic.filterNot { workspace -> ids.contains(workspace.workspaceId) }
+                _state.update {
+                    it.copy(
+                        workspaces = ordered + extras,
+                        workspacesLoading = false
+                    )
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: AuthException) {
+                _state.update { it.copy(workspaces = current, workspacesLoading = false) }
+                handleAuthFailure(e.message ?: "登录已过期，请重新连接")
+            } catch (e: Exception) {
+                _state.update {
+                    it.copy(
+                        workspaces = current,
+                        workspacesLoading = false,
+                        workspacesError = friendlyError(e)
+                    )
+                }
+            }
+        }
+    }
+
+    private fun reorderWorkspaces(
+        current: List<WorkspaceInfo>,
+        workspaceId: String,
+        beforeWorkspaceId: String?
+    ): List<WorkspaceInfo> {
+        val moving = current.firstOrNull { it.workspaceId == workspaceId } ?: return current
+        val rest = current.filterNot { it.workspaceId == workspaceId }.toMutableList()
+        if (beforeWorkspaceId == null) {
+            rest.add(moving)
+        } else {
+            val index = rest.indexOfFirst { it.workspaceId == beforeWorkspaceId }
+            if (index < 0) rest.add(moving) else rest.add(index, moving)
+        }
+        return rest
+    }
+
     fun togglePin(session: SessionSummary) {
         val id = session.sessionId
         val wasPinned = _state.value.isPinned(id)

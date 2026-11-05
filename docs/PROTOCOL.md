@@ -205,6 +205,7 @@ session page through seq 999999 is past cursor 18
 | `commands/execute` | `{"agentId":"...","line":"/permission read-only","submittedAttachments":[]}` | 执行斜杠命令（权限切换也走这里） |
 | `fileUploads/upload` | `{"agentId":"...","request":{"data":"<base64>","name":"..."}}` | 上传文件换 receiptId |
 | `workspace/create` | `{"request":{"path":"C:\\work"}}` | 创建工作区 |
+| `workspace/insertBefore` | `{"request":{"workspaceId":"...","beforeWorkspaceId":"..."}}` | 调整文件夹顺序；省略 anchor 追加到末尾 |
 | `workspace/pinSession` | `{"request":{"sessionId":"..."}}` | 置顶会话 |
 | `workspace/unpinSession` | `{"request":{"sessionId":"..."}}` | 取消置顶 |
 | `workspace/archiveSession` | `{"request":{"sessionId":"...","stopActivity":true}}` | 归档；运行中可先 stop |

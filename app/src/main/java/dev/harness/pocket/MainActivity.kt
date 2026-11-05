@@ -150,6 +150,7 @@ private fun AppRoot(
                         workspaceOpen = true
                         if (state.workspaces.isEmpty()) vm.refreshWorkspaces()
                     },
+                    onMoveWorkspace = vm::moveWorkspace,
                     onOpenSession = vm::openSession,
                     onSettings = { showSettings = true },
                     onPinSession = vm::togglePin,

@@ -24,6 +24,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.ChatBubbleOutline
+import androidx.compose.material.icons.rounded.DragHandle
 import androidx.compose.material.icons.rounded.Folder
 import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material.icons.rounded.KeyboardArrowUp
@@ -31,6 +32,8 @@ import androidx.compose.material.icons.rounded.PushPin
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material3.Divider
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ModalDrawerSheet
 import androidx.compose.material3.Surface
@@ -70,6 +73,7 @@ fun HarnessDrawer(
     onClose: () -> Unit,
     onNewChat: () -> Unit,
     onWorkspace: () -> Unit,
+    onMoveWorkspace: (String, String?) -> Unit,
     onOpenSession: (SessionSummary) -> Unit,
     onSettings: () -> Unit,
     onPinSession: (SessionSummary) -> Unit,
@@ -88,7 +92,13 @@ fun HarnessDrawer(
     val pinnedIds = pinnedSessions.map { it.sessionId }.toSet()
     val treeSessions = (if (query.isBlank()) visible.filterNot { it.sessionId in pinnedIds } else visible)
         .filter { query.isBlank() || sessionTitle(it.title, it.blank).contains(query, ignoreCase = true) }
-    val groups = groupSessions(state.workspaces, treeSessions, visible)
+    val workspaceOrder = state.workspaces.map { it.workspaceId }
+    val groups = groupSessions(
+        workspaces = state.workspaces,
+        sessions = treeSessions,
+        allSessions = visible,
+        includeEmpty = query.isBlank()
+    )
 
     ModalDrawerSheet(
         modifier = Modifier
@@ -224,9 +234,23 @@ fun HarnessDrawer(
                 groups.forEach { group ->
                     val key = group.workspace.workspaceId
                     val open = query.isNotBlank() || expanded[key] == true
+                    val registryIndex = workspaceOrder.indexOf(key)
                     DrawerWorkspaceHeader(
                         group = group,
                         open = open,
+                        movable = registryIndex >= 0,
+                        canMoveUp = registryIndex > 0,
+                        canMoveDown = registryIndex >= 0 && registryIndex < workspaceOrder.lastIndex,
+                        onMoveUp = {
+                            if (registryIndex > 0) {
+                                onMoveWorkspace(key, workspaceOrder[registryIndex - 1])
+                            }
+                        },
+                        onMoveDown = {
+                            if (registryIndex >= 0 && registryIndex < workspaceOrder.lastIndex) {
+                                onMoveWorkspace(key, workspaceOrder.getOrNull(registryIndex + 2))
+                            }
+                        },
                         onClick = { expanded[key] = !open }
                     )
                     if (open) {
@@ -341,8 +365,14 @@ private fun SectionLabel(text: String, modifier: Modifier = Modifier.padding(sta
 private fun DrawerWorkspaceHeader(
     group: WorkspaceGroup,
     open: Boolean,
+    movable: Boolean,
+    canMoveUp: Boolean,
+    canMoveDown: Boolean,
+    onMoveUp: () -> Unit,
+    onMoveDown: () -> Unit,
     onClick: () -> Unit
 ) {
+    var moveMenu by remember { mutableStateOf(false) }
     Row(
         Modifier
             .fillMaxWidth()
@@ -416,6 +446,38 @@ private fun DrawerWorkspaceHeader(
             fontSize = 10.sp,
             modifier = Modifier.padding(horizontal = 5.dp)
         )
+        if (movable) {
+            Box {
+                SoftIconButton(
+                    icon = Icons.Rounded.DragHandle,
+                    onClick = { moveMenu = true },
+                    contentDescription = "调整工作区顺序",
+                    background = Color.Transparent,
+                    size = 26.dp
+                )
+                DropdownMenu(
+                    expanded = moveMenu,
+                    onDismissRequest = { moveMenu = false }
+                ) {
+                    DropdownMenuItem(
+                        text = { Text("上移", fontSize = 13.sp) },
+                        enabled = canMoveUp,
+                        onClick = {
+                            moveMenu = false
+                            onMoveUp()
+                        }
+                    )
+                    DropdownMenuItem(
+                        text = { Text("下移", fontSize = 13.sp) },
+                        enabled = canMoveDown,
+                        onClick = {
+                            moveMenu = false
+                            onMoveDown()
+                        }
+                    )
+                }
+            }
+        }
         Icon(
             if (open) Icons.Rounded.KeyboardArrowUp else Icons.Rounded.KeyboardArrowDown,
             contentDescription = if (open) "收起工作区" else "展开工作区",
@@ -555,7 +617,8 @@ private data class WorkspaceGroup(
 private fun groupSessions(
     workspaces: List<WorkspaceInfo>,
     sessions: List<SessionSummary>,
-    allSessions: List<SessionSummary>
+    allSessions: List<SessionSummary>,
+    includeEmpty: Boolean
 ): List<WorkspaceGroup> {
     val buckets = LinkedHashMap<String, MutableList<SessionSummary>>()
     sessions.forEach { session ->
@@ -563,26 +626,45 @@ private fun groupSessions(
         buckets.getOrPut(key) { mutableListOf() }.add(session)
     }
 
-    return buckets.map { (key, items) ->
-        val sorted = items.sortedByDescending { it.updatedAt }
-        val cwd = sorted.firstOrNull()?.cwd
-        val registered = workspaces.firstOrNull { samePath(it.path, cwd) }
-        val workspace = registered ?: WorkspaceInfo(
-            workspaceId = "cwd:${cwd.orEmpty().lowercase()}",
-            path = cwd.orEmpty(),
-            title = cwdLabel(cwd) ?: "未关联工作区"
-        )
-        val running = allSessions.count { it.running && cwdKey(it.cwd) == key }
-        WorkspaceGroup(workspace, sorted, running)
-    }.sortedByDescending { it.sessions.firstOrNull()?.updatedAt ?: 0L }
+    val groups = ArrayList<WorkspaceGroup>()
+    val used = HashSet<String>()
+    workspaces.forEach { workspace ->
+        val key = cwdKey(workspace.path)
+        val items = buckets[key].orEmpty()
+        if (items.isNotEmpty() || includeEmpty) {
+            groups.add(buildGroup(workspace, items, allSessions, key))
+            used.add(key)
+        }
+    }
+
+    val extras = buckets
+        .filterKeys { it !in used }
+        .map { (key, items) ->
+            val cwd = items.firstOrNull()?.cwd
+            val workspace = WorkspaceInfo(
+                workspaceId = "cwd:${cwd.orEmpty().lowercase()}",
+                path = cwd.orEmpty(),
+                title = cwdLabel(cwd) ?: "未关联工作区"
+            )
+            buildGroup(workspace, items, allSessions, key)
+        }
+        .sortedByDescending { it.sessions.firstOrNull()?.updatedAt ?: 0L }
+    groups.addAll(extras)
+    return groups
+}
+
+private fun buildGroup(
+    workspace: WorkspaceInfo,
+    sessions: List<SessionSummary>,
+    allSessions: List<SessionSummary>,
+    key: String
+): WorkspaceGroup {
+    val sorted = sessions.sortedByDescending { it.updatedAt }
+    val running = allSessions.count { it.running && cwdKey(it.cwd) == key }
+    return WorkspaceGroup(workspace, sorted, running)
 }
 
 private fun cwdKey(path: String?): String =
     path?.trim()?.trimEnd('\\', '/')?.lowercase().orEmpty()
 
-private fun samePath(left: String?, right: String?): Boolean {
-    if (left.isNullOrBlank() || right.isNullOrBlank()) return false
-    val a = left.trim().trimEnd('\\', '/')
-    val b = right.trim().trimEnd('\\', '/')
-    return a.equals(b, ignoreCase = true)
-}
+

@@ -58,7 +58,7 @@ Harness Pocket 是一个**非官方的原生 Android 客户端**，用来远程�
 - **任务完成通知**：发送消息后启动前台轮询服务，检测到 `turn/end` 就在后台推送本地通知；点击通知回到对应会话。
 - **会话列表**：打开会话自动落到最新消息；按工作区分组查看会话、运行状态、工作目录和相对更新时间；支持置顶排序与归档/恢复。
 - **继续对话**：打开历史会话，发送新消息，停止当前任务，重命名或刷新会话。
-- **工作区选择**：通过 `workspace/follow` 读取工作区列表，新会话可以绑定到指定目录。
+- **工作区选择与排序**：通过 `workspace/follow` 读取工作区列表，新会话可以绑定到指定目录；文件夹按服务端顺序展示，标题右侧的拖动按钮支持上移/下移，顺序会写回服务端并与网页端同步。
 - **模型与推理强度**：从 `session/modelCatalog` 选择模型，再选择 Off / Minimal / Low / Medium / High / Xhigh / Max 等推理强度。
 - **权限模式**：仅可查看、工作区内修改、完全权限；通过 `/permission <preset>` 命令真正写入会话策略。
 - **附件**：图片直接内联为 base64，任意文件先走 `fileUploads/upload` 换 `receiptId`；单文件上限 20 MB。
@@ -99,6 +99,12 @@ Harness Pocket 是一个**非官方的原生 Android 客户端**，用来远程�
 ![远程会话实测](docs/screenshots/remote-chat.png)
 
 工具调用卡片、Markdown 代码块、停止任务、重命名与错误提示也都做了回归。
+
+0.6.0 额外验证了：
+
+- 工作区文件夹顺序与 `workspace/follow` 的服务端顺序一致，不再按最近会话时间重排。
+- 文件夹标题右侧新增拖动按钮，选择“上移/下移”后会调用 `workspace/insertBefore` 并写回服务端；重新打开网页端或 App 顺序一致。
+- 空工作区也会像网页端一样显示，方便从文件夹直接发起新会话。
 
 0.5.1 额外验证了：
 
@@ -151,7 +157,7 @@ Harness Pocket 是一个**非官方的原生 Android 客户端**，用来远程�
 
 ### 直接安装 APK
 
-本地预构建的 APK 在 `dist/HarnessPocket-0.5.1-debug.apk`（二进制不提交到 Git 仓库）；从源码重新构建的产物在：
+本地预构建的 APK 在 `dist/HarnessPocket-0.6.0-debug.apk`（二进制不提交到 Git 仓库）；从源码重新构建的产物在：
 
 ```text
 app/build/outputs/apk/debug/app-debug.apk
@@ -282,6 +288,13 @@ app/src/main/java/dev/harness/pocket/
 - [ ] 可配置的 HTTPS / 证书校验
 
 ## 更新日志
+
+### 0.6.0
+
+- 工作区文件夹按服务端 `workspace/follow` 顺序展示，与网页端一致。
+- 文件夹标题右侧新增拖动按钮，可通过“上移/下移”调整顺序，调用 `workspace/insertBefore` 写回服务端。
+- 空工作区也会展示，不再只显示有会话的目录。
+- 修复移动工作区后本地顺序回退的问题。
 
 ### 0.5.1
 
