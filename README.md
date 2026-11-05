@@ -1,15 +1,51 @@
 # Harness Pocket
 
-把 DeepSeek Harness 装进口袋。一个原生 Android 客户端，通过 DSH 的 Remote API 连接你电脑上的 `dsh web`，在手机上继续和 coding agent 一起写代码。
-
-界面参考豆包：暖白底色、蓝紫渐变、圆角卡片、蓝色用户气泡、无气泡的助手回复，以及可展开的工具调用卡片。0.4.0 起采用豆包式侧滑抽屉、居中标题和底部相机/输入/加号布局，抽屉内的会话按工作区分组为可折叠树，并支持置顶、归档和任务完成通知。
+<p align="center">
+  <img src="docs/screenshots/hero.png" alt="Harness Pocket 界面：主页、工作区树抽屉、对话与工具调用" />
+</p>
 
 <p align="center">
-  <img src="docs/screenshots/connect.png" width="24%" alt="连接页" />
-  <img src="docs/screenshots/home.png" width="24%" alt="会话列表" />
-  <img src="docs/screenshots/drawer.png" width="24%" alt="豆包式抽屉" />
-  <img src="docs/screenshots/chat-doubao.png" width="24%" alt="对话页" />
+  <b>在手机上远程使用你的 DeepSeek Harness coding agent。</b><br/>
+  原生 Android 客户端 · Kotlin + Jetpack Compose · 非官方开源项目
 </p>
+
+## 这个项目是做什么的
+
+Harness Pocket 是一个**非官方的原生 Android 客户端**，用来远程连接你电脑上运行的 DeepSeek Harness（DSH）`dsh web` 实例。
+
+它解决的是一个很具体的问题：DSH 的网页版在手机上虽然能打开，但会话列表、工具调用、输入框和权限设置都按桌面布局设计，手机上操作起来很别扭。Harness Pocket 通过 DSH 的 Remote API，把同一套会话和 agent 能力搬到手机上：
+
+- 连接同一个 `dsh web`，看到同一批会话
+- 继续历史对话、发送新任务、停止运行中的任务
+- 查看工具调用、参数、结果，以及 Markdown / 代码块
+- 切换模型、推理强度、权限模式和工作区
+- 任务结束时在手机上收到本地通知，点击通知回到对应会话
+
+它不是 AI 模型服务，不提供 API key，也不替代 DSH 本体；它只是 DSH 的移动端遥控器。
+
+## 它不是什么
+
+- **不是 DeepSeek 官方产品**：这是一个第三方开源客户端，DSH 升级后协议可能变化。
+- **不是 WebView 套壳**：界面用 Kotlin + Jetpack Compose 原生实现，不是把网页塞进浏览器控件。
+- **不是云端服务**：没有中转服务器、统计 SDK 或账号系统；App 直接连接你填写的 `dsh web`。
+- **不保存你的模型密钥**：模型调用仍由电脑上的 DSH 完成，App 只持有访问 DSH 的启动令牌 / Cookie。
+
+## 效果图
+
+<table>
+  <tr>
+    <td width="50%"><img src="docs/screenshots/home.png" alt="主页" /><br/><sub><b>主页</b>：连接状态、工作区与最近会话</sub></td>
+    <td width="50%"><img src="docs/screenshots/drawer.png" alt="工作区树" /><br/><sub><b>工作区树</b>：按工作区分组，可折叠、置顶、归档</sub></td>
+  </tr>
+  <tr>
+    <td width="50%"><img src="docs/screenshots/chat-doubao.png" alt="对话页" /><br/><sub><b>对话页</b>：豆包式布局，支持 Markdown 与停止任务</sub></td>
+    <td width="50%"><img src="docs/screenshots/tool-call.png" alt="工具调用" /><br/><sub><b>工具调用</b>：参数和结果可展开查看</sub></td>
+  </tr>
+  <tr>
+    <td width="50%"><img src="docs/screenshots/model-effort.png" alt="模型与推理强度" /><br/><sub><b>模型</b>：按 provider 分组，支持推理强度</sub></td>
+    <td width="50%"><img src="docs/screenshots/permission.png" alt="权限模式" /><br/><sub><b>权限</b>：仅可查看 / 工作区内修改 / 完全权限</sub></td>
+  </tr>
+</table>
 
 ## 功能
 
@@ -26,6 +62,30 @@
 - **Markdown**：标题、列表、引用、粗体、行内代码、代码块；代码块支持一键复制。
 - **自动续期**：API Cookie 过期后，用本地保存的启动令牌自动重新 `/connect`。
 - **无遥测**：不接入任何统计 SDK，令牌和会话只保存在本机。
+
+## 它怎么工作
+
+```text
+┌──────────────────────────────────┐
+│ 手机 App：Kotlin + Compose        │
+│ 会话 / 工具卡 / 模型 / 权限 / 通知 │
+└───────────────┬──────────────────┘
+                │ 1. GET /connect?token=... → 签名 Cookie
+                │ 2. POST /api/session/* → Remote RPC
+                │ 3. WS /api/remote.mux → workspace/follow
+                ▼
+┌──────────────────────────────────┐
+│ 电脑上的 dsh web                  │
+│ 会话、coding agent、工具、工作区   │
+└──────────────────────────────────┘
+```
+
+- 令牌只用于换取一个绑定当前域名的签名 Cookie；后续 HTTP 与 WebSocket 都带这个 Cookie。
+- App 不直接调用模型 API，模型调用、工具执行、工作区读写都发生在你的电脑上。
+- 没有云端中转：你在连接页填哪个地址，App 就只连哪个地址。
+- 这个仓库开源的是 Android 客户端本身，不包含 DSH 服务端，也不包含任何模型密钥。
+
+**适合谁**：已经在电脑上使用 DSH，想用手机查看/继续任务、接收完成提醒，或想基于这个客户端改 UI、加功能的开发者。
 
 ## 实测
 
@@ -75,7 +135,7 @@
 
 ### 直接安装 APK
 
-已构建的 APK 在 `dist/HarnessPocket-0.4.0-debug.apk`；重新构建的产物在：
+本地预构建的 APK 在 `dist/HarnessPocket-0.4.0-debug.apk`（二进制不提交到 Git 仓库）；从源码重新构建的产物在：
 
 ```text
 app/build/outputs/apk/debug/app-debug.apk
