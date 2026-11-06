@@ -130,8 +130,13 @@ data class SessionSummary(
     val blank: Boolean,
     val model: ModelChoice? = null,
     val permission: String? = null,
-    val questions: List<AskBatch> = emptyList()
-)
+    val questions: List<AskBatch> = emptyList(),
+    val parentSessionId: String? = null,
+    val origin: String? = null
+) {
+    val subagentParentId: String?
+        get() = parentSessionId?.takeIf { origin == "subagent" }
+}
 
 sealed interface ChatItem {
     val key: String

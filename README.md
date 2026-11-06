@@ -102,6 +102,10 @@ Harness Pocket 是一个**非官方的原生 Android 客户端**，用来远程�
 
 工具调用卡片、Markdown 代码块、停止任务、重命名与错误提示也都做了回归。
 
+0.8.2 修复了子代理会话打不开的问题：
+
+- `session/list` 中 `origin=subagent` 的会话，打开时改用 `{kind:"subagent", parentSessionId, childSessionId, mode:"unknown"}` 作为 `session/page` 的 address，不再套用普通会话地址。
+
 0.8.1 新增并验证了：
 
 - 对话页在模型/权限胶囊下方增加一行资源摘要：内存占用、提交内存、各磁盘剩余空间；点这一行直接打开“资源与并发”页。
@@ -191,7 +195,7 @@ Harness Pocket 是一个**非官方的原生 Android 客户端**，用来远程�
 
 ### 直接安装 APK
 
-本地预构建的 APK 在 `dist/HarnessPocket-0.8.1-debug.apk`（二进制不提交到 Git 仓库）；从源码重新构建的产物在：
+本地预构建的 APK 在 `dist/HarnessPocket-0.8.2-debug.apk`（二进制不提交到 Git 仓库）；从源码重新构建的产物在：
 
 ```text
 app/build/outputs/apk/debug/app-debug.apk
@@ -323,6 +327,11 @@ app/src/main/java/dev/harness/pocket/
 - [ ] 可配置的 HTTPS / 证书校验
 
 ## 更新日志
+
+### 0.8.2
+
+- 修复子代理（subagent）会话点开时报 `subagent Sessions require their durable parent address` 的问题；`session/page` 现在使用 parent/child 地址。
+- 子代理会话的历史消息、轮询和后台任务监控都使用同一套地址。
 
 ### 0.8.1
 

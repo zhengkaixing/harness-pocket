@@ -138,6 +138,19 @@ Cookie: dsh-auth-...=...
 }
 ```
 
+子代理会话（`session/list` 中 `origin=subagent`）不能使用普通会话地址，必须传：
+
+```json
+{
+  "kind": "subagent",
+  "parentSessionId": "session-...",
+  "childSessionId": "session-...",
+  "mode": "unknown"
+}
+```
+
+`mode` 传 `unknown` 可绕过主会话对 one-shot/continuable 的严格匹配；传错会报 `subagent Sessions require their durable parent address`。
+
 返回：
 
 ```json

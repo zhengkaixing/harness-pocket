@@ -126,16 +126,33 @@ class HarnessApi {
                     blank = row.optBoolean("blank", false),
                     model = model,
                     permission = permission,
-                    questions = questions
+                    questions = questions,
+                    parentSessionId = row.optString("parentSessionId")
+                        .takeIf { it.isNotBlank() },
+                    origin = row.optString("origin").takeIf { it.isNotBlank() }
                 )
             )
         }
         return result.filter { it.sessionId.isNotBlank() }
     }
 
-    suspend fun page(sessionId: String, throughSeq: Int, beforeSeq: Int? = null): PageResult {
+    suspend fun page(
+        sessionId: String,
+        throughSeq: Int,
+        beforeSeq: Int? = null,
+        parentSessionId: String? = null
+    ): PageResult {
+        val address = if (!parentSessionId.isNullOrBlank()) {
+            JSONObject()
+                .put("kind", "subagent")
+                .put("parentSessionId", parentSessionId)
+                .put("childSessionId", sessionId)
+                .put("mode", "unknown")
+        } else {
+            JSONObject().put("kind", "session").put("sessionId", sessionId)
+        }
         val request = JSONObject()
-            .put("address", JSONObject().put("kind", "session").put("sessionId", sessionId))
+            .put("address", address)
             .put("throughSeq", throughSeq)
             .put("maxMessages", 80)
             .put("turnWindow", JSONObject().put("minMessages", 24).put("minTurns", 4))

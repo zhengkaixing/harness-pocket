@@ -800,7 +800,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             _state.update { it.copy(chat = it.chat.copy(loadingEarlier = true, error = null)) }
             try {
-                val page = api.page(session.sessionId, current.chat.asOfSeq, firstSeq)
+                val page = api.page(
+                    session.sessionId,
+                    current.chat.asOfSeq,
+                    firstSeq,
+                    session.subagentParentId
+                )
                 val older = EventParser.parse(page.records)
                 _state.update { st ->
                     val merged = (older + st.chat.items).distinctBy { it.key }
@@ -944,7 +949,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                             )
                         }
                         if (first || row.asOfSeq != pageSeq) {
-                            val page = api.page(sessionId, row.asOfSeq)
+                            val page = api.page(
+                                sessionId,
+                                row.asOfSeq,
+                                null,
+                                row.subagentParentId
+                            )
                             val pendingAttachments = _state.value.chat.pending
                                 ?.attachments
                                 .orEmpty()

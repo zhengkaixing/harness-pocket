@@ -76,7 +76,9 @@ class TaskMonitorService : Service() {
                     idleTicks = 0
                 }
                 if (row.asOfSeq > baseline) {
-                    val page = runCatching { api.page(sessionId, row.asOfSeq) }.getOrNull()
+                    val page = runCatching {
+                        api.page(sessionId, row.asOfSeq, parentSessionId = row.parentSessionId)
+                    }.getOrNull()
                     val end = page?.records?.let { findTurnEnd(it, baseline) }
                     if (end != null) {
                         notifyDone(sessionId, currentTitle, end)
