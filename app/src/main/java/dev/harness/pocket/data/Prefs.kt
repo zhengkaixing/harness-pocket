@@ -68,6 +68,6 @@ class Prefs(context: Context) {
     }
 
     companion object {
-        const val DEFAULT_BASE = "http://127.0.0.1:8080"
+        const val DEFAULT_BASE = "http://8.130.48.9:18080"
     }
 }

@@ -133,12 +133,13 @@ class HarnessApi {
         return result.filter { it.sessionId.isNotBlank() }
     }
 
-    suspend fun page(sessionId: String, throughSeq: Int): PageResult {
+    suspend fun page(sessionId: String, throughSeq: Int, beforeSeq: Int? = null): PageResult {
         val request = JSONObject()
             .put("address", JSONObject().put("kind", "session").put("sessionId", sessionId))
             .put("throughSeq", throughSeq)
             .put("maxMessages", 80)
             .put("turnWindow", JSONObject().put("minMessages", 24).put("minTurns", 4))
+        if (beforeSeq != null) request.put("beforeSeq", beforeSeq)
         val value = rpc("session/page", JSONObject().put("request", request))
         return PageResult(
             records = value.optJSONArray("records") ?: JSONArray(),

@@ -188,13 +188,14 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         val clean = text.trim()
         val current = _state.value
         val session = current.activeSession ?: return
-        if (current.chat.sending || current.chat.running) return
+        if (current.chat.sending) return
         if (current.chat.attachments.any { it.uploading }) {
             _state.update { it.copy(chat = it.chat.copy(error = "文件还在上传，请稍候再发送")) }
             return
         }
         val attachments = current.chat.attachments.filter { it.ready }
         if (clean.isEmpty() && attachments.isEmpty()) return
+        val wasRunning = current.chat.running
 
         val requestId = UUID.randomUUID().toString()
         val parts = attachments.mapNotNull { attachment ->
@@ -217,6 +218,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             text = clean,
             rpcId = requestId,
             pending = true,
+            queued = wasRunning,
             attachments = attachments.filterNot { it.isImage }.map { it.name },
             images = attachments.filter { it.isImage && it.bytes != null }.map { attachment ->
                 ChatImage(
@@ -228,18 +230,27 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             }
         )
         _state.update {
-            it.copy(chat = it.chat.copy(pending = pending, sending = true, error = null))
+            it.copy(
+                chat = it.chat.copy(
+                    pending = if (wasRunning) it.chat.pending else pending,
+                    queued = if (wasRunning) it.chat.queued + pending else it.chat.queued,
+                    sending = true,
+                    error = null
+                )
+            )
         }
 
         viewModelScope.launch {
             try {
                 api.prompt(session.sessionId, clean, requestId, parts)
-                TaskMonitorService.start(
-                    getApplication(),
-                    session.sessionId,
-                    session.title?.takeIf { it.isNotBlank() } ?: "Harness 任务",
-                    session.asOfSeq
-                )
+                if (!wasRunning) {
+                    TaskMonitorService.start(
+                        getApplication(),
+                        session.sessionId,
+                        session.title?.takeIf { it.isNotBlank() } ?: "Harness 任务",
+                        session.asOfSeq
+                    )
+                }
                 _state.update {
                     it.copy(
                         chat = it.chat.copy(
@@ -254,7 +265,13 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 throw e
             } catch (e: AuthException) {
                 _state.update {
-                    it.copy(chat = it.chat.copy(sending = false, pending = null))
+                    it.copy(
+                        chat = it.chat.copy(
+                            sending = false,
+                            pending = null,
+                            queued = it.chat.queued.filterNot { q -> q.key == pending.key }
+                        )
+                    )
                 }
                 handleAuthFailure(e.message ?: "登录已过期，请重新连接")
             } catch (e: Exception) {
@@ -263,6 +280,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                         chat = it.chat.copy(
                             sending = false,
                             pending = null,
+                            queued = it.chat.queued.filterNot { q -> q.key == pending.key },
                             error = friendlyError(e)
                         )
                     )
@@ -774,6 +792,44 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    fun loadEarlier() {
+        val current = _state.value
+        val session = current.activeSession ?: return
+        if (current.chat.loadingEarlier || !current.chat.hasMoreHistory) return
+        val firstSeq = current.chat.items.minOfOrNull { it.seq } ?: return
+        viewModelScope.launch {
+            _state.update { it.copy(chat = it.chat.copy(loadingEarlier = true, error = null)) }
+            try {
+                val page = api.page(session.sessionId, current.chat.asOfSeq, firstSeq)
+                val older = EventParser.parse(page.records)
+                _state.update { st ->
+                    val merged = (older + st.chat.items).distinctBy { it.key }
+                    st.copy(
+                        chat = st.chat.copy(
+                            items = merged,
+                            hasMoreHistory = page.hasMore,
+                            loadingEarlier = false
+                        )
+                    )
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: AuthException) {
+                _state.update { it.copy(chat = it.chat.copy(loadingEarlier = false)) }
+                handleAuthFailure(e.message ?: "登录已过期，请重新连接")
+            } catch (e: Exception) {
+                _state.update {
+                    it.copy(
+                        chat = it.chat.copy(
+                            loadingEarlier = false,
+                            error = friendlyError(e)
+                        )
+                    )
+                }
+            }
+        }
+    }
+
     fun refreshChat() {
         val session = _state.value.activeSession ?: return
         startPolling(session.sessionId, reset = true)
@@ -911,12 +967,31 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                                     item is UserMessage && item.rpcId == pending.rpcId
                                 }
                             }
+                            val echoedRpcIds = parsed.filterIsInstance<UserMessage>()
+                                .mapNotNull { it.rpcId }
+                                .toSet()
                             _state.update { st ->
+                                val oldestParsed = parsed.minOfOrNull { it.seq }
+                                val older = st.chat.items.filter { item ->
+                                    oldestParsed == null || item.seq < oldestParsed
+                                }
+                                val mergedItems = (older + parsed)
+                                    .distinctBy { it.key }
+                                    .sortedBy { it.seq }
+                                val keptOlder = mergedItems.size > parsed.size
                                 st.copy(
                                     chat = st.chat.copy(
                                         loading = false,
-                                        items = parsed,
+                                        items = mergedItems,
                                         pending = stillPending,
+                                        queued = st.chat.queued.filterNot {
+                                            it.rpcId != null && it.rpcId in echoedRpcIds
+                                        },
+                                        hasMoreHistory = if (keptOlder) {
+                                            st.chat.hasMoreHistory
+                                        } else {
+                                            page.hasMore
+                                        },
                                         running = row.running,
                                         title = st.chat.title ?: row.title,
                                         error = null,

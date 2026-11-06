@@ -69,6 +69,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -120,11 +121,21 @@ fun ChatScreen(
     onPickImage: () -> Unit,
     onRemoveAttachment: (String) -> Unit,
     onAnswer: (String, List<AskAnswer>) -> Unit,
-    onLoadImage: suspend (String) -> ChatImage?
+    onLoadImage: suspend (String) -> ChatImage?,
+    onRefreshResources: () -> Unit,
+    onOpenResources: () -> Unit,
+    onLoadEarlier: () -> Unit
 ) {
     val chat = state.chat
     val latestChat = rememberUpdatedState(chat)
     val listState = rememberLazyListState()
+    val nearBottom by remember(listState) {
+        derivedStateOf {
+            val info = listState.layoutInfo
+            info.totalItemsCount == 0 ||
+                (info.visibleItemsInfo.lastOrNull()?.index ?: -1) >= info.totalItemsCount - 2
+        }
+    }
     var draft by rememberSaveable { mutableStateOf("") }
     var menuOpen by remember { mutableStateOf(false) }
     var renameOpen by remember { mutableStateOf(false) }
@@ -165,6 +176,10 @@ fun ChatScreen(
 
     BackHandler(onBack = onBack)
 
+    LaunchedEffect(state.activeSession?.sessionId) {
+        onRefreshResources()
+    }
+
     val lastAssistant = chat.allItems.lastOrNull() as? AssistantMessage
     val showTyping = chat.sending || (chat.running && lastAssistant?.text.isNullOrBlank())
     var didInitialScroll by remember(state.activeSession?.sessionId) { mutableStateOf(false) }
@@ -178,21 +193,22 @@ fun ChatScreen(
         chat.allItems.size,
         chat.questions.size,
         showTyping,
-        chat.error
+        chat.error,
+        chat.hasMoreHistory
     ) {
         if (chat.allItems.isEmpty() && chat.questions.isEmpty()) return@LaunchedEffect
         val target = chat.allItems.size +
             chat.questions.size +
             (if (showTyping) 1 else 0) +
-            (if (chat.error != null) 1 else 0)
+            (if (chat.error != null) 1 else 0) +
+            (if (chat.hasMoreHistory) 1 else 0)
         if (!didInitialScroll) {
             // Opening a conversation should land at the newest message, without
             // animating through the whole history.
             listState.scrollToItem(target)
             didInitialScroll = true
         } else {
-            val lastVisible = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: -1
-            if (lastVisible >= target - 2) {
+            if (nearBottom) {
                 listState.animateScrollToItem(target)
             }
         }
@@ -201,7 +217,7 @@ fun ChatScreen(
     fun submit() {
         val current = latestChat.value
         val clean = draft.trim()
-        if (current.sending || current.running) return
+        if (current.sending) return
         if (clean.isEmpty() && current.attachments.none { it.ready }) return
         if (current.attachments.any { it.uploading }) return
         draft = ""
@@ -250,6 +266,11 @@ fun ChatScreen(
             workspace = state.activeSession?.cwd
         )
 
+        ResourceStrip(
+            status = state.resourceStatus,
+            onClick = onOpenResources
+        )
+
         Box(
             Modifier
                 .weight(1f)
@@ -293,6 +314,14 @@ fun ChatScreen(
                             }
                         } else {
                             item(key = "day") { DayDivider() }
+                            if (chat.hasMoreHistory) {
+                                item(key = "earlier") {
+                                    EarlierHistoryButton(
+                                        loading = chat.loadingEarlier,
+                                        onClick = onLoadEarlier
+                                    )
+                                }
+                            }
                             items(chat.allItems, key = { it.key }) { item ->
                                 ChatItemRow(item, onLoadImage)
                             }
@@ -315,6 +344,10 @@ fun ChatScreen(
                     }
                 }
             }
+        }
+
+        if (chat.queued.isNotEmpty()) {
+            QueueStrip(chat.queued)
         }
 
         ChatComposer(
@@ -817,6 +850,7 @@ private fun ChatItemRow(
         is UserMessage -> UserBubble(
             text = item.text,
             pending = item.pending,
+            queued = item.queued,
             attachments = item.attachments,
             images = item.images,
             onLoadImage = onLoadImage
@@ -1079,6 +1113,60 @@ private fun AttachmentChip(attachment: Attachment, onRemove: () -> Unit) {
 }
 
 @Composable
+private fun EarlierHistoryButton(loading: Boolean, onClick: () -> Unit) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clickable(enabled = !loading) { onClick() }
+            .padding(vertical = 7.dp),
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        if (loading) {
+            CircularProgressIndicator(
+                modifier = Modifier.size(13.dp),
+                color = Muted,
+                strokeWidth = 1.5.dp
+            )
+            Spacer(Modifier.width(7.dp))
+            Text("正在加载更早消息…", color = Muted, fontSize = 11.sp)
+        } else {
+            Text("↑ 加载更早消息", color = Blue, fontSize = 11.sp, fontWeight = FontWeight.Medium)
+        }
+    }
+}
+
+@Composable
+private fun QueueStrip(queued: List<UserMessage>) {
+    val preview = queued.firstOrNull()?.text?.replace('\n', ' ')?.take(32).orEmpty()
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 18.dp, vertical = 2.dp),
+        shape = RoundedCornerShape(10.dp),
+        color = Color(0xFFFFF7E8),
+        border = BorderStroke(1.dp, Color(0xFFF2DFC0))
+    ) {
+        Row(
+            Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text("队列 ${queued.size} 条", color = Color(0xFF8A5A12), fontSize = 10.5.sp, fontWeight = FontWeight.Medium)
+            if (preview.isNotBlank()) {
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    preview,
+                    color = Color(0xFF9A6A22),
+                    fontSize = 10.5.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+        }
+    }
+}
+
+@Composable
 private fun ChatComposer(
     draft: String,
     onDraftChange: (String) -> Unit,
@@ -1095,7 +1183,9 @@ private fun ChatComposer(
 ) {
     val hasReady = attachments.any { it.ready }
     val uploadBusy = attachments.any { it.uploading }
-    val canSend = !sending && (running || (!uploadBusy && (draft.isNotBlank() || hasReady)))
+    val hasContent = !uploadBusy && (draft.isNotBlank() || hasReady)
+    val showStop = running && !sending && !hasContent
+    val canSend = !sending && hasContent
 
     Column(
         Modifier
@@ -1129,13 +1219,13 @@ private fun ChatComposer(
                     Modifier
                         .size(36.dp)
                         .clip(CircleShape)
-                        .clickable(enabled = !sending && !running) { onPickImage() },
+                        .clickable(enabled = !sending) { onPickImage() },
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         Icons.Rounded.PhotoCamera,
                         contentDescription = "拍照或选择图片",
-                        tint = if (sending || running) Color(0xFFC4C9D3) else InkSoft,
+                        tint = if (sending) Color(0xFFC4C9D3) else InkSoft,
                         modifier = Modifier.size(20.dp)
                     )
                 }
@@ -1144,13 +1234,13 @@ private fun ChatComposer(
                     Modifier
                         .size(34.dp)
                         .clip(CircleShape)
-                        .clickable(enabled = !sending && !running) { onVoice() },
+                        .clickable(enabled = !sending) { onVoice() },
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         Icons.Rounded.Mic,
                         contentDescription = "语音输入",
-                        tint = if (sending || running) Color(0xFFC4C9D3) else InkSoft,
+                        tint = if (sending) Color(0xFFC4C9D3) else InkSoft,
                         modifier = Modifier.size(19.dp)
                     )
                 }
@@ -1186,13 +1276,13 @@ private fun ChatComposer(
                     Modifier
                         .size(36.dp)
                         .clip(CircleShape)
-                        .clickable(enabled = !sending && !running) { onAttach() },
+                        .clickable(enabled = !sending) { onAttach() },
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         Icons.Rounded.Add,
                         contentDescription = "添加文件",
-                        tint = if (sending || running) Color(0xFFC4C9D3) else InkSoft,
+                        tint = if (sending) Color(0xFFC4C9D3) else InkSoft,
                         modifier = Modifier.size(21.dp)
                     )
                 }
@@ -1203,15 +1293,15 @@ private fun ChatComposer(
                         .clip(CircleShape)
                         .background(
                             when {
-                                running -> SolidColor(Color(0xFF23262E))
+                                showStop -> SolidColor(Color(0xFF23262E))
                                 canSend -> Brush.linearGradient(
                                     listOf(Color(0xFF6C9BFF), Color(0xFF4C7DFF))
                                 )
                                 else -> SolidColor(Color(0xFFECEFF5))
                             }
                         )
-                        .clickable(enabled = !sending && (running || canSend)) {
-                            if (running) onStop() else onSend()
+                        .clickable(enabled = !sending && (showStop || canSend)) {
+                            if (showStop) onStop() else onSend()
                         },
                     contentAlignment = Alignment.Center
                 ) {
@@ -1221,7 +1311,7 @@ private fun ChatComposer(
                             color = Color.White,
                             strokeWidth = 2.dp
                         )
-                        running -> Icon(
+                        showStop -> Icon(
                             Icons.Rounded.Stop,
                             contentDescription = "停止生成",
                             tint = Color.White,

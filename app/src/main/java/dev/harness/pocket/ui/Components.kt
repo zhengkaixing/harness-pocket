@@ -408,6 +408,7 @@ fun ChatImageBox(
 fun UserBubble(
     text: String,
     pending: Boolean = false,
+    queued: Boolean = false,
     attachments: List<String> = emptyList(),
     images: List<ChatImage> = emptyList(),
     onLoadImage: suspend (String) -> ChatImage? = { null }
@@ -417,7 +418,7 @@ fun UserBubble(
         Column(
             Modifier
                 .widthIn(max = maxWidth)
-                .alpha(if (pending) 0.72f else 1f),
+                .alpha(if (pending || queued) 0.72f else 1f),
             horizontalAlignment = Alignment.End
         ) {
             images.forEachIndexed { index, image ->
@@ -468,7 +469,7 @@ fun UserBubble(
                     if (pending) {
                         Spacer(Modifier.height(3.dp))
                         Text(
-                            text = "发送中…",
+                            text = if (queued) "排队中…" else "发送中…",
                             color = Color.White.copy(alpha = 0.7f),
                             fontSize = 10.sp
                         )

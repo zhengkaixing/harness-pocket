@@ -144,6 +144,7 @@ data class UserMessage(
     val text: String,
     val rpcId: String? = null,
     val pending: Boolean = false,
+    val queued: Boolean = false,
     val attachments: List<String> = emptyList(),
     val images: List<ChatImage> = emptyList()
 ) : ChatItem
@@ -212,6 +213,7 @@ data class ChatState(
     val loading: Boolean = true,
     val items: List<ChatItem> = emptyList(),
     val pending: UserMessage? = null,
+    val queued: List<UserMessage> = emptyList(),
     val running: Boolean = false,
     val sending: Boolean = false,
     val title: String? = null,
@@ -223,15 +225,17 @@ data class ChatState(
     val modelBusy: Boolean = false,
     val permissionBusy: Boolean = false,
     val questions: List<AskBatch> = emptyList(),
-    val questionBusy: Boolean = false
+    val questionBusy: Boolean = false,
+    val hasMoreHistory: Boolean = false,
+    val loadingEarlier: Boolean = false
 ) {
     val allItems: List<ChatItem>
-        get() = if (pending != null) items + pending else items
+        get() = items + queued + listOfNotNull(pending)
 }
 
 data class AppState(
     val restoring: Boolean = true,
-    val savedBase: String = "http://127.0.0.1:8080",
+    val savedBase: String = "http://8.130.48.9:18080",
     val connection: Connection? = null,
     val connecting: Boolean = false,
     val connectError: String? = null,

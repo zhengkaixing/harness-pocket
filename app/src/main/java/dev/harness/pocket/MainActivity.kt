@@ -189,7 +189,10 @@ private fun AppRoot(
                     onPickImage = { imagePicker.launch("image/*") },
                     onRemoveAttachment = vm::removeAttachment,
                     onAnswer = vm::answerQuestions,
-                    onLoadImage = vm::loadImage
+                    onLoadImage = vm::loadImage,
+                    onRefreshResources = vm::refreshResources,
+                    onOpenResources = vm::openResources,
+                    onLoadEarlier = vm::loadEarlier
                 )
             } else {
                 HomeScreen(
