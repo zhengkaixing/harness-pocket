@@ -328,6 +328,23 @@ session page through seq 999999 is past cursor 18
 
 把 `receiptId` 放进 `session/prompt` 的 `{"type":"file","receiptId":"..."}`。
 
+### session/attachment
+
+事件里的 image block 只带 `attachment` 元数据，不含图片字节。读取时传 attachmentId：
+
+```json
+{
+  "args": {
+    "request": {
+      "sessionId": "session-...",
+      "attachmentId": "..."
+    }
+  }
+}
+```
+
+返回 `attachment` 元数据和 base64 `data`，客户端解码后用 `BitmapFactory` 显示。
+
 ### 工作区
 
 工作区列表只能通过 WebSocket 的 `workspace/follow` 流获取。`open` 帧：

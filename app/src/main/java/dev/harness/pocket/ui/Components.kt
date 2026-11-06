@@ -1,6 +1,8 @@
 package dev.harness.pocket.ui
 
+import android.graphics.BitmapFactory
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -71,7 +73,9 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.AnnotatedString
@@ -85,9 +89,11 @@ import androidx.compose.ui.unit.sp
 import dev.harness.pocket.BuildConfig
 import dev.harness.pocket.data.AskAnswer
 import dev.harness.pocket.data.AskBatch
+import dev.harness.pocket.data.ChatImage
 import dev.harness.pocket.data.NoticeItem
 import dev.harness.pocket.data.ToolItem
 import kotlinx.coroutines.delay
+import java.util.Base64
 import kotlin.math.PI
 import kotlin.math.sin
 
@@ -337,54 +343,60 @@ fun TypingDots(color: Color = Muted) {
 }
 
 @Composable
-fun UserBubble(
-    text: String,
-    pending: Boolean = false,
-    attachments: List<String> = emptyList()
+fun ChatImageBox(
+    image: ChatImage,
+    load: suspend (String) -> ChatImage?,
+    modifier: Modifier = Modifier
 ) {
-    val maxWidth = (LocalConfiguration.current.screenWidthDp * 0.78f).dp
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-        Column(
-            Modifier
-                .widthIn(max = maxWidth)
-                .alpha(if (pending) 0.72f else 1f)
-                .clip(
-                    RoundedCornerShape(
-                        topStart = 20.dp,
-                        topEnd = 20.dp,
-                        bottomEnd = 6.dp,
-                        bottomStart = 20.dp
-                    )
-                )
-                .background(
-                    Brush.linearGradient(listOf(Color(0xFF6C9BFF), Color(0xFF4C7DFF)))
-                )
-                .padding(horizontal = 15.dp, vertical = 11.dp)
+    var payload by remember(image.attachmentId) { mutableStateOf(image.data) }
+    var failed by remember(image.attachmentId) { mutableStateOf(false) }
+
+    LaunchedEffect(image.attachmentId) {
+        if (payload.isNullOrBlank()) {
+            payload = try {
+                load(image.attachmentId)?.data
+            } catch (_: Exception) {
+                null
+            }
+            failed = payload.isNullOrBlank()
+        }
+    }
+
+    val bitmap = remember(payload) {
+        payload?.let { data ->
+            runCatching {
+                val bytes = Base64.getDecoder().decode(data)
+                BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+            }.getOrNull()
+        }
+    }
+
+    if (bitmap != null) {
+        Image(
+            bitmap = bitmap.asImageBitmap(),
+            contentDescription = image.name ?: "对话图片",
+            modifier = modifier
+                .fillMaxWidth()
+                .heightIn(max = 360.dp)
+                .clip(RoundedCornerShape(14.dp)),
+            contentScale = ContentScale.Fit
+        )
+    } else {
+        Box(
+            modifier
+                .fillMaxWidth()
+                .height(148.dp)
+                .clip(RoundedCornerShape(14.dp))
+                .background(Color(0xFFF1F4FA)),
+            contentAlignment = Alignment.Center
         ) {
-            attachments.forEach { name ->
-                Text(
-                    text = "📎 $name",
-                    color = Color.White.copy(alpha = 0.92f),
-                    fontSize = 11.sp,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.padding(bottom = 3.dp)
-                )
-            }
-            if (text.isNotBlank()) {
-                Text(
-                    text = text,
-                    color = Color.White,
-                    fontSize = 15.5.sp,
-                    lineHeight = 24.sp
-                )
-            }
-            if (pending) {
-                Spacer(Modifier.height(3.dp))
-                Text(
-                    text = "发送中…",
-                    color = Color.White.copy(alpha = 0.7f),
-                    fontSize = 10.sp
+            if (failed) {
+                Text("图片加载失败", color = Muted, fontSize = 11.5.sp)
+            } else {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(18.dp),
+                    color = Blue,
+                    strokeWidth = 1.8.dp
                 )
             }
         }
@@ -392,12 +404,95 @@ fun UserBubble(
 }
 
 @Composable
-fun AssistantRow(text: String) {
+fun UserBubble(
+    text: String,
+    pending: Boolean = false,
+    attachments: List<String> = emptyList(),
+    images: List<ChatImage> = emptyList(),
+    onLoadImage: suspend (String) -> ChatImage? = { null }
+) {
+    val maxWidth = (LocalConfiguration.current.screenWidthDp * 0.78f).dp
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+        Column(
+            Modifier
+                .widthIn(max = maxWidth)
+                .alpha(if (pending) 0.72f else 1f),
+            horizontalAlignment = Alignment.End
+        ) {
+            images.forEachIndexed { index, image ->
+                if (index > 0) Spacer(Modifier.height(6.dp))
+                ChatImageBox(image = image, load = onLoadImage)
+            }
+            if (images.isNotEmpty() && (text.isNotBlank() || attachments.isNotEmpty())) {
+                Spacer(Modifier.height(7.dp))
+            }
+            if (text.isNotBlank() || attachments.isNotEmpty() || pending) {
+                Column(
+                    Modifier
+                        .clip(
+                            RoundedCornerShape(
+                                topStart = 20.dp,
+                                topEnd = 20.dp,
+                                bottomEnd = 6.dp,
+                                bottomStart = 20.dp
+                            )
+                        )
+                        .background(
+                            Brush.linearGradient(
+                                listOf(Color(0xFF6C9BFF), Color(0xFF4C7DFF))
+                            )
+                        )
+                        .padding(horizontal = 15.dp, vertical = 11.dp)
+                ) {
+                    attachments.forEach { name ->
+                        Text(
+                            text = "📎 $name",
+                            color = Color.White.copy(alpha = 0.92f),
+                            fontSize = 11.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.padding(bottom = 3.dp)
+                        )
+                    }
+                    if (text.isNotBlank()) {
+                        Text(
+                            text = text,
+                            color = Color.White,
+                            fontSize = 15.5.sp,
+                            lineHeight = 24.sp
+                        )
+                    }
+                    if (pending) {
+                        Spacer(Modifier.height(3.dp))
+                        Text(
+                            text = "发送中…",
+                            color = Color.White.copy(alpha = 0.7f),
+                            fontSize = 10.sp
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun AssistantRow(
+    text: String,
+    images: List<ChatImage> = emptyList(),
+    onLoadImage: suspend (String) -> ChatImage? = { null }
+) {
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
         SparkLogo(26.dp)
         Spacer(Modifier.width(9.dp))
-        Box(Modifier.weight(1f)) {
-            MarkdownText(text)
+        Column(
+            Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            images.forEach { image ->
+                ChatImageBox(image = image, load = onLoadImage)
+            }
+            if (text.isNotBlank()) MarkdownText(text)
         }
     }
 }
@@ -685,7 +780,10 @@ fun CodeBlock(code: String, language: String?) {
 }
 
 @Composable
-fun ToolCard(item: ToolItem) {
+fun ToolCard(
+    item: ToolItem,
+    onLoadImage: suspend (String) -> ChatImage? = { null }
+) {
     var expanded by remember(item.key) { mutableStateOf(item.isError) }
     LaunchedEffect(item.isError) {
         if (item.isError) expanded = true
@@ -772,6 +870,18 @@ fun ToolCard(item: ToolItem) {
                     tint = Muted,
                     modifier = Modifier.size(18.dp)
                 )
+            }
+            if (item.images.isNotEmpty()) {
+                Column(
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(start = 12.dp, end = 12.dp, bottom = 12.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    item.images.forEach { image ->
+                        ChatImageBox(image = image, load = onLoadImage)
+                    }
+                }
             }
             if (expanded) {
                 Box(

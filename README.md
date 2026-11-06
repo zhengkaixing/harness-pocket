@@ -100,6 +100,14 @@ Harness Pocket 是一个**非官方的原生 Android 客户端**，用来远程�
 
 工具调用卡片、Markdown 代码块、停止任务、重命名与错误提示也都做了回归。
 
+0.7.1 新增并验证了：
+
+- 对话内的图片不再只显示 `[图片]` 或附件名：用户消息、助手消息和工具结果中的 image block 会按 `attachmentId` 拉取 `session/attachment`，并以圆角图片卡直接显示。
+- 发送图片后先显示本地预览，服务端回传后替换为会话内的真实附件；点发送时只携带已就绪的图片/文件，上传中的附件不会误发。
+- 图片卡支持历史消息回看；图片字节按会话缓存，重复打开不会反复拉取。
+
+![对话内图片](docs/screenshots/image-chat.png)
+
 0.7.0 新增并验证了：
 
 - 读取 `session/list` 的 `projections.values.userQuestions.active`，把 DSH 的 `ask_user_question` 调用渲染成可交互问答卡。
@@ -163,7 +171,7 @@ Harness Pocket 是一个**非官方的原生 Android 客户端**，用来远程�
 
 ### 直接安装 APK
 
-本地预构建的 APK 在 `dist/HarnessPocket-0.7.0-debug.apk`（二进制不提交到 Git 仓库）；从源码重新构建的产物在：
+本地预构建的 APK 在 `dist/HarnessPocket-0.7.1-debug.apk`（二进制不提交到 Git 仓库）；从源码重新构建的产物在：
 
 ```text
 app/build/outputs/apk/debug/app-debug.apk
@@ -295,6 +303,12 @@ app/src/main/java/dev/harness/pocket/
 - [ ] 可配置的 HTTPS / 证书校验
 
 ## 更新日志
+
+### 0.7.1
+
+- 对话内图片按 attachmentId 拉取并直接显示，覆盖用户消息、助手消息和工具结果。
+- 发送图片先本地预览，服务端回传后替换为真实附件；图片单独成卡，不再嵌在蓝色气泡里。
+- 修复图片/附件选择后发送按钮短暂读到旧状态的问题；历史图片按会话缓存，避免重复请求。
 
 ### 0.7.0
 

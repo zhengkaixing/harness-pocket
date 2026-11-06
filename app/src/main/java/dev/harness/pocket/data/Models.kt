@@ -111,6 +111,15 @@ data class AskAnswer(
     val custom: String? = null
 )
 
+data class ChatImage(
+    val attachmentId: String,
+    val mediaType: String = "image/png",
+    val width: Int = 0,
+    val height: Int = 0,
+    val name: String? = null,
+    val data: String? = null
+)
+
 data class SessionSummary(
     val sessionId: String,
     val title: String?,
@@ -135,13 +144,15 @@ data class UserMessage(
     val text: String,
     val rpcId: String? = null,
     val pending: Boolean = false,
-    val attachments: List<String> = emptyList()
+    val attachments: List<String> = emptyList(),
+    val images: List<ChatImage> = emptyList()
 ) : ChatItem
 
 data class AssistantMessage(
     override val key: String,
     override val seq: Int,
-    val text: String
+    val text: String,
+    val images: List<ChatImage> = emptyList()
 ) : ChatItem
 
 data class ToolItem(
@@ -151,7 +162,8 @@ data class ToolItem(
     val input: String,
     val result: String?,
     val isError: Boolean,
-    val done: Boolean
+    val done: Boolean,
+    val images: List<ChatImage> = emptyList()
 ) : ChatItem
 
 data class NoticeItem(

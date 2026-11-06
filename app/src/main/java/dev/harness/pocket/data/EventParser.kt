@@ -25,7 +25,8 @@ object EventParser {
                     val content = message.optJSONArray("content")
                     val text = plainText(content)
                     val attachments = attachmentLabels(content)
-                    if (text.isBlank() && attachments.isEmpty()) continue
+                    val images = imagesOf(content)
+                    if (text.isBlank() && attachments.isEmpty() && images.isEmpty()) continue
                     if (text.trimStart().startsWith("/permission ")) continue
                     out.add(
                         UserMessage(
@@ -33,7 +34,8 @@ object EventParser {
                             seq = seq,
                             text = text,
                             rpcId = source.optString("rpcId").takeIf { it.isNotBlank() },
-                            attachments = attachments
+                            attachments = attachments,
+                            images = images
                         )
                     )
                 }
@@ -42,29 +44,29 @@ object EventParser {
                     val message = data.optJSONObject("message") ?: continue
                     val content = message.optJSONArray("content") ?: continue
                     val textBuffer = StringBuilder()
+                    val images = ArrayList<ChatImage>()
 
                     fun flushText() {
                         val text = textBuffer.toString().trim()
-                        if (text.isNotBlank()) {
+                        if (text.isNotBlank() || images.isNotEmpty()) {
                             out.add(
                                 AssistantMessage(
                                     key = "assistant:$seq:${out.size}",
                                     seq = seq,
-                                    text = text
+                                    text = text,
+                                    images = images.toList()
                                 )
                             )
                         }
                         textBuffer.setLength(0)
+                        images.clear()
                     }
 
                     for (j in 0 until content.length()) {
                         val block = content.optJSONObject(j) ?: continue
                         when (block.optString("type")) {
                             "text" -> textBuffer.append(block.optString("text"))
-                            "image" -> {
-                                if (textBuffer.isNotEmpty()) textBuffer.append('\n')
-                                textBuffer.append("[图片]")
-                            }
+                            "image" -> imageBlock(block)?.let { images.add(it) }
                             "file" -> {
                                 if (textBuffer.isNotEmpty()) textBuffer.append('\n')
                                 textBuffer.append("[文件]")
@@ -103,10 +105,12 @@ object EventParser {
                     val index = toolIndex[callId] ?: continue
                     if (index !in out.indices) continue
                     val old = out[index] as? ToolItem ?: continue
+                    val content = message.optJSONArray("content")
                     out[index] = old.copy(
-                        result = blocksText(message.optJSONArray("content")),
+                        result = blocksText(content),
                         isError = message.optBoolean("isError", false),
-                        done = true
+                        done = true,
+                        images = imagesOf(content)
                     )
                 }
 
@@ -166,11 +170,8 @@ object EventParser {
         val result = ArrayList<String>()
         for (i in 0 until blocks.length()) {
             val block = blocks.optJSONObject(i) ?: continue
-            when (block.optString("type")) {
-                "image" -> result.add(
-                    block.optString("name").takeIf { it.isNotBlank() } ?: "图片"
-                )
-                "file" -> result.add(
+            if (block.optString("type") == "file") {
+                result.add(
                     block.optString("name").takeIf { it.isNotBlank() }
                         ?: block.optString("fileName").takeIf { it.isNotBlank() }
                         ?: "附件"
@@ -180,6 +181,43 @@ object EventParser {
         return result
     }
 
+    private fun imagesOf(blocks: JSONArray?): List<ChatImage> {
+        if (blocks == null) return emptyList()
+        val result = ArrayList<ChatImage>()
+        for (i in 0 until blocks.length()) {
+            val block = blocks.optJSONObject(i) ?: continue
+            if (block.optString("type") == "image") {
+                imageBlock(block)?.let { result.add(it) }
+            }
+        }
+        return result.distinctBy { it.attachmentId }
+    }
+
+    private fun imageBlock(block: JSONObject): ChatImage? {
+        val attachment = block.optJSONObject("attachment")
+        if (attachment != null) {
+            val id = attachment.optString("attachmentId")
+            if (id.isBlank()) return null
+            return ChatImage(
+                attachmentId = id,
+                mediaType = attachment.optString("mediaType").ifBlank { "image/png" },
+                width = attachment.optInt("width"),
+                height = attachment.optInt("height"),
+                name = attachment.optString("name").takeIf { it.isNotBlank() }
+            )
+        }
+        val inline = block.optString("data")
+        if (inline.isBlank()) return null
+        return ChatImage(
+            attachmentId = "inline:${inline.hashCode()}",
+            mediaType = block.optString("mediaType").ifBlank { "image/png" },
+            width = block.optInt("width"),
+            height = block.optInt("height"),
+            name = block.optString("name").takeIf { it.isNotBlank() },
+            data = inline
+        )
+    }
+
     private fun blocksText(blocks: JSONArray?): String {
         if (blocks == null) return ""
         val builder = StringBuilder()
@@ -187,10 +225,6 @@ object EventParser {
             val block = blocks.optJSONObject(i) ?: continue
             when (block.optString("type")) {
                 "text" -> builder.append(block.optString("text"))
-                "image" -> {
-                    if (builder.isNotEmpty()) builder.append('\n')
-                    builder.append("[图片]")
-                }
                 "file" -> {
                     if (builder.isNotEmpty()) builder.append('\n')
                     builder.append("[文件]")

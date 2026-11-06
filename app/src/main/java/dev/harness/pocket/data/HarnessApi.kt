@@ -216,6 +216,28 @@ class HarnessApi {
         return value.optBoolean("value", true)
     }
 
+    suspend fun readAttachment(sessionId: String, attachmentId: String): ChatImage? {
+        val value = rpc(
+            "session/attachment",
+            JSONObject().put(
+                "request",
+                JSONObject()
+                    .put("sessionId", sessionId)
+                    .put("attachmentId", attachmentId)
+            )
+        )
+        val attachment = value.optJSONObject("attachment") ?: return null
+        val data = value.optString("data").takeIf { it.isNotBlank() } ?: return null
+        return ChatImage(
+            attachmentId = attachmentId,
+            mediaType = attachment.optString("mediaType").ifBlank { "image/png" },
+            width = attachment.optInt("width"),
+            height = attachment.optInt("height"),
+            name = attachment.optString("name").takeIf { it.isNotBlank() },
+            data = data
+        )
+    }
+
     suspend fun uploadFile(sessionId: String, bytes: ByteArray, name: String): UploadReceipt {
         val encoded = Base64.getEncoder().encodeToString(bytes)
         val request = JSONObject().put("data", encoded).put("name", name)

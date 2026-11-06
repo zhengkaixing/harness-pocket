@@ -69,6 +69,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -92,6 +93,7 @@ import dev.harness.pocket.data.AppState
 import dev.harness.pocket.data.AskAnswer
 import dev.harness.pocket.data.AssistantMessage
 import dev.harness.pocket.data.Attachment
+import dev.harness.pocket.data.ChatImage
 import dev.harness.pocket.data.ChatItem
 import dev.harness.pocket.data.ChatState
 import dev.harness.pocket.data.ModelCatalog
@@ -117,9 +119,11 @@ fun ChatScreen(
     onAttach: () -> Unit,
     onPickImage: () -> Unit,
     onRemoveAttachment: (String) -> Unit,
-    onAnswer: (String, List<AskAnswer>) -> Unit
+    onAnswer: (String, List<AskAnswer>) -> Unit,
+    onLoadImage: suspend (String) -> ChatImage?
 ) {
     val chat = state.chat
+    val latestChat = rememberUpdatedState(chat)
     val listState = rememberLazyListState()
     var draft by rememberSaveable { mutableStateOf("") }
     var menuOpen by remember { mutableStateOf(false) }
@@ -195,10 +199,11 @@ fun ChatScreen(
     }
 
     fun submit() {
+        val current = latestChat.value
         val clean = draft.trim()
-        if (chat.sending || chat.running) return
-        if (clean.isEmpty() && chat.attachments.none { it.ready }) return
-        if (chat.attachments.any { it.uploading }) return
+        if (current.sending || current.running) return
+        if (clean.isEmpty() && current.attachments.none { it.ready }) return
+        if (current.attachments.any { it.uploading }) return
         draft = ""
         focusManager.clearFocus()
         onSend(clean)
@@ -289,7 +294,7 @@ fun ChatScreen(
                         } else {
                             item(key = "day") { DayDivider() }
                             items(chat.allItems, key = { it.key }) { item ->
-                                ChatItemRow(item)
+                                ChatItemRow(item, onLoadImage)
                             }
                             items(chat.questions, key = { "question:${it.callId}" }) { batch ->
                                 QuestionCard(
@@ -804,27 +809,40 @@ private fun ChatTopBar(
 }
 
 @Composable
-private fun ChatItemRow(item: ChatItem) {
+private fun ChatItemRow(
+    item: ChatItem,
+    onLoadImage: suspend (String) -> ChatImage?
+) {
     when (item) {
-        is UserMessage -> UserBubble(item.text, item.pending, item.attachments)
-        is AssistantMessage -> AssistantBubble(item.text)
+        is UserMessage -> UserBubble(
+            text = item.text,
+            pending = item.pending,
+            attachments = item.attachments,
+            images = item.images,
+            onLoadImage = onLoadImage
+        )
+        is AssistantMessage -> AssistantBubble(item.text, item.images, onLoadImage)
         is ToolItem -> Row(Modifier.fillMaxWidth()) {
             Spacer(Modifier.width(30.dp))
-            Box(Modifier.weight(1f)) { ToolCard(item) }
+            Box(Modifier.weight(1f)) { ToolCard(item, onLoadImage) }
         }
         is NoticeItem -> NoticeCard(item)
     }
 }
 
 @Composable
-private fun AssistantBubble(text: String) {
+private fun AssistantBubble(
+    text: String,
+    images: List<ChatImage> = emptyList(),
+    onLoadImage: suspend (String) -> ChatImage? = { null }
+) {
     Box(
         Modifier
             .fillMaxWidth()
             .padding(top = 10.dp, bottom = 2.dp)
     ) {
-        if (text.isNotBlank()) {
-            AssistantRow(text)
+        if (text.isNotBlank() || images.isNotEmpty()) {
+            AssistantRow(text, images, onLoadImage)
         }
     }
 }

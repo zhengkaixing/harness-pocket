@@ -179,7 +179,8 @@ private fun AppRoot(
                     onAttach = { filePicker.launch(arrayOf("*/*")) },
                     onPickImage = { imagePicker.launch("image/*") },
                     onRemoveAttachment = vm::removeAttachment,
-                    onAnswer = vm::answerQuestions
+                    onAnswer = vm::answerQuestions,
+                    onLoadImage = vm::loadImage
                 )
             } else {
                 HomeScreen(

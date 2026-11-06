@@ -10,6 +10,7 @@ import dev.harness.pocket.data.AppState
 import dev.harness.pocket.data.AskAnswer
 import dev.harness.pocket.data.Attachment
 import dev.harness.pocket.data.AuthException
+import dev.harness.pocket.data.ChatImage
 import dev.harness.pocket.data.ChatState
 import dev.harness.pocket.data.ConnectionInput
 import dev.harness.pocket.data.EventParser
@@ -34,11 +35,13 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.Base64
+import java.util.LinkedHashMap
 import java.util.UUID
 
 class MainViewModel(app: Application) : AndroidViewModel(app) {
     private val prefs = Prefs(app)
     private val api = HarnessApi()
+    private val imageCache = LinkedHashMap<String, ChatImage>()
 
     private val _state = MutableStateFlow(AppState())
     val state: StateFlow<AppState> = _state.asStateFlow()
@@ -214,7 +217,15 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             text = clean,
             rpcId = requestId,
             pending = true,
-            attachments = attachments.map { it.name }
+            attachments = attachments.filterNot { it.isImage }.map { it.name },
+            images = attachments.filter { it.isImage && it.bytes != null }.map { attachment ->
+                ChatImage(
+                    attachmentId = "pending:${attachment.id}",
+                    mediaType = attachment.mime ?: "image/png",
+                    name = attachment.name,
+                    data = Base64.getEncoder().encodeToString(attachment.bytes!!)
+                )
+            }
         )
         _state.update {
             it.copy(chat = it.chat.copy(pending = pending, sending = true, error = null))
@@ -563,6 +574,23 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    suspend fun loadImage(attachmentId: String): ChatImage? {
+        imageCache[attachmentId]?.let { return it }
+        val sessionId = _state.value.activeSession?.sessionId ?: return null
+        val image = try {
+            api.readAttachment(sessionId, attachmentId)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            null
+        } ?: return null
+        if (imageCache.size >= 64) {
+            imageCache.keys.firstOrNull()?.let { imageCache.remove(it) }
+        }
+        imageCache[attachmentId] = image
+        return image
+    }
+
     fun answerQuestions(callId: String, answers: List<AskAnswer>) {
         val session = _state.value.activeSession ?: return
         if (_state.value.chat.questionBusy) return
@@ -608,14 +636,27 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     throw IllegalArgumentException("文件不能超过 20 MB")
                 }
                 val mime = file.mime?.lowercase()
-                val isImage = mime in setOf(
+                val extension = file.name.substringAfterLast('.', "").lowercase()
+                val imageMime = when (extension) {
+                    "png" -> "image/png"
+                    "jpg", "jpeg" -> "image/jpeg"
+                    "webp" -> "image/webp"
+                    "gif" -> "image/gif"
+                    else -> null
+                }
+                val effectiveMime = when {
+                    mime?.startsWith("image/") == true -> mime
+                    imageMime != null -> imageMime
+                    else -> file.mime
+                }
+                val isImage = effectiveMime in setOf(
                     "image/png", "image/jpeg", "image/webp", "image/gif"
                 )
                 val attachment = Attachment(
                     id = UUID.randomUUID().toString(),
                     name = file.name,
                     size = file.bytes.size.toLong(),
-                    mime = file.mime,
+                    mime = effectiveMime,
                     isImage = isImage,
                     bytes = if (isImage) file.bytes else null,
                     uploading = !isImage
