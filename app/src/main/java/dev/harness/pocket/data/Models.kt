@@ -250,8 +250,50 @@ data class AppState(
     val workspacesError: String? = null,
     val selectedWorkspace: WorkspaceInfo? = null,
     val pinnedSessionIds: List<String> = emptyList(),
-    val archivedSessionIds: List<String> = emptyList()
+    val archivedSessionIds: List<String> = emptyList(),
+    val resourcesVisible: Boolean = false,
+    val resourceStatus: ResourceStatus? = null,
+    val resourcesLoading: Boolean = false,
+    val resourcesBusy: Boolean = false,
+    val resourcesError: String? = null
 ) {
     fun isPinned(sessionId: String): Boolean = pinnedSessionIds.contains(sessionId)
     fun isArchived(sessionId: String): Boolean = archivedSessionIds.contains(sessionId)
 }
+
+data class ResourceMemory(
+    val totalBytes: Long = 0,
+    val availBytes: Long = 0,
+    val usedBytes: Long = 0,
+    val usedPercent: Double? = null,
+    val commitLimitBytes: Long? = null,
+    val commitUsedBytes: Long? = null,
+    val commitPercent: Double? = null,
+    val sampler: String? = null
+)
+
+data class ResourceDisk(
+    val name: String,
+    val label: String? = null,
+    val fileSystem: String? = null,
+    val system: Boolean = false,
+    val totalBytes: Long = 0,
+    val freeBytes: Long = 0,
+    val usedBytes: Long = 0,
+    val usedPercent: Double? = null
+)
+
+data class ResourceGate(
+    val enabled: Boolean = true,
+    val maxConcurrent: Int = 2,
+    val running: Int = 0,
+    val waiting: Int = 0
+)
+
+data class ResourceStatus(
+    val time: String? = null,
+    val platform: String? = null,
+    val memory: ResourceMemory = ResourceMemory(),
+    val disks: List<ResourceDisk> = emptyList(),
+    val gate: ResourceGate = ResourceGate()
+)

@@ -28,6 +28,7 @@ import androidx.compose.material.icons.rounded.DragHandle
 import androidx.compose.material.icons.rounded.Folder
 import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material.icons.rounded.KeyboardArrowUp
+import androidx.compose.material.icons.rounded.Memory
 import androidx.compose.material.icons.rounded.PushPin
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Settings
@@ -76,6 +77,7 @@ fun HarnessDrawer(
     onMoveWorkspace: (String, String?) -> Unit,
     onOpenSession: (SessionSummary) -> Unit,
     onSettings: () -> Unit,
+    onResources: () -> Unit,
     onPinSession: (SessionSummary) -> Unit,
     onUnpinSession: (SessionSummary) -> Unit,
     onArchiveSession: (SessionSummary) -> Unit
@@ -171,6 +173,10 @@ fun HarnessDrawer(
             DrawerAction(Icons.Rounded.Add, "新对话") {
                 onClose()
                 onNewChat()
+            }
+            DrawerAction(Icons.Rounded.Memory, "资源与并发") {
+                onClose()
+                onResources()
             }
             DrawerAction(Icons.Rounded.Settings, "连接设置") {
                 onClose()

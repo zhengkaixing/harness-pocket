@@ -779,6 +779,52 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         startPolling(session.sessionId, reset = true)
     }
 
+    fun openResources() {
+        _state.update { it.copy(resourcesVisible = true) }
+        refreshResources()
+    }
+
+    fun closeResources() {
+        _state.update { it.copy(resourcesVisible = false) }
+    }
+
+    fun refreshResources() {
+        if (_state.value.resourcesLoading) return
+        viewModelScope.launch {
+            _state.update { it.copy(resourcesLoading = true, resourcesError = null) }
+            try {
+                val status = api.resourceStatus()
+                _state.update {
+                    it.copy(resourceStatus = status, resourcesLoading = false)
+                }
+            } catch (e: Exception) {
+                _state.update {
+                    it.copy(resourcesLoading = false, resourcesError = friendlyError(e))
+                }
+            }
+        }
+    }
+
+    fun setResourceLimit(maxConcurrent: Int) {
+        if (_state.value.resourcesBusy) return
+        viewModelScope.launch {
+            _state.update { it.copy(resourcesBusy = true, resourcesError = null) }
+            try {
+                val status = api.setResourceLimit(maxConcurrent)
+                _state.update {
+                    it.copy(
+                        resourceStatus = status,
+                        resourcesBusy = false
+                    )
+                }
+            } catch (e: Exception) {
+                _state.update {
+                    it.copy(resourcesBusy = false, resourcesError = friendlyError(e))
+                }
+            }
+        }
+    }
+
     fun closeSession() {
         pollJob?.cancel()
         pollJob = null

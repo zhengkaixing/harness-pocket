@@ -33,6 +33,7 @@ import dev.harness.pocket.ui.ConnectScreen
 import dev.harness.pocket.ui.HarnessDrawer
 import dev.harness.pocket.ui.HarnessTheme
 import dev.harness.pocket.ui.HomeScreen
+import dev.harness.pocket.ui.ResourceScreen
 import dev.harness.pocket.ui.SettingsDialog
 import dev.harness.pocket.ui.SplashScreen
 import dev.harness.pocket.ui.WorkspaceDialog
@@ -157,13 +158,21 @@ private fun AppRoot(
                     onMoveWorkspace = vm::moveWorkspace,
                     onOpenSession = vm::openSession,
                     onSettings = { showSettings = true },
+                    onResources = vm::openResources,
                     onPinSession = vm::togglePin,
                     onUnpinSession = vm::togglePin,
                     onArchiveSession = vm::archiveSession
                 )
             }
         ) {
-            if (state.activeSession != null) {
+            if (state.resourcesVisible) {
+                ResourceScreen(
+                    state = state,
+                    onBack = vm::closeResources,
+                    onRefresh = vm::refreshResources,
+                    onLimit = vm::setResourceLimit
+                )
+            } else if (state.activeSession != null) {
                 ChatScreen(
                     state = state,
                     onBack = vm::closeSession,

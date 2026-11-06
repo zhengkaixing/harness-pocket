@@ -482,6 +482,103 @@ class HarnessApi {
         return values
     }
 
+    suspend fun resourceStatus(): ResourceStatus = withContext(Dispatchers.IO) {
+        val conn = connection ?: throw ApiException("尚未连接 Harness")
+        val request = Request.Builder()
+            .url("${conn.baseUrl}/dsh-resource/status")
+            .header("Cookie", conn.cookie)
+            .header("Accept", "application/json")
+            .get()
+            .build()
+        client.newCall(request).execute().use { response ->
+            val body = response.body?.string().orEmpty()
+            when (response.code) {
+                401, 403 -> throw AuthException("登录已过期，请重新连接")
+                404 -> throw ApiException("当前服务器未安装资源与并发插件")
+            }
+            if (!response.isSuccessful) {
+                throw ApiException("资源状态加载失败（HTTP ${response.code}）")
+            }
+            val json = runCatching { JSONObject(body) }
+                .getOrElse { throw ApiException("资源插件返回了无法解析的数据") }
+            if (!json.optBoolean("ok", false)) {
+                throw ApiException(json.optString("error").ifBlank { "资源状态不可用" })
+            }
+            parseResourceStatus(json)
+        }
+    }
+
+    suspend fun setResourceLimit(maxConcurrent: Int): ResourceStatus = withContext(Dispatchers.IO) {
+        val conn = connection ?: throw ApiException("尚未连接 Harness")
+        val body = JSONObject().put("maxConcurrent", maxConcurrent).toString()
+            .toRequestBody(jsonMedia)
+        val request = Request.Builder()
+            .url("${conn.baseUrl}/dsh-resource/limit")
+            .header("Cookie", conn.cookie)
+            .header("Accept", "application/json")
+            .post(body)
+            .build()
+        client.newCall(request).execute().use { response ->
+            val text = response.body?.string().orEmpty()
+            if (!response.isSuccessful) {
+                val message = runCatching { JSONObject(text).optString("error") }.getOrNull()
+                throw ApiException(message?.ifBlank { null } ?: "修改并发上限失败（HTTP ${response.code}）")
+            }
+        }
+        resourceStatus()
+    }
+
+    private fun parseResourceStatus(json: JSONObject): ResourceStatus {
+        val memoryJson = json.optJSONObject("memory") ?: JSONObject()
+        val gateJson = json.optJSONObject("gate") ?: JSONObject()
+        val disksJson = json.optJSONArray("disks") ?: JSONArray()
+        val disks = ArrayList<ResourceDisk>(disksJson.length())
+        for (i in 0 until disksJson.length()) {
+            val disk = disksJson.optJSONObject(i) ?: continue
+            disks.add(
+                ResourceDisk(
+                    name = disk.optString("name"),
+                    label = disk.optString("label").takeIf { it.isNotBlank() },
+                    fileSystem = disk.optString("fileSystem").takeIf { it.isNotBlank() },
+                    system = disk.optBoolean("system", false),
+                    totalBytes = disk.optLong("totalBytes", 0L),
+                    freeBytes = disk.optLong("freeBytes", 0L),
+                    usedBytes = disk.optLong("usedBytes", 0L),
+                    usedPercent = if (disk.isNull("usedPercent")) null else disk.optDouble("usedPercent")
+                )
+            )
+        }
+        return ResourceStatus(
+            time = json.optString("time").takeIf { it.isNotBlank() },
+            platform = json.optString("platform").takeIf { it.isNotBlank() },
+            memory = ResourceMemory(
+                totalBytes = memoryJson.optLong("totalBytes", 0L),
+                availBytes = memoryJson.optLong("availBytes", 0L),
+                usedBytes = memoryJson.optLong("usedBytes", 0L),
+                usedPercent = if (memoryJson.isNull("usedPercent")) null
+                else memoryJson.optDouble("usedPercent"),
+                commitLimitBytes = memoryJson.optLong("commitLimitBytes", 0L).takeIf { it > 0 },
+                commitUsedBytes = memoryJson.optLong("commitUsedBytes", 0L).takeIf { it > 0 },
+                commitPercent = if (memoryJson.isNull("commitPercent")) null
+                else memoryJson.optDouble("commitPercent"),
+                sampler = memoryJson.optString("sampler").takeIf { it.isNotBlank() }
+            ),
+            disks = disks,
+            gate = ResourceGate(
+                enabled = gateJson.optBoolean("enabled", true),
+                maxConcurrent = gateJson.optInt("maxConcurrent", 2).coerceIn(1, 8),
+                running = gateJson.optInt(
+                    "running",
+                    gateJson.optJSONArray("active")?.length() ?: 0
+                ),
+                waiting = gateJson.optInt(
+                    "waiting",
+                    gateJson.optJSONArray("queue")?.length() ?: 0
+                )
+            )
+        )
+    }
+
     private fun parseAskBatches(value: JSONObject?): List<AskBatch> {
         val active = value?.optJSONArray("active") ?: return emptyList()
         val result = ArrayList<AskBatch>()

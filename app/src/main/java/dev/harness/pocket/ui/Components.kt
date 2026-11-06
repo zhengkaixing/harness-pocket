@@ -28,6 +28,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Archive
@@ -455,12 +456,14 @@ fun UserBubble(
                         )
                     }
                     if (text.isNotBlank()) {
-                        Text(
-                            text = text,
-                            color = Color.White,
-                            fontSize = 15.5.sp,
-                            lineHeight = 24.sp
-                        )
+                        SelectionContainer {
+                            Text(
+                                text = text,
+                                color = Color.White,
+                                fontSize = 15.5.sp,
+                                lineHeight = 24.sp
+                            )
+                        }
                     }
                     if (pending) {
                         Spacer(Modifier.height(3.dp))
@@ -522,10 +525,11 @@ fun TypingRow() {
 @Composable
 fun MarkdownText(text: String, modifier: Modifier = Modifier) {
     val blocks = remember(text) { MarkdownParser.parse(text) }
-    Column(
-        modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(7.dp)
-    ) {
+    SelectionContainer {
+        Column(
+            modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(7.dp)
+        ) {
         blocks.forEach { block ->
             when (block) {
                 is MdBlock.Paragraph -> Text(
@@ -629,6 +633,7 @@ fun MarkdownText(text: String, modifier: Modifier = Modifier) {
                 )
             }
         }
+    }
     }
 }
 
@@ -927,13 +932,15 @@ private fun ToolCode(label: String, text: String, isError: Boolean = false) {
                 .verticalScroll(rememberScrollState())
                 .padding(10.dp)
         ) {
-            Text(
-                text = text.take(12000),
-                color = if (isError) Color(0xFF9F2D3A) else Color(0xFF394154),
-                fontFamily = FontFamily.Monospace,
-                fontSize = 11.5.sp,
-                lineHeight = 17.sp
-            )
+            SelectionContainer {
+                Text(
+                    text = text.take(12000),
+                    color = if (isError) Color(0xFF9F2D3A) else Color(0xFF394154),
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = 11.5.sp,
+                    lineHeight = 17.sp
+                )
+            }
         }
     }
 }
@@ -955,12 +962,14 @@ fun NoticeCard(item: NoticeItem) {
             modifier = Modifier.size(18.dp)
         )
         Spacer(Modifier.width(8.dp))
-        Text(
-            text = item.text,
-            color = Color(0xFF9F2D3A),
-            fontSize = 13.sp,
-            lineHeight = 20.sp
-        )
+        SelectionContainer {
+            Text(
+                text = item.text,
+                color = Color(0xFF9F2D3A),
+                fontSize = 13.sp,
+                lineHeight = 20.sp
+            )
+        }
     }
 }
 

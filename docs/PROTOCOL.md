@@ -345,6 +345,17 @@ session page through seq 999999 is past cursor 18
 
 返回 `attachment` 元数据和 base64 `data`，客户端解码后用 `BitmapFactory` 显示。
 
+### 资源与并发（dsh-conversation-queue 插件）
+
+插件在 dsh web 同源暴露两个路由，使用登录 Cookie 直接请求：
+
+```text
+GET  /dsh-resource/status
+POST /dsh-resource/limit   {"maxConcurrent": 1..8}
+```
+
+`status` 返回内存、提交内存、磁盘和并发闸门；未安装插件时路由为 404。
+
 ### 工作区
 
 工作区列表只能通过 WebSocket 的 `workspace/follow` 流获取。`open` 帧：

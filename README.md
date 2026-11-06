@@ -63,6 +63,8 @@ Harness Pocket 是一个**非官方的原生 Android 客户端**，用来远程�
 - **权限模式**：仅可查看、工作区内修改、完全权限；通过 `/permission <preset>` 命令真正写入会话策略。
 - **附件**：图片直接内联为 base64，任意文件先走 `fileUploads/upload` 换 `receiptId`；单文件上限 20 MB。
 - **语音输入**：输入框左侧麦克风调用系统语音识别（`RecognizerIntent`），识别结果直接回填草稿；没有识别服务时会给出提示。
+- **可选中复制**：对话正文、用户气泡、工具结果和错误提示都支持长按选中，调用系统文本选择工具栏复制。
+- **资源与并发**：读取 `dsh-conversation-queue` 插件的 `/dsh-resource/status`，展示内存、提交内存、磁盘占用和并发闸门的运行/等待数量；可直接把最大并发调到 1–8。未安装插件时显示明确提示。
 - **工具调用可视化**：把 `tool/call`、`tool/result` 渲染成可展开卡片，参数和结果都能看。
 - **Markdown 与富文本**：标题、有序/无序/嵌套列表、引用、粗体、行内代码、代码块和表格；表格按列宽铺排，代码块支持一键复制。
 - **自动续期**：API Cookie 过期后，用本地保存的启动令牌自动重新 `/connect`。
@@ -99,6 +101,16 @@ Harness Pocket 是一个**非官方的原生 Android 客户端**，用来远程�
 ![远程会话实测](docs/screenshots/remote-chat.png)
 
 工具调用卡片、Markdown 代码块、停止任务、重命名与错误提示也都做了回归。
+
+0.8.0 新增并验证了：
+
+- 对话正文、用户气泡、工具结果和错误提示支持长按选中，并调起系统“复制”工具栏。
+- 从 `dsh-conversation-queue` 插件的同源 `/dsh-resource/status` 读取内存/提交内存、磁盘和并发闸门状态，显示在独立资源页。
+- 资源页可直接调并发上限：`POST /dsh-resource/limit`，范围 1–8，写回后立即刷新；未安装插件时显示“当前服务器未安装资源与并发插件”。
+
+![资源与并发](docs/screenshots/resource.png)
+
+资源页在本地 mock 状态上验证了渲染和并发写回；连接已安装该插件的服务器时会显示真实数据。
 
 0.7.1 新增并验证了：
 
@@ -171,7 +183,7 @@ Harness Pocket 是一个**非官方的原生 Android 客户端**，用来远程�
 
 ### 直接安装 APK
 
-本地预构建的 APK 在 `dist/HarnessPocket-0.7.1-debug.apk`（二进制不提交到 Git 仓库）；从源码重新构建的产物在：
+本地预构建的 APK 在 `dist/HarnessPocket-0.8.0-debug.apk`（二进制不提交到 Git 仓库）；从源码重新构建的产物在：
 
 ```text
 app/build/outputs/apk/debug/app-debug.apk
@@ -303,6 +315,12 @@ app/src/main/java/dev/harness/pocket/
 - [ ] 可配置的 HTTPS / 证书校验
 
 ## 更新日志
+
+### 0.8.0
+
+- 对话正文、用户气泡、工具结果和错误提示支持长按选中复制。
+- 新增“资源与并发”页：读取 dsh-conversation-queue 插件的内存、磁盘、并发闸门状态，并支持把最大并发调到 1–8。
+- 插件未安装或接口不可达时展示明确错误，不影响会话功能。
 
 ### 0.7.1
 
