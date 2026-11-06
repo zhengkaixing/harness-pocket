@@ -211,6 +211,16 @@ class HarnessApi {
         return requestId
     }
 
+    suspend fun questionBatches(sessionId: String): List<AskBatch> {
+        val value = rpc(
+            "session/projections",
+            JSONObject().put("request", JSONObject().put("sessionId", sessionId))
+        )
+        return parseAskBatches(
+            value.optJSONObject("values")?.optJSONObject("userQuestions")
+        )
+    }
+
     suspend fun answerQuestions(
         sessionId: String,
         callId: String,

@@ -190,12 +190,14 @@ fun ChatScreen(
 
     LaunchedEffect(
         state.activeSession?.sessionId,
+        chat.loading,
         chat.allItems.size,
         chat.questions.size,
         showTyping,
         chat.error,
         chat.hasMoreHistory
     ) {
+        if (chat.loading) return@LaunchedEffect
         if (chat.allItems.isEmpty() && chat.questions.isEmpty()) return@LaunchedEffect
         val target = chat.allItems.size +
             chat.questions.size +

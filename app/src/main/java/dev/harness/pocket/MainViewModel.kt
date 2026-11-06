@@ -138,6 +138,16 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             )
         }
         startPolling(session.sessionId, reset = true)
+        viewModelScope.launch {
+            try {
+                val questions = api.questionBatches(session.sessionId)
+                if (questions.isNotEmpty() && _state.value.activeSession?.sessionId == session.sessionId) {
+                    _state.update { it.copy(chat = it.chat.copy(questions = questions)) }
+                }
+            } catch (_: CancellationException) {
+            } catch (_: Exception) {
+            }
+        }
     }
 
     fun newSession() {
@@ -944,7 +954,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                                 chat = st.chat.copy(
                                     title = st.chat.title ?: row.title,
                                     running = row.running,
-                                    questions = row.questions
+                                    questions = if (row.questions.isNotEmpty()) {
+                                        row.questions
+                                    } else {
+                                        st.chat.questions
+                                    }
                                 )
                             )
                         }
