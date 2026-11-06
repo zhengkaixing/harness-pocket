@@ -100,6 +100,12 @@ Harness Pocket 是一个**非官方的原生 Android 客户端**，用来远程�
 
 工具调用卡片、Markdown 代码块、停止任务、重命名与错误提示也都做了回归。
 
+0.7.0 新增并验证了：
+
+- 读取 `session/list` 的 `projections.values.userQuestions.active`，把 DSH 的 `ask_user_question` 调用渲染成可交互问答卡。
+- 支持单选、多选、每题的“其他答案”输入，以及跳过/提交；提交调用 `userQuestions/answer`，按 question id 回传 selected/custom，成功后卡片自动收起。
+- 用本机投影测试了多选和提交序列化；真实服务端需要问答调用进入 `continued` 状态（timed ask 返回 pending 后会进入该状态）。
+
 0.6.0 额外验证了：
 
 - 工作区文件夹顺序与 `workspace/follow` 的服务端顺序一致，不再按最近会话时间重排。
@@ -157,7 +163,7 @@ Harness Pocket 是一个**非官方的原生 Android 客户端**，用来远程�
 
 ### 直接安装 APK
 
-本地预构建的 APK 在 `dist/HarnessPocket-0.6.1-debug.apk`（二进制不提交到 Git 仓库）；从源码重新构建的产物在：
+本地预构建的 APK 在 `dist/HarnessPocket-0.7.0-debug.apk`（二进制不提交到 Git 仓库）；从源码重新构建的产物在：
 
 ```text
 app/build/outputs/apk/debug/app-debug.apk
@@ -283,11 +289,18 @@ app/src/main/java/dev/harness/pocket/
 - [x] 任务完成本地通知
 - [ ] 远程推送（FCM / ntfy 等），覆盖 App 进程被杀的场景
 - [x] 会话置顶、归档、恢复
+- [x] 交互式问答卡（单选/多选/自定义）
 - [ ] 会话搜索、删除
 - [ ] 深色模式与平板布局
 - [ ] 可配置的 HTTPS / 证书校验
 
 ## 更新日志
+
+### 0.7.0
+
+- 新增交互式问答卡：读取 `userQuestions` 投影，支持单选/多选、其他答案、跳过/提交。
+- 提交通过 `userQuestions/answer` 发送结构化答案，成功后自动收起卡片。
+- 问答卡与当前消息流、模型/权限胶囊并排显示；空会话有待回答问题时不显示欢迎页。
 
 ### 0.6.1
 

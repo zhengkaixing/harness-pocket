@@ -25,17 +25,22 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Archive
 import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.rounded.CheckBox
+import androidx.compose.material.icons.rounded.CheckBoxOutlineBlank
 import androidx.compose.material.icons.rounded.ContentCopy
 import androidx.compose.material.icons.rounded.ErrorOutline
 import androidx.compose.material.icons.rounded.ExpandLess
 import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.rounded.PushPin
+import androidx.compose.material.icons.rounded.RadioButtonChecked
+import androidx.compose.material.icons.rounded.RadioButtonUnchecked
 import androidx.compose.material.icons.rounded.Terminal
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
@@ -65,10 +70,12 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -76,6 +83,8 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.harness.pocket.BuildConfig
+import dev.harness.pocket.data.AskAnswer
+import dev.harness.pocket.data.AskBatch
 import dev.harness.pocket.data.NoticeItem
 import dev.harness.pocket.data.ToolItem
 import kotlinx.coroutines.delay
@@ -842,6 +851,183 @@ fun NoticeCard(item: NoticeItem) {
             fontSize = 13.sp,
             lineHeight = 20.sp
         )
+    }
+}
+
+@Composable
+fun QuestionCard(
+    batch: AskBatch,
+    busy: Boolean,
+    onSubmit: (List<AskAnswer>) -> Unit
+) {
+    var selections by remember(batch.callId) { mutableStateOf<Map<String, Set<String>>>(emptyMap()) }
+    var customs by remember(batch.callId) { mutableStateOf<Map<String, String>>(emptyMap()) }
+
+    fun answers(skip: Boolean): List<AskAnswer> = batch.questions.map { question ->
+        if (skip) {
+            AskAnswer(id = question.id)
+        } else {
+            AskAnswer(
+                id = question.id,
+                selected = selections[question.id].orEmpty().toList(),
+                custom = customs[question.id]?.trim()?.takeIf { it.isNotBlank() }
+            )
+        }
+    }
+
+    val canSubmit = batch.questions.all { question ->
+        selections[question.id].orEmpty().isNotEmpty() ||
+            !customs[question.id].isNullOrBlank()
+    }
+
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(18.dp),
+        color = Color.White,
+        border = BorderStroke(1.dp, Blue.copy(alpha = 0.22f))
+    ) {
+        Column(Modifier.padding(14.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    Modifier
+                        .size(26.dp)
+                        .background(Blue.copy(alpha = 0.1f), CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        Icons.Rounded.AutoAwesome,
+                        contentDescription = null,
+                        tint = Blue,
+                        modifier = Modifier.size(15.dp)
+                    )
+                }
+                Spacer(Modifier.width(8.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        text = batch.questions.firstOrNull()?.header ?: "需要你确认",
+                        color = Ink,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Text(
+                        text = "回答后会继续当前任务",
+                        color = Muted,
+                        fontSize = 10.5.sp
+                    )
+                }
+            }
+
+            batch.questions.forEachIndexed { index, question ->
+                Spacer(Modifier.height(12.dp))
+                Text(
+                    text = if (batch.questions.size > 1) "${index + 1}. ${question.question}" else question.question,
+                    color = Ink,
+                    fontSize = 15.sp,
+                    lineHeight = 21.sp,
+                    fontWeight = FontWeight.Medium
+                )
+                question.detail?.let {
+                    Spacer(Modifier.height(3.dp))
+                    Text(it, color = Muted, fontSize = 11.5.sp, lineHeight = 17.sp)
+                }
+                question.options.forEach { option ->
+                    val checked = selections[question.id].orEmpty().contains(option.label)
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(top = 6.dp)
+                            .clip(RoundedCornerShape(10.dp))
+                            .clickable(enabled = !busy) {
+                                val current = selections[question.id].orEmpty()
+                                val next = if (question.multiSelect) {
+                                    if (current.contains(option.label)) current - option.label
+                                    else current + option.label
+                                } else {
+                                    if (current.contains(option.label) && current.size == 1) emptySet()
+                                    else setOf(option.label)
+                                }
+                                selections = selections + (question.id to next)
+                            }
+                            .padding(horizontal = 6.dp, vertical = 5.dp),
+                        verticalAlignment = Alignment.Top
+                    ) {
+                        Icon(
+                            imageVector = when {
+                                question.multiSelect && checked -> Icons.Rounded.CheckBox
+                                question.multiSelect -> Icons.Rounded.CheckBoxOutlineBlank
+                                checked -> Icons.Rounded.RadioButtonChecked
+                                else -> Icons.Rounded.RadioButtonUnchecked
+                            },
+                            contentDescription = null,
+                            tint = if (checked) Blue else Color(0xFFBEC6D4),
+                            modifier = Modifier.size(19.dp)
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text(option.label, color = Ink, fontSize = 13.5.sp, lineHeight = 19.sp)
+                            option.description?.let {
+                                Text(it, color = Muted, fontSize = 10.5.sp, lineHeight = 15.sp)
+                            }
+                        }
+                    }
+                }
+
+                Spacer(Modifier.height(7.dp))
+                Box(
+                    Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(Color(0xFFF6F8FD))
+                        .padding(horizontal = 10.dp, vertical = 7.dp)
+                ) {
+                    if (customs[question.id].isNullOrEmpty()) {
+                        Text("其他答案（可选）", color = Muted.copy(alpha = 0.8f), fontSize = 12.sp)
+                    }
+                    BasicTextField(
+                        value = customs[question.id].orEmpty(),
+                        onValueChange = { value ->
+                            if (value.length <= 500) customs = customs + (question.id to value)
+                        },
+                        enabled = !busy,
+                        textStyle = TextStyle(color = Ink, fontSize = 12.5.sp, lineHeight = 18.sp),
+                        cursorBrush = SolidColor(Blue),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            }
+
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(top = 10.dp),
+                horizontalArrangement = Arrangement.End,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                TextButton(
+                    onClick = { onSubmit(answers(skip = true)) },
+                    enabled = !busy
+                ) {
+                    Text("跳过", color = Muted, fontSize = 12.5.sp)
+                }
+                Spacer(Modifier.width(4.dp))
+                Box(
+                    Modifier
+                        .clip(RoundedCornerShape(100.dp))
+                        .background(if (canSubmit && !busy) Blue else Color(0xFFC9D2E3))
+                        .clickable(enabled = canSubmit && !busy) {
+                            onSubmit(answers(skip = false))
+                        }
+                        .padding(horizontal = 20.dp, vertical = 8.dp)
+                ) {
+                    Text(
+                        text = if (busy) "提交中…" else "提交",
+                        color = Color.White,
+                        fontSize = 12.5.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+            }
+        }
     }
 }
 

@@ -178,7 +178,8 @@ private fun AppRoot(
                     onPermission = vm::selectPermission,
                     onAttach = { filePicker.launch(arrayOf("*/*")) },
                     onPickImage = { imagePicker.launch("image/*") },
-                    onRemoveAttachment = vm::removeAttachment
+                    onRemoveAttachment = vm::removeAttachment,
+                    onAnswer = vm::answerQuestions
                 )
             } else {
                 HomeScreen(

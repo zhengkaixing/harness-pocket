@@ -85,6 +85,32 @@ data class WorkspaceSnapshot(
     val archivedSessionIds: List<String> = emptyList()
 )
 
+data class AskOption(
+    val label: String,
+    val description: String? = null
+)
+
+data class AskQuestion(
+    val id: String,
+    val question: String,
+    val detail: String? = null,
+    val header: String? = null,
+    val options: List<AskOption> = emptyList(),
+    val multiSelect: Boolean = false
+)
+
+data class AskBatch(
+    val callId: String,
+    val state: String,
+    val questions: List<AskQuestion>
+)
+
+data class AskAnswer(
+    val id: String,
+    val selected: List<String> = emptyList(),
+    val custom: String? = null
+)
+
 data class SessionSummary(
     val sessionId: String,
     val title: String?,
@@ -94,7 +120,8 @@ data class SessionSummary(
     val asOfSeq: Int,
     val blank: Boolean,
     val model: ModelChoice? = null,
-    val permission: String? = null
+    val permission: String? = null,
+    val questions: List<AskBatch> = emptyList()
 )
 
 sealed interface ChatItem {
@@ -182,7 +209,9 @@ data class ChatState(
     val permission: String? = null,
     val attachments: List<Attachment> = emptyList(),
     val modelBusy: Boolean = false,
-    val permissionBusy: Boolean = false
+    val permissionBusy: Boolean = false,
+    val questions: List<AskBatch> = emptyList(),
+    val questionBusy: Boolean = false
 ) {
     val allItems: List<ChatItem>
         get() = if (pending != null) items + pending else items

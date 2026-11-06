@@ -7,6 +7,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import dev.harness.pocket.data.ApiException
 import dev.harness.pocket.data.AppState
+import dev.harness.pocket.data.AskAnswer
 import dev.harness.pocket.data.Attachment
 import dev.harness.pocket.data.AuthException
 import dev.harness.pocket.data.ChatState
@@ -128,7 +129,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     running = session.running,
                     asOfSeq = session.asOfSeq,
                     model = session.model ?: lastModelChoice,
-                    permission = session.permission
+                    permission = session.permission,
+                    questions = session.questions
                 )
             )
         }
@@ -561,6 +563,38 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    fun answerQuestions(callId: String, answers: List<AskAnswer>) {
+        val session = _state.value.activeSession ?: return
+        if (_state.value.chat.questionBusy) return
+        _state.update { it.copy(chat = it.chat.copy(questionBusy = true, error = null)) }
+        viewModelScope.launch {
+            try {
+                val accepted = api.answerQuestions(session.sessionId, callId, answers)
+                if (!accepted) {
+                    throw ApiException("这个问题已经结束，无法再提交")
+                }
+                _state.update {
+                    it.copy(
+                        chat = it.chat.copy(
+                            questionBusy = false,
+                            questions = it.chat.questions.filterNot { batch -> batch.callId == callId }
+                        )
+                    )
+                }
+                loadSessions()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: AuthException) {
+                _state.update { it.copy(chat = it.chat.copy(questionBusy = false)) }
+                handleAuthFailure(e.message ?: "登录已过期，请重新连接")
+            } catch (e: Exception) {
+                _state.update {
+                    it.copy(chat = it.chat.copy(questionBusy = false, error = friendlyError(e)))
+                }
+            }
+        }
+    }
+
     fun attachFile(uri: Uri) {
         val session = _state.value.activeSession
         if (session == null) {
@@ -761,7 +795,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                                 activeSession = row,
                                 chat = st.chat.copy(
                                     title = st.chat.title ?: row.title,
-                                    running = row.running
+                                    running = row.running,
+                                    questions = row.questions
                                 )
                             )
                         }

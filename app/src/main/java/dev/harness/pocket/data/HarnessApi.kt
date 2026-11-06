@@ -114,6 +114,7 @@ class HarnessApi {
             val permission = values?.optJSONObject("permissions")
                 ?.optString("currentValue")
                 ?.takeIf { it.isNotBlank() }
+            val questions = parseAskBatches(values?.optJSONObject("userQuestions"))
             result.add(
                 SessionSummary(
                     sessionId = row.optString("sessionId"),
@@ -124,7 +125,8 @@ class HarnessApi {
                     asOfSeq = projections?.optInt("asOfSeq", 0) ?: 0,
                     blank = row.optBoolean("blank", false),
                     model = model,
-                    permission = permission
+                    permission = permission,
+                    questions = questions
                 )
             )
         }
@@ -189,6 +191,29 @@ class HarnessApi {
             .put("clientTimeZone", TimeZone.getDefault().id)
         rpc("session/prompt", JSONObject().put("request", request))
         return requestId
+    }
+
+    suspend fun answerQuestions(
+        sessionId: String,
+        callId: String,
+        answers: List<AskAnswer>
+    ): Boolean {
+        val array = JSONArray()
+        answers.forEach { answer ->
+            val item = JSONObject()
+                .put("id", answer.id)
+                .put("selected", JSONArray(answer.selected))
+            if (!answer.custom.isNullOrBlank()) item.put("custom", answer.custom.trim())
+            array.put(item)
+        }
+        val value = rpc(
+            "userQuestions/answer",
+            JSONObject()
+                .put("agentId", sessionId)
+                .put("callId", callId)
+                .put("answer", JSONObject().put("answers", array))
+        )
+        return value.optBoolean("value", true)
     }
 
     suspend fun uploadFile(sessionId: String, bytes: ByteArray, name: String): UploadReceipt {
@@ -435,6 +460,57 @@ class HarnessApi {
         return values
     }
 
+    private fun parseAskBatches(value: JSONObject?): List<AskBatch> {
+        val active = value?.optJSONArray("active") ?: return emptyList()
+        val result = ArrayList<AskBatch>()
+        for (i in 0 until active.length()) {
+            val batch = active.optJSONObject(i) ?: continue
+            val callId = batch.optString("callId")
+            if (callId.isBlank()) continue
+            val questions = ArrayList<AskQuestion>()
+            val rawQuestions = batch.optJSONArray("questions") ?: JSONArray()
+            for (j in 0 until rawQuestions.length()) {
+                val question = rawQuestions.optJSONObject(j) ?: continue
+                val id = question.optString("id")
+                val text = question.optString("question")
+                if (id.isBlank() || text.isBlank()) continue
+                val options = ArrayList<AskOption>()
+                val rawOptions = question.optJSONArray("options") ?: JSONArray()
+                for (k in 0 until rawOptions.length()) {
+                    val option = rawOptions.optJSONObject(k) ?: continue
+                    val label = option.optString("label")
+                    if (label.isBlank()) continue
+                    options.add(
+                        AskOption(
+                            label = label,
+                            description = option.optString("description").takeIf { it.isNotBlank() }
+                        )
+                    )
+                }
+                questions.add(
+                    AskQuestion(
+                        id = id,
+                        question = text,
+                        detail = question.optString("detail").takeIf { it.isNotBlank() },
+                        header = question.optString("header").takeIf { it.isNotBlank() },
+                        options = options,
+                        multiSelect = question.optBoolean("multiSelect", false)
+                    )
+                )
+            }
+            if (questions.isNotEmpty()) {
+                result.add(
+                    AskBatch(
+                        callId = callId,
+                        state = batch.optString("state").ifBlank { "open" },
+                        questions = questions
+                    )
+                )
+            }
+        }
+        return result
+    }
+
     private fun parseWorkspace(objectValue: JSONObject?): WorkspaceInfo {
         val obj = objectValue ?: throw ApiException("服务器没有返回工作区信息")
         val id = obj.optString("workspaceId")
@@ -525,7 +601,12 @@ class HarnessApi {
                 }
                 throw ApiException(message, code)
             }
-            return result.optJSONObject("value") ?: JSONObject()
+            val raw = result.opt("value")
+            return when (raw) {
+                is JSONObject -> raw
+                is Boolean -> JSONObject().put("value", raw)
+                else -> JSONObject()
+            }
         }
     }
 }

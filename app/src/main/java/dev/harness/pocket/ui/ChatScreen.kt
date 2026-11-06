@@ -89,6 +89,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.harness.pocket.data.AiModel
 import dev.harness.pocket.data.AppState
+import dev.harness.pocket.data.AskAnswer
 import dev.harness.pocket.data.AssistantMessage
 import dev.harness.pocket.data.Attachment
 import dev.harness.pocket.data.ChatItem
@@ -115,7 +116,8 @@ fun ChatScreen(
     onPermission: (String) -> Unit,
     onAttach: () -> Unit,
     onPickImage: () -> Unit,
-    onRemoveAttachment: (String) -> Unit
+    onRemoveAttachment: (String) -> Unit,
+    onAnswer: (String, List<AskAnswer>) -> Unit
 ) {
     val chat = state.chat
     val listState = rememberLazyListState()
@@ -170,11 +172,13 @@ fun ChatScreen(
     LaunchedEffect(
         state.activeSession?.sessionId,
         chat.allItems.size,
+        chat.questions.size,
         showTyping,
         chat.error
     ) {
-        if (chat.allItems.isEmpty()) return@LaunchedEffect
+        if (chat.allItems.isEmpty() && chat.questions.isEmpty()) return@LaunchedEffect
         val target = chat.allItems.size +
+            chat.questions.size +
             (if (showTyping) 1 else 0) +
             (if (chat.error != null) 1 else 0)
         if (!didInitialScroll) {
@@ -273,7 +277,7 @@ fun ChatScreen(
                         contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 20.dp),
                         verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
-                        if (chat.allItems.isEmpty()) {
+                        if (chat.allItems.isEmpty() && chat.questions.isEmpty()) {
                             item(key = "welcome") {
                                 ChatWelcome(
                                     onSuggestion = {
@@ -286,6 +290,13 @@ fun ChatScreen(
                             item(key = "day") { DayDivider() }
                             items(chat.allItems, key = { it.key }) { item ->
                                 ChatItemRow(item)
+                            }
+                            items(chat.questions, key = { "question:${it.callId}" }) { batch ->
+                                QuestionCard(
+                                    batch = batch,
+                                    busy = chat.questionBusy,
+                                    onSubmit = { answers -> onAnswer(batch.callId, answers) }
+                                )
                             }
                         }
                         if (showTyping) {

@@ -193,6 +193,30 @@ session page through seq 999999 is past cursor 18
 
 `image.mediaType` 只接受 `image/png`、`image/jpeg`、`image/webp`、`image/gif`。图片可以直接内联；任意文件需要先调用 `fileUploads/upload` 换取 `receiptId`。至少要有一个非空白 `text` 或附件。
 
+### userQuestions
+
+`session/list` 的 row 投影 `projections.values.userQuestions`：
+
+```json
+{
+  "active": [{
+    "callId": "call_...",
+    "state": "open | continued",
+    "questions": [{
+      "id": "fruit",
+      "header": "需要你确认",
+      "question": "午餐想吃哪种水果？",
+      "detail": "可选填",
+      "multiSelect": true,
+      "options": [{ "label": "苹果", "description": "清脆" }]
+    }]
+  }],
+  "settled": [{ "callId": "call_...", "answers": [{ "id": "fruit", "selected": ["苹果"] }] }]
+}
+```
+
+只有 `state == "continued"` 能通过 `userQuestions/answer` 回答；`open` 状态需要 live waterfall 事件通道。答案必须覆盖 call 内每个 question 恰好一次，否则报 `BAD_ANSWER`；已有排队回复时报 `REPLY_QUEUED`。
+
 ### 其他
 
 | 方法 | args | 说明 |
@@ -204,6 +228,7 @@ session page through seq 999999 is past cursor 18
 | `permissionPresets/catalog` | `{}` | 权限预设目录 |
 | `commands/execute` | `{"agentId":"...","line":"/permission read-only","submittedAttachments":[]}` | 执行斜杠命令（权限切换也走这里） |
 | `fileUploads/upload` | `{"agentId":"...","request":{"data":"<base64>","name":"..."}}` | 上传文件换 receiptId |
+| `userQuestions/answer` | `{"agentId":"...","callId":"...","answer":{"answers":[{"id":"...","selected":["..."],"custom":"..."}]}}` | 回答 `userQuestions` 投影中的 continued 问题；返回 boolean |
 | `workspace/create` | `{"request":{"path":"C:\\work"}}` | 创建工作区 |
 | `workspace/insertBefore` | `{"request":{"workspaceId":"...","beforeWorkspaceId":"..."}}` | 调整文件夹顺序；省略 anchor 追加到末尾 |
 | `workspace/pinSession` | `{"request":{"sessionId":"..."}}` | 置顶会话 |
