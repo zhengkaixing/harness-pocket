@@ -1,14 +1,7 @@
 package dev.harness.pocket.ui
 
-import android.app.Activity
-import android.content.ActivityNotFoundException
-import android.content.Intent
 import android.graphics.BitmapFactory
-import android.speech.RecognizerIntent
-import android.widget.Toast
 import androidx.activity.compose.BackHandler
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -54,7 +47,6 @@ import androidx.compose.material.icons.rounded.InsertDriveFile
 import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.Menu
-import androidx.compose.material.icons.rounded.Mic
 import androidx.compose.material.icons.rounded.MoreHoriz
 import androidx.compose.material.icons.rounded.PhotoCamera
 import androidx.compose.material.icons.rounded.PhotoLibrary
@@ -120,7 +112,6 @@ import dev.harness.pocket.data.TokenUsage
 import dev.harness.pocket.data.ToolItem
 import dev.harness.pocket.data.TurnStart
 import dev.harness.pocket.data.UserMessage
-import java.util.Locale
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
@@ -165,67 +156,9 @@ fun ChatScreen(
     var menuOpen by remember { mutableStateOf(false) }
     var renameOpen by remember { mutableStateOf(false) }
     val focusManager = LocalFocusManager.current
-    val keyboardController = LocalSoftwareKeyboardController.current
     val focusRequester = remember { FocusRequester() }
-    val voiceLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.StartActivityForResult()
-    ) { result ->
-        if (result.resultCode == Activity.RESULT_OK) {
-            val spoken = result.data
-                ?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)
-                ?.firstOrNull()
-                ?.trim()
-            if (!spoken.isNullOrBlank()) {
-                onDraftChange(if (draft.isBlank()) spoken else draft.trimEnd() + " " + spoken)
-                focusRequester.requestFocus()
-            }
-        }
-    }
-
-    var voiceError by remember { mutableStateOf<String?>(null) }
-
-    fun startVoiceInput() {
-        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-            putExtra(
-                RecognizerIntent.EXTRA_LANGUAGE_MODEL,
-                RecognizerIntent.LANGUAGE_MODEL_FREE_FORM
-            )
-            putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault().toLanguageTag())
-            putExtra(RecognizerIntent.EXTRA_PROMPT, "请说出要输入的内容")
-            putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
-        }
-        try {
-            voiceLauncher.launch(intent)
-        } catch (_: ActivityNotFoundException) {
-            voiceError = "当前设备没有可用的语音识别服务。请安装或启用 Google 语音服务/系统语音助手，也可以使用输入法键盘上的麦克风按钮。模拟器通常不带语音识别。"
-        } catch (_: SecurityException) {
-            voiceError = "没有权限使用语音识别。请检查系统语音服务或输入法的麦克风权限。"
-        }
-    }
 
     BackHandler(enabled = !fullscreen, onBack = onBack)
-
-    voiceError?.let { message ->
-        AlertDialog(
-            onDismissRequest = { voiceError = null },
-            title = { Text("语音输入不可用", fontWeight = FontWeight.Bold) },
-            text = { Text(message, color = InkSoft, lineHeight = 20.sp) },
-            confirmButton = {
-                TextButton(onClick = { voiceError = null }) {
-                    Text("知道了", color = Blue)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = {
-                    voiceError = null
-                    focusRequester.requestFocus()
-                    keyboardController?.show()
-                }) {
-                    Text("用键盘语音", color = InkSoft)
-                }
-            }
-        )
-    }
 
     LaunchedEffect(state.activeSession?.sessionId) {
         fullscreen = false
@@ -421,7 +354,6 @@ fun ChatScreen(
             onAttach = onAttach,
             onOpenGallery = onOpenGallery,
             onOpenCamera = onOpenCamera,
-            onVoice = ::startVoiceInput,
             onRemoveAttachment = onRemoveAttachment,
             onFullscreen = { fullscreen = true },
             focusRequester = focusRequester
@@ -1489,7 +1421,6 @@ private fun ChatComposer(
     onAttach: () -> Unit,
     onOpenGallery: () -> Unit,
     onOpenCamera: () -> Unit,
-    onVoice: () -> Unit,
     onRemoveAttachment: (String) -> Unit,
     onFullscreen: () -> Unit,
     focusRequester: FocusRequester
@@ -1519,22 +1450,6 @@ private fun ChatComposer(
             AttachmentStrip(attachments = attachments, onRemove = onRemoveAttachment)
         }
         Row(verticalAlignment = Alignment.Bottom) {
-            Box(
-                Modifier
-                    .size(40.dp)
-                    .clip(CircleShape)
-                    .background(Color(0xFFF0F2F6))
-                    .clickable(enabled = !sending) { onVoice() },
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    Icons.Rounded.Mic,
-                    contentDescription = "语音输入",
-                    tint = if (sending) Color(0xFFC4C9D3) else InkSoft,
-                    modifier = Modifier.size(20.dp)
-                )
-            }
-            Spacer(Modifier.width(7.dp))
             Surface(
                 modifier = Modifier.weight(1f),
                 shape = RoundedCornerShape(22.dp),
