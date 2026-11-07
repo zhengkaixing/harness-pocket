@@ -4,8 +4,10 @@ import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Color
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
@@ -20,14 +22,17 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat
+import androidx.core.content.FileProvider
 import androidx.core.view.WindowCompat
 import dev.harness.pocket.data.AppState
+import dev.harness.pocket.ui.AlbumPicker
 import dev.harness.pocket.ui.ChatScreen
 import dev.harness.pocket.ui.ConnectScreen
 import dev.harness.pocket.ui.HarnessDrawer
@@ -37,6 +42,7 @@ import dev.harness.pocket.ui.ResourceScreen
 import dev.harness.pocket.ui.SettingsDialog
 import dev.harness.pocket.ui.SplashScreen
 import dev.harness.pocket.ui.WorkspaceDialog
+import java.io.File
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
@@ -83,9 +89,38 @@ private fun AppRoot(
 ) {
     var showSettings by rememberSaveable { mutableStateOf(false) }
     var workspaceOpen by rememberSaveable { mutableStateOf(false) }
+    var galleryOpen by rememberSaveable { mutableStateOf(false) }
+    var cameraUri by remember { mutableStateOf<Uri?>(null) }
     val context = LocalContext.current
     val drawerState = rememberDrawerState(DrawerValue.Closed)
     val scope = rememberCoroutineScope()
+
+    val cameraLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.TakePicture()
+    ) { success ->
+        val uri = cameraUri
+        cameraUri = null
+        if (success && uri != null) vm.attachFile(uri)
+    }
+    val openCamera: () -> Unit = {
+        try {
+            val dir = File(context.cacheDir, "camera").apply { mkdirs() }
+            val file = File.createTempFile("camera_", ".jpg", dir)
+            val uri = FileProvider.getUriForFile(
+                context,
+                "${context.packageName}.fileprovider",
+                file
+            )
+            cameraUri = uri
+            cameraLauncher.launch(uri)
+        } catch (e: Exception) {
+            Toast.makeText(
+                context,
+                "无法打开相机：${e.message ?: "没有可用的相机应用"}",
+                Toast.LENGTH_LONG
+            ).show()
+        }
+    }
 
     val filePicker = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenMultipleDocuments()
@@ -179,6 +214,7 @@ private fun AppRoot(
                     onBack = vm::closeSession,
                     onMenu = openDrawer,
                     onNewChat = vm::newSession,
+                    onDraftChange = vm::setDraft,
                     onSend = vm::send,
                     onStop = vm::stop,
                     onRename = vm::rename,
@@ -187,7 +223,8 @@ private fun AppRoot(
                     onModel = vm::selectModel,
                     onPermission = vm::selectPermission,
                     onAttach = { filePicker.launch(arrayOf("*/*")) },
-                    onPickImage = { imagePicker.launch("image/*") },
+                    onOpenGallery = { galleryOpen = true },
+                    onOpenCamera = openCamera,
                     onRemoveAttachment = vm::removeAttachment,
                     onAnswer = vm::answerQuestions,
                     onLoadImage = vm::loadImage,
@@ -237,6 +274,20 @@ private fun AppRoot(
             },
             onRefresh = vm::refreshWorkspaces,
             onCreate = vm::createWorkspace
+        )
+    }
+
+    if (galleryOpen) {
+        AlbumPicker(
+            onDismiss = { galleryOpen = false },
+            onPick = { uris ->
+                galleryOpen = false
+                uris.forEach { vm.attachFile(it) }
+            },
+            onSystemPicker = {
+                galleryOpen = false
+                imagePicker.launch("image/*")
+            }
         )
     }
 }

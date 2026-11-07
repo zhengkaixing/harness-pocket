@@ -62,6 +62,8 @@ Harness Pocket 是一个**非官方的原生 Android 客户端**，用来远程�
 - **工作区选择与排序**：通过 `workspace/follow` 读取工作区列表，新会话可以绑定到指定目录；文件夹按服务端顺序展示，标题右侧的拖动按钮支持上移/下移，顺序会写回服务端并与网页端同步；工作区标题右侧的加号可直接在该目录下新建对话。
 - **模型与推理强度**：从 `session/modelCatalog` 选择模型，再选择 Off / Minimal / Low / Medium / High / Xhigh / Max 等推理强度。
 - **权限模式**：仅可查看、工作区内修改、完全权限；通过 `/permission <preset>` 命令真正写入会话策略。
+- **微信式输入栏**：左侧语音、白色胶囊输入框、右侧加号；相机/相册/文件收进加号面板；相册使用自绘四列九宫格，最多 9 张。
+- **全屏编辑与草稿**：输入超过 80 字或 3 行显示全屏按钮；全屏可查看附件缩略图并编辑发送；草稿文字和附件按会话保存，切换页面或重开会话后恢复。
 - **附件**：支持一次多选图片/文件；图片直接内联为 base64，任意文件先走 `fileUploads/upload` 换 `receiptId`；单文件上限 20 MB。
 - **语音输入**：输入框左侧麦克风调用系统语音识别（`RecognizerIntent`），识别结果直接回填草稿；没有识别服务时弹窗说明原因，并提供“用键盘语音”入口。
 - **可选中复制**：对话正文、用户气泡、工具结果和错误提示都支持长按选中，调用系统文本选择工具栏复制。
@@ -102,6 +104,25 @@ Harness Pocket 是一个**非官方的原生 Android 客户端**，用来远程�
 ![远程会话实测](docs/screenshots/remote-chat.png)
 
 工具调用卡片、Markdown 代码块、停止任务、重命名与错误提示也都做了回归。
+
+0.10.0 新增并验证了：
+
+- 输入栏改为微信式：语音圆钮、白色胶囊输入框、右侧加号；拍照、相册和文件统一收进加号面板。
+- 自绘四列相册网格，支持最多 9 张多选，选中项显示蓝色边框和序号。
+- 输入超过 80 字或 3 行出现全屏按钮；全屏编辑器显示附件缩略图、大输入框和发送按钮。
+- 草稿文字和附件按会话保存，返回主页再打开会话后仍在。
+
+<p align="center">
+  <img src="docs/screenshots/composer-chat.png" width="45%" alt="微信式输入栏" />
+  <img src="docs/screenshots/composer-plus.png" width="45%" alt="加号面板" />
+</p>
+<p align="center">
+  <img src="docs/screenshots/composer-album.png" width="45%" alt="自绘相册" />
+  <img src="docs/screenshots/composer-fullscreen.png" width="45%" alt="全屏编辑" />
+</p>
+<p align="center">
+  <img src="docs/screenshots/draft-check.png" width="45%" alt="草稿与附件恢复" />
+</p>
 
 0.9.3 新增并验证了：
 
@@ -229,7 +250,7 @@ Harness Pocket 是一个**非官方的原生 Android 客户端**，用来远程�
 
 ### 直接安装 APK
 
-本地预构建的 APK 在 `dist/HarnessPocket-0.9.3-debug.apk`（二进制不提交到 Git 仓库）；从源码重新构建的产物在：
+本地预构建的 APK 在 `dist/HarnessPocket-0.10.0-debug.apk`（二进制不提交到 Git 仓库）；从源码重新构建的产物在：
 
 ```text
 app/build/outputs/apk/debug/app-debug.apk
@@ -361,6 +382,14 @@ app/src/main/java/dev/harness/pocket/
 - [ ] 可配置的 HTTPS / 证书校验
 
 ## 更新日志
+
+### 0.10.0
+
+- 输入栏改为微信式：语音圆钮、白色胶囊输入框、右侧加号；拍照、相册和文件收进加号面板。
+- 新增自绘四列相册网格，支持最多 9 张多选，选中项显示序号。
+- 输入超过 80 字或 3 行显示全屏按钮；全屏编辑器支持附件缩略图、大输入框、发送和关闭。
+- 草稿文字和附件按会话保存，切换页面或重开会话后恢复。
+- 新增 `FileProvider` 全分辨率拍照、媒体读取权限和相册选择器。
 
 ### 0.9.3
 

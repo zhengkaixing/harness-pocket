@@ -261,6 +261,11 @@ data class Attachment(
         get() = error == null && !uploading && (receiptId != null || (isImage && bytes != null))
 }
 
+data class ChatDraft(
+    val text: String = "",
+    val attachments: List<Attachment> = emptyList()
+)
+
 data class UploadReceipt(
     val receiptId: String,
     val name: String,
@@ -311,6 +316,7 @@ data class AppState(
     val connectError: String? = null,
     val sessions: List<SessionSummary> = emptyList(),
     val lastPrompts: Map<String, String> = emptyMap(),
+    val drafts: Map<String, ChatDraft> = emptyMap(),
     val sessionsLoading: Boolean = false,
     val sessionsError: String? = null,
     val creating: Boolean = false,

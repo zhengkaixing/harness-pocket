@@ -10,6 +10,7 @@ import dev.harness.pocket.data.AppState
 import dev.harness.pocket.data.AskAnswer
 import dev.harness.pocket.data.Attachment
 import dev.harness.pocket.data.AuthException
+import dev.harness.pocket.data.ChatDraft
 import dev.harness.pocket.data.ChatImage
 import dev.harness.pocket.data.ChatState
 import dev.harness.pocket.data.ConnectionInput
@@ -168,9 +169,41 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         ?.takeIf { it.isNotBlank() }
         ?.take(120)
 
+    fun setDraft(text: String) {
+        if (text.length > 12_000) return
+        val sessionId = _state.value.activeSession?.sessionId ?: return
+        _state.update { st ->
+            val draft = st.drafts[sessionId] ?: ChatDraft()
+            st.copy(drafts = st.drafts + (sessionId to draft.copy(text = text)))
+        }
+    }
+
+    private fun updateDraftAttachment(
+        sessionId: String,
+        id: String,
+        transform: (Attachment) -> Attachment
+    ) {
+        _state.update { st ->
+            val draft = st.drafts[sessionId] ?: return@update st
+            val attachments = draft.attachments.map {
+                if (it.id == id) transform(it) else it
+            }
+            val nextDraft = draft.copy(attachments = attachments)
+            st.copy(
+                drafts = st.drafts + (sessionId to nextDraft),
+                chat = if (st.activeSession?.sessionId == sessionId) {
+                    st.chat.copy(attachments = attachments)
+                } else {
+                    st.chat
+                }
+            )
+        }
+    }
+
     fun openSession(session: SessionSummary) {
         pageSeq = -1
         _state.update {
+            val draft = it.drafts[session.sessionId] ?: ChatDraft()
             it.copy(
                 activeSession = session,
                 chat = ChatState(
@@ -181,6 +214,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     model = session.model ?: lastModelChoice,
                     permission = session.permission,
                     questions = session.questions,
+                    attachments = draft.attachments,
                     usage = session.usage,
                     lastPromptAt = session.lastPromptAt
                 )
@@ -284,6 +318,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         val attachments = current.chat.attachments.filter { it.ready }
         if (clean.isEmpty() && attachments.isEmpty()) return
         val wasRunning = current.chat.running
+        val sessionId = session.sessionId
 
         val requestId = UUID.randomUUID().toString()
         val parts = attachments.mapNotNull { attachment ->
@@ -319,7 +354,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         )
         val preview = normalizePreview(clean)
         _state.update {
+            val draft = it.drafts[sessionId] ?: ChatDraft()
             it.copy(
+                drafts = it.drafts + (sessionId to draft.copy(text = "")),
                 chat = it.chat.copy(
                     pending = if (wasRunning) it.chat.pending else pending,
                     queued = if (wasRunning) it.chat.queued + pending else it.chat.queued,
@@ -346,7 +383,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     )
                 }
                 _state.update {
+                    val draft = it.drafts[sessionId] ?: ChatDraft()
                     it.copy(
+                        drafts = it.drafts + (sessionId to draft.copy(attachments = emptyList())),
                         chat = it.chat.copy(
                             sending = false,
                             running = true,
@@ -741,16 +780,19 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             _state.update { it.copy(chat = it.chat.copy(error = "请先打开一个会话")) }
             return
         }
+        val sessionId = session.sessionId
         viewModelScope.launch {
             try {
                 val file = withContext(Dispatchers.IO) { readFile(uri) }
                 if (file.bytes.size > 20 * 1024 * 1024) {
                     throw IllegalArgumentException("文件不能超过 20 MB")
                 }
-                if (_state.value.chat.attachments.any {
-                        it.name == file.name && it.size == file.bytes.size.toLong()
+                val existing = _state.value.drafts[sessionId]?.attachments
+                    ?: _state.value.chat.attachments.takeIf {
+                        _state.value.activeSession?.sessionId == sessionId
                     }
-                ) {
+                    ?: emptyList()
+                if (existing.any { it.name == file.name && it.size == file.bytes.size.toLong() }) {
                     return@launch
                 }
                 val mime = file.mime?.lowercase()
@@ -779,17 +821,26 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     bytes = if (isImage) file.bytes else null,
                     uploading = !isImage
                 )
-                _state.update {
-                    it.copy(chat = it.chat.copy(attachments = it.chat.attachments + attachment))
+                _state.update { st ->
+                    val draft = st.drafts[sessionId] ?: ChatDraft()
+                    val nextDraft = draft.copy(attachments = draft.attachments + attachment)
+                    st.copy(
+                        drafts = st.drafts + (sessionId to nextDraft),
+                        chat = if (st.activeSession?.sessionId == sessionId) {
+                            st.chat.copy(attachments = nextDraft.attachments)
+                        } else {
+                            st.chat
+                        }
+                    )
                 }
                 if (!isImage) {
                     try {
-                        val receipt = api.uploadFile(session.sessionId, file.bytes, file.name)
-                        updateAttachment(attachment.id) {
+                        val receipt = api.uploadFile(sessionId, file.bytes, file.name)
+                        updateDraftAttachment(sessionId, attachment.id) {
                             it.copy(receiptId = receipt.receiptId, uploading = false)
                         }
                     } catch (e: Exception) {
-                        updateAttachment(attachment.id) {
+                        updateDraftAttachment(sessionId, attachment.id) {
                             it.copy(uploading = false, error = friendlyError(e))
                         }
                     }
@@ -797,27 +848,23 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                _state.update {
-                    it.copy(chat = it.chat.copy(error = friendlyError(e)))
+                if (_state.value.activeSession?.sessionId == sessionId) {
+                    _state.update {
+                        it.copy(chat = it.chat.copy(error = friendlyError(e)))
+                    }
                 }
             }
         }
     }
 
     fun removeAttachment(id: String) {
+        val sessionId = _state.value.activeSession?.sessionId ?: return
         _state.update { st ->
-            st.copy(chat = st.chat.copy(attachments = st.chat.attachments.filterNot { it.id == id }))
-        }
-    }
-
-    private fun updateAttachment(id: String, transform: (Attachment) -> Attachment) {
-        _state.update { st ->
+            val draft = st.drafts[sessionId] ?: ChatDraft()
+            val attachments = draft.attachments.filterNot { it.id == id }
             st.copy(
-                chat = st.chat.copy(
-                    attachments = st.chat.attachments.map {
-                        if (it.id == id) transform(it) else it
-                    }
-                )
+                drafts = st.drafts + (sessionId to draft.copy(attachments = attachments)),
+                chat = st.chat.copy(attachments = attachments)
             )
         }
     }

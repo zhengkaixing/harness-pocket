@@ -3,12 +3,14 @@ package dev.harness.pocket.ui
 import android.app.Activity
 import android.content.ActivityNotFoundException
 import android.content.Intent
+import android.graphics.BitmapFactory
 import android.speech.RecognizerIntent
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -18,6 +20,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -46,12 +49,15 @@ import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.Folder
+import androidx.compose.material.icons.rounded.Fullscreen
+import androidx.compose.material.icons.rounded.InsertDriveFile
 import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.Menu
 import androidx.compose.material.icons.rounded.Mic
 import androidx.compose.material.icons.rounded.MoreHoriz
 import androidx.compose.material.icons.rounded.PhotoCamera
+import androidx.compose.material.icons.rounded.PhotoLibrary
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.Stop
@@ -68,6 +74,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.rememberUpdatedState
@@ -77,11 +84,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.TextStyle
@@ -90,6 +101,8 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import dev.harness.pocket.data.AiModel
 import dev.harness.pocket.data.AppState
 import dev.harness.pocket.data.AskAnswer
@@ -108,7 +121,9 @@ import dev.harness.pocket.data.ToolItem
 import dev.harness.pocket.data.TurnStart
 import dev.harness.pocket.data.UserMessage
 import java.util.Locale
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
 
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
@@ -117,6 +132,7 @@ fun ChatScreen(
     onBack: () -> Unit,
     onMenu: () -> Unit,
     onNewChat: () -> Unit,
+    onDraftChange: (String) -> Unit,
     onSend: (String) -> Unit,
     onStop: () -> Unit,
     onRename: (String) -> Unit,
@@ -125,7 +141,8 @@ fun ChatScreen(
     onModel: (ModelChoice) -> Unit,
     onPermission: (String) -> Unit,
     onAttach: () -> Unit,
-    onPickImage: () -> Unit,
+    onOpenGallery: () -> Unit,
+    onOpenCamera: () -> Unit,
     onRemoveAttachment: (String) -> Unit,
     onAnswer: (String, List<AskAnswer>) -> Unit,
     onLoadImage: suspend (String) -> ChatImage?,
@@ -134,6 +151,8 @@ fun ChatScreen(
     onLoadEarlier: () -> Unit
 ) {
     val chat = state.chat
+    val draft = state.activeSession?.let { state.drafts[it.sessionId]?.text }.orEmpty()
+    var fullscreen by rememberSaveable { mutableStateOf(false) }
     val latestChat = rememberUpdatedState(chat)
     val listState = rememberLazyListState()
     val nearBottom by remember(listState) {
@@ -143,7 +162,6 @@ fun ChatScreen(
                 (info.visibleItemsInfo.lastOrNull()?.index ?: -1) >= info.totalItemsCount - 2
         }
     }
-    var draft by rememberSaveable { mutableStateOf("") }
     var menuOpen by remember { mutableStateOf(false) }
     var renameOpen by remember { mutableStateOf(false) }
     val focusManager = LocalFocusManager.current
@@ -158,7 +176,7 @@ fun ChatScreen(
                 ?.firstOrNull()
                 ?.trim()
             if (!spoken.isNullOrBlank()) {
-                draft = if (draft.isBlank()) spoken else draft.trimEnd() + " " + spoken
+                onDraftChange(if (draft.isBlank()) spoken else draft.trimEnd() + " " + spoken)
                 focusRequester.requestFocus()
             }
         }
@@ -185,7 +203,7 @@ fun ChatScreen(
         }
     }
 
-    BackHandler(onBack = onBack)
+    BackHandler(enabled = !fullscreen, onBack = onBack)
 
     voiceError?.let { message ->
         AlertDialog(
@@ -210,6 +228,7 @@ fun ChatScreen(
     }
 
     LaunchedEffect(state.activeSession?.sessionId) {
+        fullscreen = false
         onRefreshResources()
     }
 
@@ -251,15 +270,16 @@ fun ChatScreen(
         }
     }
 
-    fun submit() {
+    fun submit(): Boolean {
         val current = latestChat.value
         val clean = draft.trim()
-        if (current.sending) return
-        if (clean.isEmpty() && current.attachments.none { it.ready }) return
-        if (current.attachments.any { it.uploading }) return
-        draft = ""
+        if (current.sending) return false
+        if (clean.isEmpty() && current.attachments.none { it.ready }) return false
+        if (current.attachments.any { it.uploading }) return false
+        onDraftChange("")
         focusManager.clearFocus()
         onSend(clean)
+        return true
     }
 
     Column(
@@ -347,7 +367,7 @@ fun ChatScreen(
                             item(key = "welcome") {
                                 ChatWelcome(
                                     onSuggestion = {
-                                        draft = it
+                                        onDraftChange(it)
                                         focusRequester.requestFocus()
                                     }
                                 )
@@ -392,17 +412,38 @@ fun ChatScreen(
 
         ChatComposer(
             draft = draft,
-            onDraftChange = { if (it.length <= 12_000) draft = it },
+            onDraftChange = { if (it.length <= 12_000) onDraftChange(it) },
             attachments = chat.attachments,
             sending = chat.sending,
             running = chat.running,
-            onSend = ::submit,
+            onSend = { submit() },
             onStop = onStop,
             onAttach = onAttach,
-            onPickImage = onPickImage,
+            onOpenGallery = onOpenGallery,
+            onOpenCamera = onOpenCamera,
             onVoice = ::startVoiceInput,
             onRemoveAttachment = onRemoveAttachment,
+            onFullscreen = { fullscreen = true },
             focusRequester = focusRequester
+        )
+    }
+
+    if (fullscreen) {
+        FullScreenComposer(
+            draft = draft,
+            onDraftChange = onDraftChange,
+            attachments = chat.attachments,
+            sending = chat.sending,
+            running = chat.running,
+            onSend = {
+                if (submit()) fullscreen = false
+            },
+            onStop = onStop,
+            onAttach = onAttach,
+            onOpenGallery = onOpenGallery,
+            onOpenCamera = onOpenCamera,
+            onRemoveAttachment = onRemoveAttachment,
+            onClose = { fullscreen = false }
         )
     }
 
@@ -1177,18 +1218,112 @@ private fun ChatInlineError(message: String, onRetry: () -> Unit) {
 @Composable
 private fun AttachmentStrip(
     attachments: List<Attachment>,
-    onRemove: (String) -> Unit
+    onRemove: (String) -> Unit,
+    large: Boolean = false
 ) {
     Row(
         Modifier
             .fillMaxWidth()
             .horizontalScroll(rememberScrollState())
             .padding(bottom = 7.dp),
-        horizontalArrangement = Arrangement.spacedBy(6.dp)
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         attachments.forEach { attachment ->
-            AttachmentChip(attachment = attachment, onRemove = { onRemove(attachment.id) })
+            if (attachment.isImage && attachment.bytes != null) {
+                AttachmentThumb(
+                    attachment = attachment,
+                    onRemove = { onRemove(attachment.id) },
+                    large = large
+                )
+            } else {
+                AttachmentChip(attachment = attachment, onRemove = { onRemove(attachment.id) })
+            }
         }
+    }
+}
+
+@Composable
+private fun AttachmentThumb(
+    attachment: Attachment,
+    onRemove: () -> Unit,
+    large: Boolean
+) {
+    val size = if (large) 82.dp else 60.dp
+    val bitmap by produceState<android.graphics.Bitmap?>(
+        initialValue = null,
+        attachment.id
+    ) {
+        value = withContext(Dispatchers.IO) {
+            decodeImageThumb(attachment.bytes, if (large) 480 else 240)
+        }
+    }
+    Box(
+        Modifier
+            .size(size)
+            .clip(RoundedCornerShape(12.dp))
+            .background(Color(0xFFE8EBF0))
+    ) {
+        bitmap?.let {
+            Image(
+                bitmap = it.asImageBitmap(),
+                contentDescription = attachment.name,
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Crop
+            )
+        }
+        if (attachment.uploading) {
+            CircularProgressIndicator(
+                modifier = Modifier.align(Alignment.Center).size(18.dp),
+                color = Blue,
+                strokeWidth = 2.dp
+            )
+        }
+        Box(
+            Modifier
+                .align(Alignment.TopEnd)
+                .padding(3.dp)
+                .size(18.dp)
+                .clip(CircleShape)
+                .background(Color(0xAA1F232B))
+                .clickable(onClick = onRemove),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                Icons.Rounded.Close,
+                contentDescription = "移除图片",
+                tint = Color.White,
+                modifier = Modifier.size(12.dp)
+            )
+        }
+        if (attachment.error != null) {
+            Box(
+                Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .background(Color(0xCC9F2D3A))
+                    .padding(vertical = 2.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text("上传失败", color = Color.White, fontSize = 8.sp)
+            }
+        }
+    }
+}
+
+private fun decodeImageThumb(bytes: ByteArray?, target: Int): android.graphics.Bitmap? {
+    if (bytes == null) return null
+    return try {
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
+        if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
+        var sample = 1
+        while (bounds.outWidth / sample > target || bounds.outHeight / sample > target) {
+            sample *= 2
+        }
+        val options = BitmapFactory.Options().apply { inSampleSize = sample }
+        BitmapFactory.decodeByteArray(bytes, 0, bytes.size, options)
+    } catch (_: Exception) {
+        null
     }
 }
 
@@ -1342,6 +1477,7 @@ private fun QueueStrip(queued: List<UserMessage>) {
 }
 
 @Composable
+@OptIn(ExperimentalComposeUiApi::class)
 private fun ChatComposer(
     draft: String,
     onDraftChange: (String) -> Unit,
@@ -1351,9 +1487,11 @@ private fun ChatComposer(
     onSend: () -> Unit,
     onStop: () -> Unit,
     onAttach: () -> Unit,
-    onPickImage: () -> Unit,
+    onOpenGallery: () -> Unit,
+    onOpenCamera: () -> Unit,
     onVoice: () -> Unit,
     onRemoveAttachment: (String) -> Unit,
+    onFullscreen: () -> Unit,
     focusRequester: FocusRequester
 ) {
     val hasReady = attachments.any { it.ready }
@@ -1361,6 +1499,10 @@ private fun ChatComposer(
     val hasContent = !uploadBusy && (draft.isNotBlank() || hasReady)
     val showStop = running && !sending && !hasContent
     val canSend = !sending && hasContent
+    var panelOpen by remember { mutableStateOf(false) }
+    val showFullscreen = draft.length > 80 || draft.count { it == '\n' } >= 3
+    val focusManager = LocalFocusManager.current
+    val keyboard = LocalSoftwareKeyboardController.current
 
     Column(
         Modifier
@@ -1371,136 +1513,168 @@ private fun ChatComposer(
                     listOf(Color.Transparent, Color(0xFFF7F9FD), Color(0xFFF7F9FD))
                 )
             )
-            .padding(start = 12.dp, end = 12.dp, top = 12.dp, bottom = 10.dp)
+            .padding(start = 12.dp, end = 12.dp, top = 10.dp, bottom = 10.dp)
     ) {
         if (attachments.isNotEmpty()) {
-            AttachmentStrip(
-                attachments = attachments,
-                onRemove = onRemoveAttachment
-            )
+            AttachmentStrip(attachments = attachments, onRemove = onRemoveAttachment)
         }
-        Surface(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(26.dp),
-            color = Color.White,
-            shadowElevation = 9.dp,
-            border = BorderStroke(1.dp, Line)
-        ) {
-            Row(
-                Modifier.padding(start = 14.dp, end = 7.dp, top = 6.dp, bottom = 6.dp),
-                verticalAlignment = Alignment.Bottom
+        Row(verticalAlignment = Alignment.Bottom) {
+            Box(
+                Modifier
+                    .size(40.dp)
+                    .clip(CircleShape)
+                    .background(Color(0xFFF0F2F6))
+                    .clickable(enabled = !sending) { onVoice() },
+                contentAlignment = Alignment.Center
             ) {
-                Box(
-                    Modifier
-                        .size(36.dp)
-                        .clip(CircleShape)
-                        .clickable(enabled = !sending) { onPickImage() },
-                    contentAlignment = Alignment.Center
+                Icon(
+                    Icons.Rounded.Mic,
+                    contentDescription = "语音输入",
+                    tint = if (sending) Color(0xFFC4C9D3) else InkSoft,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+            Spacer(Modifier.width(7.dp))
+            Surface(
+                modifier = Modifier.weight(1f),
+                shape = RoundedCornerShape(22.dp),
+                color = Color.White,
+                shadowElevation = 2.dp,
+                border = BorderStroke(1.dp, Line)
+            ) {
+                Row(
+                    Modifier.padding(start = 15.dp, end = 5.dp, top = 4.dp, bottom = 4.dp),
+                    verticalAlignment = Alignment.Bottom
                 ) {
-                    Icon(
-                        Icons.Rounded.PhotoCamera,
-                        contentDescription = "拍照或选择图片",
-                        tint = if (sending) Color(0xFFC4C9D3) else InkSoft,
-                        modifier = Modifier.size(20.dp)
-                    )
-                }
-                Spacer(Modifier.width(1.dp))
-                Box(
-                    Modifier
-                        .size(34.dp)
-                        .clip(CircleShape)
-                        .clickable(enabled = !sending) { onVoice() },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        Icons.Rounded.Mic,
-                        contentDescription = "语音输入",
-                        tint = if (sending) Color(0xFFC4C9D3) else InkSoft,
-                        modifier = Modifier.size(19.dp)
-                    )
-                }
-                Spacer(Modifier.width(2.dp))
-                Box(
-                    Modifier
-                        .weight(1f)
-                        .padding(vertical = 8.dp)
-                ) {
-                    if (draft.isEmpty()) {
-                        Text(
-                            "给 Harness 发消息…",
-                            color = Color(0xFFA6ABB8),
-                            fontSize = 14.5.sp
+                    Box(Modifier.weight(1f).padding(vertical = 8.dp)) {
+                        if (draft.isEmpty()) {
+                            Text(
+                                "给 Harness 发消息…",
+                                color = Color(0xFFA6ABB8),
+                                fontSize = 14.5.sp
+                            )
+                        }
+                        BasicTextField(
+                            value = draft,
+                            onValueChange = onDraftChange,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .heightIn(min = 24.dp, max = 108.dp)
+                                .focusRequester(focusRequester)
+                                .onFocusChanged { if (it.isFocused) panelOpen = false },
+                            textStyle = TextStyle(color = Ink, fontSize = 15.sp, lineHeight = 22.sp),
+                            cursorBrush = SolidColor(Blue),
+                            maxLines = 5,
+                            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
+                            keyboardActions = KeyboardActions(onSend = { onSend() })
                         )
                     }
-                    BasicTextField(
-                        value = draft,
-                        onValueChange = onDraftChange,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .heightIn(min = 24.dp)
-                            .focusRequester(focusRequester),
-                        textStyle = TextStyle(color = Ink, fontSize = 15.sp, lineHeight = 22.sp),
-                        cursorBrush = SolidColor(Blue),
-                        maxLines = 5,
-                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
-                        keyboardActions = KeyboardActions(onSend = { onSend() })
-                    )
-                }
-                Spacer(Modifier.width(6.dp))
-                Box(
-                    Modifier
-                        .size(36.dp)
-                        .clip(CircleShape)
-                        .clickable(enabled = !sending) { onAttach() },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        Icons.Rounded.Add,
-                        contentDescription = "添加文件",
-                        tint = if (sending) Color(0xFFC4C9D3) else InkSoft,
-                        modifier = Modifier.size(21.dp)
-                    )
-                }
-                Spacer(Modifier.width(6.dp))
-                Box(
-                    Modifier
-                        .size(40.dp)
-                        .clip(CircleShape)
-                        .background(
-                            when {
-                                showStop -> SolidColor(Color(0xFF23262E))
-                                canSend -> Brush.linearGradient(
-                                    listOf(Color(0xFF6C9BFF), Color(0xFF4C7DFF))
-                                )
-                                else -> SolidColor(Color(0xFFECEFF5))
-                            }
-                        )
-                        .clickable(enabled = !sending && (showStop || canSend)) {
-                            if (showStop) onStop() else onSend()
-                        },
-                    contentAlignment = Alignment.Center
-                ) {
-                    when {
-                        sending -> CircularProgressIndicator(
-                            modifier = Modifier.size(17.dp),
-                            color = Color.White,
-                            strokeWidth = 2.dp
-                        )
-                        showStop -> Icon(
-                            Icons.Rounded.Stop,
-                            contentDescription = "停止生成",
-                            tint = Color.White,
-                            modifier = Modifier.size(18.dp)
-                        )
-                        else -> Icon(
-                            Icons.Rounded.ArrowUpward,
-                            contentDescription = "发送",
-                            tint = if (canSend) Color.White else Color(0xFFB7BCC8),
-                            modifier = Modifier.size(20.dp)
-                        )
+                    if (showFullscreen) {
+                        Box(
+                            Modifier
+                                .size(30.dp)
+                                .clip(CircleShape)
+                                .clickable {
+                                    panelOpen = false
+                                    focusManager.clearFocus()
+                                    keyboard?.hide()
+                                    onFullscreen()
+                                },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                Icons.Rounded.Fullscreen,
+                                contentDescription = "全屏编辑",
+                                tint = InkSoft,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                    }
+                    Spacer(Modifier.width(4.dp))
+                    Box(
+                        Modifier
+                            .size(34.dp)
+                            .clip(CircleShape)
+                            .background(
+                                when {
+                                    showStop -> SolidColor(Color(0xFF23262E))
+                                    canSend -> Brush.linearGradient(
+                                        listOf(Color(0xFF6C9BFF), Color(0xFF4C7DFF))
+                                    )
+                                    else -> SolidColor(Color(0xFFECEFF5))
+                                }
+                            )
+                            .clickable(enabled = !sending && (showStop || canSend)) {
+                                if (showStop) onStop() else onSend()
+                            },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        when {
+                            sending -> CircularProgressIndicator(
+                                modifier = Modifier.size(16.dp),
+                                color = Blue,
+                                strokeWidth = 2.dp
+                            )
+                            showStop -> Icon(
+                                Icons.Rounded.Stop,
+                                contentDescription = "停止生成",
+                                tint = Color.White,
+                                modifier = Modifier.size(17.dp)
+                            )
+                            else -> Icon(
+                                Icons.Rounded.ArrowUpward,
+                                contentDescription = "发送",
+                                tint = if (canSend) Color.White else Color(0xFFB7BCC8),
+                                modifier = Modifier.size(19.dp)
+                            )
+                        }
                     }
                 }
             }
+            Spacer(Modifier.width(7.dp))
+            Surface(
+                modifier = Modifier
+                    .size(40.dp)
+                    .clickable(enabled = !sending) {
+                        panelOpen = !panelOpen
+                        if (panelOpen) {
+                            focusManager.clearFocus()
+                            keyboard?.hide()
+                        }
+                    },
+                shape = CircleShape,
+                color = if (panelOpen) Blue else Color.White,
+                border = BorderStroke(1.dp, if (panelOpen) Blue else Line),
+                shadowElevation = if (panelOpen) 0.dp else 1.dp
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        Icons.Rounded.Add,
+                        contentDescription = if (panelOpen) "关闭面板" else "更多功能",
+                        tint = if (panelOpen) Color.White else Ink,
+                        modifier = Modifier
+                            .size(22.dp)
+                            .rotate(if (panelOpen) 45f else 0f)
+                    )
+                }
+            }
+        }
+        if (panelOpen) {
+            Spacer(Modifier.height(8.dp))
+            PlusPanel(
+                onGallery = {
+                    panelOpen = false
+                    onOpenGallery()
+                },
+                onCamera = {
+                    panelOpen = false
+                    onOpenCamera()
+                },
+                onFile = {
+                    panelOpen = false
+                    onAttach()
+                }
+            )
         }
         Spacer(Modifier.height(6.dp))
         Text(
@@ -1510,6 +1684,277 @@ private fun ChatComposer(
             modifier = Modifier.fillMaxWidth(),
             textAlign = androidx.compose.ui.text.style.TextAlign.Center
         )
+    }
+}
+
+@Composable
+private fun PlusPanel(
+    onGallery: () -> Unit,
+    onCamera: () -> Unit,
+    onFile: () -> Unit
+) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp),
+        color = Color(0xFFF1F4F9)
+    ) {
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .padding(12.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            PanelAction(
+                label = "相册",
+                icon = Icons.Rounded.PhotoLibrary,
+                tint = Blue,
+                modifier = Modifier.weight(1f),
+                onClick = onGallery
+            )
+            PanelAction(
+                label = "拍摄",
+                icon = Icons.Rounded.PhotoCamera,
+                tint = Color(0xFF4CAF7D),
+                modifier = Modifier.weight(1f),
+                onClick = onCamera
+            )
+            PanelAction(
+                label = "文件",
+                icon = Icons.Rounded.InsertDriveFile,
+                tint = Color(0xFF7B72E9),
+                modifier = Modifier.weight(1f),
+                onClick = onFile
+            )
+        }
+    }
+}
+
+@Composable
+private fun PanelAction(
+    label: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    tint: Color,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    Surface(
+        modifier = modifier.height(82.dp).clickable(onClick = onClick),
+        shape = RoundedCornerShape(16.dp),
+        color = Color.White,
+        shadowElevation = 1.dp
+    ) {
+        Column(
+            Modifier.fillMaxSize(),
+            verticalArrangement = Arrangement.Center,
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Box(
+                Modifier
+                    .size(38.dp)
+                    .clip(CircleShape)
+                    .background(tint.copy(alpha = 0.12f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(icon, contentDescription = label, tint = tint, modifier = Modifier.size(21.dp))
+            }
+            Spacer(Modifier.height(6.dp))
+            Text(label, color = Ink, fontSize = 12.sp)
+        }
+    }
+}
+
+@OptIn(ExperimentalComposeUiApi::class)
+@Composable
+private fun FullScreenComposer(
+    draft: String,
+    onDraftChange: (String) -> Unit,
+    attachments: List<Attachment>,
+    sending: Boolean,
+    running: Boolean,
+    onSend: () -> Unit,
+    onStop: () -> Unit,
+    onAttach: () -> Unit,
+    onOpenGallery: () -> Unit,
+    onOpenCamera: () -> Unit,
+    onRemoveAttachment: (String) -> Unit,
+    onClose: () -> Unit
+) {
+    val inputFocus = remember { FocusRequester() }
+    val keyboard = LocalSoftwareKeyboardController.current
+    val hasReady = attachments.any { it.ready }
+    val uploadBusy = attachments.any { it.uploading }
+    val hasContent = !uploadBusy && (draft.isNotBlank() || hasReady)
+    val showStop = running && !sending && !hasContent
+    val canSend = !sending && hasContent
+
+    LaunchedEffect(Unit) {
+        inputFocus.requestFocus()
+        keyboard?.show()
+    }
+
+    Dialog(
+        onDismissRequest = onClose,
+        properties = DialogProperties(
+            usePlatformDefaultWidth = false,
+            decorFitsSystemWindows = false
+        )
+    ) {
+        Surface(modifier = Modifier.fillMaxSize(), color = Color(0xFFF7F9FD)) {
+            Column(
+                Modifier
+                    .fillMaxSize()
+                    .systemBarsPadding()
+                    .imePadding()
+            ) {
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .height(52.dp)
+                        .padding(horizontal = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        Modifier
+                            .size(42.dp)
+                            .clip(CircleShape)
+                            .clickable(onClick = onClose),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            Icons.Rounded.Close,
+                            contentDescription = "关闭全屏编辑",
+                            tint = Ink,
+                            modifier = Modifier.size(22.dp)
+                        )
+                    }
+                    Text(
+                        "编辑消息",
+                        modifier = Modifier.weight(1f),
+                        color = Ink,
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Medium,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                    )
+                    Spacer(Modifier.width(42.dp))
+                }
+                if (attachments.isNotEmpty()) {
+                    AttachmentStrip(
+                        attachments = attachments,
+                        onRemove = onRemoveAttachment,
+                        large = true
+                    )
+                }
+                Surface(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 4.dp),
+                    shape = RoundedCornerShape(18.dp),
+                    color = Color.White,
+                    border = BorderStroke(1.dp, Line)
+                ) {
+                    Box(Modifier.fillMaxSize().padding(16.dp)) {
+                        if (draft.isEmpty()) {
+                            Text(
+                                "输入消息…",
+                                color = Color(0xFFA6ABB8),
+                                fontSize = 16.sp
+                            )
+                        }
+                        BasicTextField(
+                            value = draft,
+                            onValueChange = onDraftChange,
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .focusRequester(inputFocus),
+                            textStyle = TextStyle(color = Ink, fontSize = 16.sp, lineHeight = 25.sp),
+                            cursorBrush = SolidColor(Blue),
+                            maxLines = Int.MAX_VALUE
+                        )
+                    }
+                }
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(start = 10.dp, end = 14.dp, top = 8.dp, bottom = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    FullscreenTool(
+                        icon = Icons.Rounded.PhotoLibrary,
+                        label = "相册",
+                        onClick = onOpenGallery
+                    )
+                    FullscreenTool(
+                        icon = Icons.Rounded.PhotoCamera,
+                        label = "拍摄",
+                        onClick = onOpenCamera
+                    )
+                    FullscreenTool(
+                        icon = Icons.Rounded.InsertDriveFile,
+                        label = "文件",
+                        onClick = onAttach
+                    )
+                    Spacer(Modifier.weight(1f))
+                    Surface(
+                        modifier = Modifier
+                            .height(42.dp)
+                            .clip(RoundedCornerShape(21.dp))
+                            .clickable(enabled = !sending && (showStop || canSend)) {
+                                if (showStop) onStop() else onSend()
+                            },
+                        shape = RoundedCornerShape(21.dp),
+                        color = when {
+                            showStop -> Color(0xFF23262E)
+                            canSend -> Blue
+                            else -> Color(0xFFE7EBF2)
+                        }
+                    ) {
+                        Box(
+                            Modifier.padding(horizontal = 22.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            when {
+                                sending -> CircularProgressIndicator(
+                                    modifier = Modifier.size(17.dp),
+                                    color = Color.White,
+                                    strokeWidth = 2.dp
+                                )
+                                showStop -> Icon(
+                                    Icons.Rounded.Stop,
+                                    contentDescription = "停止生成",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                else -> Text(
+                                    "发送",
+                                    color = if (canSend) Color.White else Color(0xFFAAB0BC),
+                                    fontSize = 15.sp,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun FullscreenTool(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    label: String,
+    onClick: () -> Unit
+) {
+    Column(
+        Modifier
+            .clip(RoundedCornerShape(10.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 8.dp, vertical = 3.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Icon(icon, contentDescription = label, tint = InkSoft, modifier = Modifier.size(21.dp))
+        Text(label, color = InkSoft, fontSize = 10.sp)
     }
 }
 
