@@ -663,6 +663,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 if (file.bytes.size > 20 * 1024 * 1024) {
                     throw IllegalArgumentException("文件不能超过 20 MB")
                 }
+                if (_state.value.chat.attachments.any {
+                        it.name == file.name && it.size == file.bytes.size.toLong()
+                    }
+                ) {
+                    return@launch
+                }
                 val mime = file.mime?.lowercase()
                 val extension = file.name.substringAfterLast('.', "").lowercase()
                 val imageMime = when (extension) {

@@ -88,9 +88,9 @@ private fun AppRoot(
     val scope = rememberCoroutineScope()
 
     val filePicker = rememberLauncherForActivityResult(
-        ActivityResultContracts.OpenDocument()
-    ) { uri ->
-        if (uri != null) {
+        ActivityResultContracts.OpenMultipleDocuments()
+    ) { uris ->
+        uris.forEach { uri ->
             runCatching {
                 context.contentResolver.takePersistableUriPermission(
                     uri,
@@ -101,9 +101,9 @@ private fun AppRoot(
         }
     }
     val imagePicker = rememberLauncherForActivityResult(
-        ActivityResultContracts.GetContent()
-    ) { uri ->
-        if (uri != null) vm.attachFile(uri)
+        ActivityResultContracts.GetMultipleContents()
+    ) { uris ->
+        uris.forEach { vm.attachFile(it) }
     }
     val notificationPermission = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()

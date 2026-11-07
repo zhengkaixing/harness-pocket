@@ -665,7 +665,8 @@ class HarnessApi {
         return WorkspaceInfo(
             workspaceId = id,
             path = obj.optString("path"),
-            title = obj.optString("title").ifBlank { obj.optString("path") }
+            title = obj.optString("title").ifBlank { obj.optString("path") },
+            sessionIds = jsonStrings(obj.optJSONArray("sessionIds"))
         )
     }
 

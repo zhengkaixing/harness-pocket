@@ -626,47 +626,30 @@ private fun groupSessions(
     allSessions: List<SessionSummary>,
     includeEmpty: Boolean
 ): List<WorkspaceGroup> {
-    val buckets = LinkedHashMap<String, MutableList<SessionSummary>>()
-    sessions.forEach { session ->
-        val key = cwdKey(session.cwd)
-        buckets.getOrPut(key) { mutableListOf() }.add(session)
-    }
-
-    val groups = ArrayList<WorkspaceGroup>()
-    val used = HashSet<String>()
-    workspaces.forEach { workspace ->
-        val key = cwdKey(workspace.path)
-        val items = buckets[key].orEmpty()
-        if (items.isNotEmpty() || includeEmpty) {
-            groups.add(buildGroup(workspace, items, allSessions, key))
-            used.add(key)
+    return workspaces.mapNotNull { workspace ->
+        val ids = workspace.sessionIds.toSet()
+        val items = if (ids.isEmpty()) {
+            sessions.filter { cwdKey(it.cwd) == cwdKey(workspace.path) }
+        } else {
+            sessions.filter { it.sessionId in ids }
         }
+        if (items.isEmpty() && !includeEmpty) return@mapNotNull null
+        buildGroup(workspace, items, allSessions)
     }
-
-    val extras = buckets
-        .filterKeys { it !in used }
-        .map { (key, items) ->
-            val cwd = items.firstOrNull()?.cwd
-            val workspace = WorkspaceInfo(
-                workspaceId = "cwd:${cwd.orEmpty().lowercase()}",
-                path = cwd.orEmpty(),
-                title = cwdLabel(cwd) ?: "未关联工作区"
-            )
-            buildGroup(workspace, items, allSessions, key)
-        }
-        .sortedByDescending { it.sessions.firstOrNull()?.updatedAt ?: 0L }
-    groups.addAll(extras)
-    return groups
 }
 
 private fun buildGroup(
     workspace: WorkspaceInfo,
     sessions: List<SessionSummary>,
-    allSessions: List<SessionSummary>,
-    key: String
+    allSessions: List<SessionSummary>
 ): WorkspaceGroup {
     val sorted = sessions.sortedByDescending { it.updatedAt }
-    val running = allSessions.count { it.running && cwdKey(it.cwd) == key }
+    val ids = workspace.sessionIds.toSet()
+    val running = if (ids.isEmpty()) {
+        allSessions.count { it.running && cwdKey(it.cwd) == cwdKey(workspace.path) }
+    } else {
+        allSessions.count { it.running && it.sessionId in ids }
+    }
     return WorkspaceGroup(workspace, sorted, running)
 }
 

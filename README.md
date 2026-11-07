@@ -61,7 +61,7 @@ Harness Pocket 是一个**非官方的原生 Android 客户端**，用来远程�
 - **工作区选择与排序**：通过 `workspace/follow` 读取工作区列表，新会话可以绑定到指定目录；文件夹按服务端顺序展示，标题右侧的拖动按钮支持上移/下移，顺序会写回服务端并与网页端同步。
 - **模型与推理强度**：从 `session/modelCatalog` 选择模型，再选择 Off / Minimal / Low / Medium / High / Xhigh / Max 等推理强度。
 - **权限模式**：仅可查看、工作区内修改、完全权限；通过 `/permission <preset>` 命令真正写入会话策略。
-- **附件**：图片直接内联为 base64，任意文件先走 `fileUploads/upload` 换 `receiptId`；单文件上限 20 MB。
+- **附件**：支持一次多选图片/文件；图片直接内联为 base64，任意文件先走 `fileUploads/upload` 换 `receiptId`；单文件上限 20 MB。
 - **语音输入**：输入框左侧麦克风调用系统语音识别（`RecognizerIntent`），识别结果直接回填草稿；没有识别服务时会给出提示。
 - **可选中复制**：对话正文、用户气泡、工具结果和错误提示都支持长按选中，调用系统文本选择工具栏复制。
 - **资源与并发**：读取 `dsh-conversation-queue` 插件的 `/dsh-resource/status`，展示内存、提交内存、磁盘占用和并发闸门的运行/等待数量；可直接把最大并发调到 1–8。未安装插件时显示明确提示。
@@ -101,6 +101,11 @@ Harness Pocket 是一个**非官方的原生 Android 客户端**，用来远程�
 ![远程会话实测](docs/screenshots/remote-chat.png)
 
 工具调用卡片、Markdown 代码块、停止任务、重命名与错误提示也都做了回归。
+
+0.8.4 新增并验证了：
+
+- 附件支持一次多选：聊天输入框的加号/相机按钮使用 Android 多文档选择器，可一次选择多个文件或图片，逐个上传并显示为附件 chip。
+- 工作区树的内容改为以 `workspace/follow` 的 `sessionIds` 为准，与网页端保持一致；不再把仅存在于 `session/list`、但不在任何工作区里的会话按 cwd 补进树里。
 
 0.8.3 修复了问答卡不显示的问题：
 
@@ -200,7 +205,7 @@ Harness Pocket 是一个**非官方的原生 Android 客户端**，用来远程�
 
 ### 直接安装 APK
 
-本地预构建的 APK 在 `dist/HarnessPocket-0.8.3-debug.apk`（二进制不提交到 Git 仓库）；从源码重新构建的产物在：
+本地预构建的 APK 在 `dist/HarnessPocket-0.8.4-debug.apk`（二进制不提交到 Git 仓库）；从源码重新构建的产物在：
 
 ```text
 app/build/outputs/apk/debug/app-debug.apk
@@ -332,6 +337,11 @@ app/src/main/java/dev/harness/pocket/
 - [ ] 可配置的 HTTPS / 证书校验
 
 ## 更新日志
+
+### 0.8.4
+
+- 附件选择改为 Android 多文档/多图片选择器，支持一次选择多个文件。
+- 工作区树按 `workspace/follow` 的 `sessionIds` 过滤，与网页端保持一致；不再把未归属工作区的会话按 cwd 补进树里。
 
 ### 0.8.3
 

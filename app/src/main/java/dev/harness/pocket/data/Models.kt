@@ -76,7 +76,8 @@ data class PermissionCatalog(
 data class WorkspaceInfo(
     val workspaceId: String,
     val path: String,
-    val title: String
+    val title: String,
+    val sessionIds: List<String> = emptyList()
 )
 
 data class WorkspaceSnapshot(
