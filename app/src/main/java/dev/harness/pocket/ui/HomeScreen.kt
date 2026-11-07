@@ -51,6 +51,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -70,6 +71,7 @@ import androidx.compose.ui.unit.sp
 import dev.harness.pocket.data.AppState
 import dev.harness.pocket.data.SessionSummary
 import dev.harness.pocket.data.WorkspaceInfo
+import kotlinx.coroutines.delay
 
 @Composable
 fun HomeScreen(
@@ -597,7 +599,7 @@ private fun SessionCard(
                         }
                         if (session.running) {
                             Spacer(Modifier.width(7.dp))
-                            RunningBadge()
+                            RunningBadge(session.lastPromptAt)
                         }
                     }
                     Spacer(Modifier.height(4.dp))
@@ -616,6 +618,16 @@ private fun SessionCard(
                                 fontSize = 11.sp,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                        val tokens = session.usage?.total ?: 0L
+                        if (tokens > 0) {
+                            Text(" · ", color = Muted, fontSize = 11.sp)
+                            Text(
+                                text = "${formatTokens(tokens)} tokens",
+                                color = Muted,
+                                fontSize = 11.sp,
+                                maxLines = 1
                             )
                         }
                     }
@@ -641,7 +653,21 @@ private fun SessionCard(
 }
 
 @Composable
-private fun RunningBadge() {
+private fun RunningBadge(since: Long?) {
+    var now by remember { mutableStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(since, since != null) {
+        if (since != null && since > 0) {
+            while (true) {
+                now = System.currentTimeMillis()
+                delay(1000)
+            }
+        }
+    }
+    val suffix = if (since != null && since > 0) {
+        " " + formatDuration(now - since)
+    } else {
+        ""
+    }
     Row(
         Modifier
             .background(Color(0xFFEAF8F0), RoundedCornerShape(100.dp))
@@ -650,7 +676,12 @@ private fun RunningBadge() {
     ) {
         Box(Modifier.size(5.dp).background(Green, CircleShape))
         Spacer(Modifier.width(4.dp))
-        Text("运行中", color = Color(0xFF208A52), fontSize = 9.sp, fontWeight = FontWeight.Medium)
+        Text(
+            "运行中$suffix",
+            color = Color(0xFF208A52),
+            fontSize = 9.sp,
+            fontWeight = FontWeight.Medium
+        )
     }
 }
 
@@ -964,3 +995,4 @@ private fun HomeComposer(modifier: Modifier, creating: Boolean, onClick: () -> U
         }
     }
 }
+

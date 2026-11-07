@@ -8,6 +8,8 @@ object EventParser {
     fun parse(records: JSONArray): List<ChatItem> {
         val out = ArrayList<ChatItem>()
         val toolIndex = HashMap<String, Int>()
+        val turnStarts = HashMap<Int, Long>()
+        val turnUsage = HashMap<Int, TokenUsage>()
 
         for (i in 0 until records.length()) {
             val record = records.optJSONObject(i) ?: continue
@@ -18,6 +20,15 @@ object EventParser {
             val data = event.optJSONObject("data") ?: JSONObject()
 
             when (type) {
+                "turn/start" -> {
+                    val turn = data.optInt("turn", 0)
+                    val startedAt = event.optLong("time", 0L)
+                    if (startedAt > 0) {
+                        turnStarts[turn] = startedAt
+                        out.add(TurnStart("turn-start:$seq", seq, turn, startedAt))
+                    }
+                }
+
                 "user/message" -> {
                     val message = data.optJSONObject("message") ?: data
                     val source = message.optJSONObject("source")
@@ -93,6 +104,11 @@ object EventParser {
                         }
                     }
                     flushText()
+                    val turn = data.optInt("turn", 0)
+                    val usage = data.optJSONObject("usage")?.let { parseUsage(it) }
+                    if (usage != null) {
+                        turnUsage[turn] = (turnUsage[turn] ?: TokenUsage()).plus(usage)
+                    }
                 }
 
                 "tool/result" -> {
@@ -115,9 +131,10 @@ object EventParser {
                 }
 
                 "turn/end" -> {
-                    val reason = data.optJSONObject("reason") ?: continue
-                    if (reason.optString("kind") == "error") {
-                        val error = reason.optJSONObject("error")
+                    val reason = data.optJSONObject("reason")
+                    val failed = reason?.optString("kind") == "error"
+                    if (failed) {
+                        val error = reason?.optJSONObject("error")
                         val message = friendly(error?.optString("message"))
                             .ifBlank { "本轮执行失败" }
                         out.add(
@@ -126,6 +143,21 @@ object EventParser {
                                 seq = seq,
                                 text = message,
                                 isError = true
+                            )
+                        )
+                    }
+                    val turn = data.optInt("turn", 0)
+                    val started = turnStarts[turn]
+                    val ended = event.optLong("time", 0L)
+                    if (started != null && ended > started) {
+                        out.add(
+                            TurnTime(
+                                key = "turn-time:$seq",
+                                seq = seq,
+                                turn = turn,
+                                durationMs = ended - started,
+                                usage = turnUsage[turn],
+                                failed = failed
                             )
                         )
                     }
@@ -142,6 +174,13 @@ object EventParser {
         }
         return out
     }
+
+    private fun parseUsage(json: JSONObject): TokenUsage = TokenUsage(
+        uncachedInputTokens = json.optLong("uncachedInputTokens", 0L),
+        outputTokens = json.optLong("outputTokens", 0L),
+        cacheReadTokens = json.optLong("cacheReadTokens", 0L),
+        cacheWriteTokens = json.optLong("cacheWriteTokens", 0L)
+    )
 
     private fun friendly(raw: String?): String {
         if (raw.isNullOrBlank()) return ""

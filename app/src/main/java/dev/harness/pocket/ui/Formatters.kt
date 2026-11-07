@@ -23,6 +23,29 @@ fun cwdLabel(cwd: String?): String? {
     return value.substringAfterLast('/').substringAfterLast('\\').takeIf { it.isNotBlank() }
 }
 
+fun formatDuration(millis: Long): String {
+    val seconds = (millis.coerceAtLeast(0L) / 1000L)
+    return when {
+        seconds < 60 -> "${seconds} 秒"
+        seconds < 3600 -> {
+            val m = seconds / 60
+            val s = seconds % 60
+            if (s == 0L) "$m 分钟" else "$m 分 $s 秒"
+        }
+        else -> {
+            val h = seconds / 3600
+            val m = (seconds % 3600) / 60
+            if (m == 0L) "$h 小时" else "$h 小时 $m 分"
+        }
+    }
+}
+
+fun formatTokens(count: Long): String = when {
+    count < 1_000 -> count.toString()
+    count < 1_000_000 -> String.format(Locale.US, "%.1fk", count / 1_000.0)
+    else -> String.format(Locale.US, "%.1fM", count / 1_000_000.0)
+}
+
 fun sessionTitle(title: String?, blank: Boolean): String = when {
     !title.isNullOrBlank() -> title
     blank -> "新对话"

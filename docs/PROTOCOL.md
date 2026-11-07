@@ -230,6 +230,24 @@ session page through seq 999999 is past cursor 18
 
 只有 `state == "continued"` 能通过 `userQuestions/answer` 回答；`open` 状态需要 live waterfall 事件通道。答案必须覆盖 call 内每个 question 恰好一次，否则报 `BAD_ANSWER`；已有排队回复时报 `REPLY_QUEUED`。
 
+### tokenUsage 与 turn 用时
+
+`session/list` 的 row 投影可带：
+
+```json
+"tokenUsage": {
+  "uncachedInputTokens": 1200,
+  "outputTokens": 340,
+  "cacheReadTokens": 8000,
+  "cacheWriteTokens": 0
+},
+"sessionListMetadata": { "lastPromptAt": 1762500000000 }
+```
+
+`tokenUsage` 是该会话完整日志累计的服务商用量；`lastPromptAt` 可用于运行中会话的已运行时间近似起点（毫秒）。
+
+每轮用时由持久事件计算：`turn/start.time` 到 `turn/end.time`；`assistant/message.data.usage` 是该消息的 Token 用量，按 turn 累加。`session/page` 返回的事件顺序就是展示顺序。
+
 ### 其他
 
 | 方法 | args | 说明 |

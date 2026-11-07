@@ -101,8 +101,12 @@ import dev.harness.pocket.data.ModelCatalog
 import dev.harness.pocket.data.ModelChoice
 import dev.harness.pocket.data.NoticeItem
 import dev.harness.pocket.data.PermissionCatalog
+import dev.harness.pocket.data.TokenUsage
 import dev.harness.pocket.data.ToolItem
+import dev.harness.pocket.data.TurnStart
 import dev.harness.pocket.data.UserMessage
+import java.util.Locale
+import kotlinx.coroutines.delay
 
 @Composable
 fun ChatScreen(
@@ -157,24 +161,45 @@ fun ChatScreen(
         }
     }
 
+    var voiceError by remember { mutableStateOf<String?>(null) }
+
     fun startVoiceInput() {
         val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
             putExtra(
                 RecognizerIntent.EXTRA_LANGUAGE_MODEL,
                 RecognizerIntent.LANGUAGE_MODEL_FREE_FORM
             )
-            putExtra(RecognizerIntent.EXTRA_LANGUAGE, "zh-CN")
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault().toLanguageTag())
             putExtra(RecognizerIntent.EXTRA_PROMPT, "请说出要输入的内容")
             putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
+        }
+        if (intent.resolveActivity(context.packageManager) == null) {
+            voiceError = "当前设备没有可用的语音识别服务。请安装或启用 Google 语音服务/系统语音助手，也可以使用输入法键盘上的麦克风按钮。模拟器通常不带语音识别。"
+            return
         }
         try {
             voiceLauncher.launch(intent)
         } catch (_: ActivityNotFoundException) {
-            Toast.makeText(context, "当前设备没有可用的语音识别服务", Toast.LENGTH_SHORT).show()
+            voiceError = "语音识别没有启动成功。请检查系统语音服务是否已启用，或改用输入法键盘上的麦克风。"
+        } catch (_: SecurityException) {
+            voiceError = "没有权限使用语音识别。请检查系统语音服务或输入法的麦克风权限。"
         }
     }
 
     BackHandler(onBack = onBack)
+
+    voiceError?.let { message ->
+        AlertDialog(
+            onDismissRequest = { voiceError = null },
+            title = { Text("语音输入不可用", fontWeight = FontWeight.Bold) },
+            text = { Text(message, color = InkSoft, lineHeight = 20.sp) },
+            confirmButton = {
+                TextButton(onClick = { voiceError = null }) {
+                    Text("知道了", color = Blue)
+                }
+            }
+        )
+    }
 
     LaunchedEffect(state.activeSession?.sessionId) {
         onRefreshResources()
@@ -182,6 +207,8 @@ fun ChatScreen(
 
     val lastAssistant = chat.allItems.lastOrNull() as? AssistantMessage
     val showTyping = chat.sending || (chat.running && lastAssistant?.text.isNullOrBlank())
+    val runningSince = chat.items.filterIsInstance<TurnStart>().lastOrNull()?.startedAt
+        ?: chat.lastPromptAt
     var didInitialScroll by remember(state.activeSession?.sessionId) { mutableStateOf(false) }
 
     LaunchedEffect(chat.loading) {
@@ -253,7 +280,9 @@ fun ChatScreen(
             onSettings = {
                 menuOpen = false
                 onSettings()
-            }
+            },
+            runningSince = runningSince,
+            usage = chat.usage
         )
 
         ChatControls(
@@ -758,8 +787,31 @@ private fun ChatTopBar(
     onNewChat: () -> Unit,
     onRefresh: () -> Unit,
     onRename: () -> Unit,
-    onSettings: () -> Unit
+    onSettings: () -> Unit,
+    runningSince: Long? = null,
+    usage: TokenUsage? = null
 ) {
+    var now by remember { mutableStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(running, runningSince) {
+        if (running) {
+            while (true) {
+                now = System.currentTimeMillis()
+                delay(1000)
+            }
+        }
+    }
+    val meta = buildString {
+        if (running && runningSince != null) {
+            append(" · ")
+            append(formatDuration(now - runningSince))
+        }
+        val tokens = usage?.total ?: 0L
+        if (tokens > 0) {
+            append(" · ")
+            append(formatTokens(tokens))
+            append(" tokens")
+        }
+    }
     Row(
         Modifier
             .fillMaxWidth()
@@ -799,9 +851,11 @@ private fun ChatTopBar(
                     Spacer(Modifier.width(5.dp))
                 }
                 Text(
-                    text = subtitle,
+                    text = subtitle + meta,
                     color = if (running) Color(0xFF208A52) else Muted,
-                    fontSize = 9.5.sp
+                    fontSize = 9.5.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
             }
         }
@@ -863,6 +917,8 @@ private fun ChatItemRow(
             Box(Modifier.weight(1f)) { ToolCard(item, onLoadImage) }
         }
         is NoticeItem -> NoticeCard(item)
+        is dev.harness.pocket.data.TurnStart -> Unit
+        is dev.harness.pocket.data.TurnTime -> TurnMetaRow(item)
     }
 }
 

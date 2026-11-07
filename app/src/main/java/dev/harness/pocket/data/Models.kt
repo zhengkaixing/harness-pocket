@@ -121,6 +121,23 @@ data class ChatImage(
     val data: String? = null
 )
 
+data class TokenUsage(
+    val uncachedInputTokens: Long = 0,
+    val outputTokens: Long = 0,
+    val cacheReadTokens: Long = 0,
+    val cacheWriteTokens: Long = 0
+) {
+    val total: Long
+        get() = uncachedInputTokens + outputTokens + cacheReadTokens + cacheWriteTokens
+
+    fun plus(other: TokenUsage): TokenUsage = TokenUsage(
+        uncachedInputTokens = uncachedInputTokens + other.uncachedInputTokens,
+        outputTokens = outputTokens + other.outputTokens,
+        cacheReadTokens = cacheReadTokens + other.cacheReadTokens,
+        cacheWriteTokens = cacheWriteTokens + other.cacheWriteTokens
+    )
+}
+
 data class SessionSummary(
     val sessionId: String,
     val title: String?,
@@ -133,7 +150,9 @@ data class SessionSummary(
     val permission: String? = null,
     val questions: List<AskBatch> = emptyList(),
     val parentSessionId: String? = null,
-    val origin: String? = null
+    val origin: String? = null,
+    val usage: TokenUsage? = null,
+    val lastPromptAt: Long? = null
 ) {
     val subagentParentId: String?
         get() = parentSessionId?.takeIf { origin == "subagent" }
@@ -178,6 +197,22 @@ data class NoticeItem(
     override val seq: Int,
     val text: String,
     val isError: Boolean
+) : ChatItem
+
+data class TurnStart(
+    override val key: String,
+    override val seq: Int,
+    val turn: Int,
+    val startedAt: Long
+) : ChatItem
+
+data class TurnTime(
+    override val key: String,
+    override val seq: Int,
+    val turn: Int,
+    val durationMs: Long,
+    val usage: TokenUsage? = null,
+    val failed: Boolean = false
 ) : ChatItem
 
 data class PageResult(
@@ -233,7 +268,9 @@ data class ChatState(
     val questions: List<AskBatch> = emptyList(),
     val questionBusy: Boolean = false,
     val hasMoreHistory: Boolean = false,
-    val loadingEarlier: Boolean = false
+    val loadingEarlier: Boolean = false,
+    val usage: TokenUsage? = null,
+    val lastPromptAt: Long? = null
 ) {
     val allItems: List<ChatItem>
         get() = items + queued + listOfNotNull(pending)

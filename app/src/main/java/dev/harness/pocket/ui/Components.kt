@@ -44,6 +44,7 @@ import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.rounded.PushPin
 import androidx.compose.material.icons.rounded.RadioButtonChecked
 import androidx.compose.material.icons.rounded.RadioButtonUnchecked
+import androidx.compose.material.icons.rounded.Schedule
 import androidx.compose.material.icons.rounded.Terminal
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
@@ -93,6 +94,7 @@ import dev.harness.pocket.data.AskBatch
 import dev.harness.pocket.data.ChatImage
 import dev.harness.pocket.data.NoticeItem
 import dev.harness.pocket.data.ToolItem
+import dev.harness.pocket.data.TurnTime
 import kotlinx.coroutines.delay
 import java.util.Base64
 import kotlin.math.PI
@@ -497,6 +499,41 @@ fun AssistantRow(
                 ChatImageBox(image = image, load = onLoadImage)
             }
             if (text.isNotBlank()) MarkdownText(text)
+        }
+    }
+}
+
+@Composable
+fun TurnMetaRow(item: TurnTime) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .padding(top = 3.dp, bottom = 1.dp),
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            Icons.Rounded.Schedule,
+            contentDescription = null,
+            tint = Muted,
+            modifier = Modifier.size(12.dp)
+        )
+        Spacer(Modifier.width(4.dp))
+        Text(
+            text = "用时 ${formatDuration(item.durationMs)}",
+            color = Muted,
+            fontSize = 10.5.sp
+        )
+        val tokens = item.usage?.total ?: 0L
+        if (tokens > 0) {
+            Text(
+                text = " · ${formatTokens(tokens)} tokens",
+                color = Muted,
+                fontSize = 10.5.sp
+            )
+        }
+        if (item.failed) {
+            Text(" · 失败", color = Red, fontSize = 10.5.sp)
         }
     }
 }

@@ -115,6 +115,17 @@ class HarnessApi {
                 ?.optString("currentValue")
                 ?.takeIf { it.isNotBlank() }
             val questions = parseAskBatches(values?.optJSONObject("userQuestions"))
+            val usage = values?.optJSONObject("tokenUsage")?.let {
+                TokenUsage(
+                    uncachedInputTokens = it.optLong("uncachedInputTokens", 0L),
+                    outputTokens = it.optLong("outputTokens", 0L),
+                    cacheReadTokens = it.optLong("cacheReadTokens", 0L),
+                    cacheWriteTokens = it.optLong("cacheWriteTokens", 0L)
+                )
+            }
+            val lastPromptAt = values?.optJSONObject("sessionListMetadata")
+                ?.optLong("lastPromptAt", 0L)
+                ?.takeIf { it > 0 }
             result.add(
                 SessionSummary(
                     sessionId = row.optString("sessionId"),
@@ -129,7 +140,9 @@ class HarnessApi {
                     questions = questions,
                     parentSessionId = row.optString("parentSessionId")
                         .takeIf { it.isNotBlank() },
-                    origin = row.optString("origin").takeIf { it.isNotBlank() }
+                    origin = row.optString("origin").takeIf { it.isNotBlank() },
+                    usage = usage,
+                    lastPromptAt = lastPromptAt
                 )
             )
         }

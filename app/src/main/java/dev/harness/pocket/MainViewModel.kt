@@ -133,7 +133,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     asOfSeq = session.asOfSeq,
                     model = session.model ?: lastModelChoice,
                     permission = session.permission,
-                    questions = session.questions
+                    questions = session.questions,
+                    usage = session.usage,
+                    lastPromptAt = session.lastPromptAt
                 )
             )
         }
@@ -964,7 +966,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                                         row.questions
                                     } else {
                                         st.chat.questions
-                                    }
+                                    },
+                                    usage = row.usage ?: st.chat.usage,
+                                    lastPromptAt = row.lastPromptAt ?: st.chat.lastPromptAt
                                 )
                             )
                         }
