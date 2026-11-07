@@ -18,6 +18,7 @@ import dev.harness.pocket.data.HarnessApi
 import dev.harness.pocket.data.ModelChoice
 import dev.harness.pocket.data.Prefs
 import dev.harness.pocket.data.PromptPart
+import dev.harness.pocket.data.SessionLiveState
 import dev.harness.pocket.data.SessionSummary
 import dev.harness.pocket.data.UserMessage
 import dev.harness.pocket.data.WorkspaceInfo
@@ -26,6 +27,8 @@ import dev.harness.pocket.data.friendlyError
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -47,6 +50,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     val state: StateFlow<AppState> = _state.asStateFlow()
 
     private var pollJob: Job? = null
+    private var previewJob: Job? = null
     private var pageSeq = -1
     private var lastModelChoice: ModelChoice? = null
 
@@ -107,6 +111,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             try {
                 val sessions = api.listSessions().sortedByDescending { it.updatedAt }
                 _state.update { it.copy(sessions = sessions, sessionsLoading = false) }
+                loadPromptPreviews(sessions)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: AuthException) {
@@ -120,6 +125,48 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun refreshSessions() = loadSessions()
+
+    private fun loadPromptPreviews(sessions: List<SessionSummary>) {
+        previewJob?.cancel()
+        val missing = sessions.asSequence()
+            .filter { !it.blank && it.sessionId.isNotBlank() }
+            .filter { it.sessionId !in _state.value.lastPrompts }
+            .take(20)
+            .toList()
+        if (missing.isEmpty()) return
+        previewJob = viewModelScope.launch {
+            for (chunk in missing.chunked(3)) {
+                val fetched = chunk.map { session ->
+                    async {
+                        try {
+                            Triple(
+                                session.sessionId,
+                                api.latestPrompt(session).orEmpty(),
+                                true
+                            )
+                        } catch (e: CancellationException) {
+                            throw e
+                        } catch (_: Exception) {
+                            Triple(session.sessionId, "", false)
+                        }
+                    }
+                }.awaitAll()
+                _state.update { st ->
+                    val next = st.lastPrompts.toMutableMap()
+                    fetched.forEach { (id, text, ok) ->
+                        if (ok) next[id] = text
+                    }
+                    st.copy(lastPrompts = next)
+                }
+            }
+        }
+    }
+
+    private fun normalizePreview(text: String?): String? = text
+        ?.replace(Regex("\\s+"), " ")
+        ?.trim()
+        ?.takeIf { it.isNotBlank() }
+        ?.take(120)
 
     fun openSession(session: SessionSummary) {
         pageSeq = -1
@@ -141,20 +188,18 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
         startPolling(session.sessionId, reset = true)
         viewModelScope.launch {
-            val inbox = loadInbox(session.sessionId)
-            val questions = try {
-                api.questionBatches(session.sessionId)
-            } catch (e: CancellationException) {
-                throw e
-            } catch (_: Exception) {
-                emptyList()
-            }
-            if (_state.value.activeSession?.sessionId == session.sessionId) {
+            val live = loadLiveState(session.sessionId)
+            if (live != null && _state.value.activeSession?.sessionId == session.sessionId) {
                 _state.update { st ->
                     st.copy(
                         chat = st.chat.copy(
-                            questions = if (questions.isNotEmpty()) questions else st.chat.questions,
-                            queued = inbox?.let { mergeQueue(it, st.chat.queued) } ?: st.chat.queued
+                            questions = if (live.questions.isNotEmpty()) {
+                                live.questions
+                            } else {
+                                st.chat.questions
+                            },
+                            queued = mergeQueue(live.inbox, st.chat.queued),
+                            context = live.context ?: st.chat.context
                         )
                     )
                 }
@@ -272,6 +317,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 )
             }
         )
+        val preview = normalizePreview(clean)
         _state.update {
             it.copy(
                 chat = it.chat.copy(
@@ -279,7 +325,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     queued = if (wasRunning) it.chat.queued + pending else it.chat.queued,
                     sending = true,
                     error = null
-                )
+                ),
+                lastPrompts = if (preview != null) {
+                    it.lastPrompts + (session.sessionId to preview)
+                } else {
+                    it.lastPrompts
+                }
             )
         }
 
@@ -975,9 +1026,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    private suspend fun loadInbox(sessionId: String): List<UserMessage>? {
+    private suspend fun loadLiveState(sessionId: String): SessionLiveState? {
         return try {
-            api.pendingInbox(sessionId)
+            api.sessionLiveState(sessionId)
         } catch (e: CancellationException) {
             throw e
         } catch (_: Exception) {
@@ -1056,18 +1107,14 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                             val echoedRpcIds = parsed.filterIsInstance<UserMessage>()
                                 .mapNotNull { it.rpcId }
                                 .toSet()
-                            val inbox = if (row.running || _state.value.chat.queued.isNotEmpty()) {
-                                loadInbox(sessionId)
-                            } else {
-                                null
-                            }
+                            val live = loadLiveState(sessionId)
                             _state.update { st ->
                                 val remainingQueued = st.chat.queued.filterNot {
                                     it.rpcId != null && it.rpcId in echoedRpcIds
                                 }
-                                val nextQueued = inbox?.let { server ->
+                                val nextQueued = live?.let { server ->
                                     mergeQueue(
-                                        server.filterNot { item ->
+                                        server.inbox.filterNot { item ->
                                             item.rpcId != null && item.rpcId in echoedRpcIds
                                         },
                                         remainingQueued
@@ -1081,6 +1128,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                                     .distinctBy { it.key }
                                     .sortedBy { it.seq }
                                 val keptOlder = mergedItems.size > parsed.size
+                                val preview = normalizePreview(
+                                    mergedItems.filterIsInstance<UserMessage>()
+                                        .lastOrNull()
+                                        ?.text
+                                )
                                 st.copy(
                                     chat = st.chat.copy(
                                         loading = false,
@@ -1095,8 +1147,14 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                                         running = row.running,
                                         title = st.chat.title ?: row.title,
                                         error = null,
+                                        context = live?.context ?: st.chat.context,
                                         asOfSeq = row.asOfSeq
-                                    )
+                                    ),
+                                    lastPrompts = if (preview != null) {
+                                        st.lastPrompts + (sessionId to preview)
+                                    } else {
+                                        st.lastPrompts
+                                    }
                                 )
                             }
                             pageSeq = row.asOfSeq

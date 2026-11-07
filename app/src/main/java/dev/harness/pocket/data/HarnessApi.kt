@@ -234,13 +234,33 @@ class HarnessApi {
         )
     }
 
-    suspend fun pendingInbox(sessionId: String): List<UserMessage> {
+    suspend fun sessionLiveState(sessionId: String): SessionLiveState {
         val value = rpc(
             "session/projections",
             JSONObject().put("request", JSONObject().put("sessionId", sessionId))
         )
-        val inbox = value.optJSONObject("values")?.optJSONObject("inbox") ?: return emptyList()
-        val messages = inbox.optJSONArray("next-turn") ?: return emptyList()
+        val values = value.optJSONObject("values")
+        val questions = parseAskBatches(values?.optJSONObject("userQuestions"))
+        val context = values?.optJSONObject("contextPressure")?.let { json ->
+            ContextPressure(
+                pressureTokens = if (json.has("pressureTokens")) {
+                    json.optLong("pressureTokens").takeIf { it >= 0 }
+                } else {
+                    null
+                },
+                projectedTokens = if (json.has("projectedTokens")) {
+                    json.optLong("projectedTokens").takeIf { it >= 0 }
+                } else {
+                    null
+                },
+                contextWindow = if (json.has("contextWindow")) {
+                    json.optLong("contextWindow").takeIf { it > 0 }
+                } else {
+                    null
+                }
+            )
+        }?.takeIf { it.usedTokens != null && it.contextWindow != null }
+        val messages = values?.optJSONObject("inbox")?.optJSONArray("next-turn") ?: JSONArray()
         val result = ArrayList<UserMessage>()
         for (i in 0 until messages.length()) {
             val wrapper = messages.optJSONObject(i) ?: continue
@@ -305,7 +325,38 @@ class HarnessApi {
                 )
             )
         }
-        return result
+        return SessionLiveState(
+            inbox = result,
+            questions = questions,
+            context = context
+        )
+    }
+
+    suspend fun latestPrompt(session: SessionSummary): String? {
+        if (session.blank || session.asOfSeq <= 0) return null
+        val address = if (!session.subagentParentId.isNullOrBlank()) {
+            JSONObject()
+                .put("kind", "subagent")
+                .put("parentSessionId", session.subagentParentId)
+                .put("childSessionId", session.sessionId)
+                .put("mode", "unknown")
+        } else {
+            JSONObject().put("kind", "session").put("sessionId", session.sessionId)
+        }
+        val request = JSONObject()
+            .put("address", address)
+            .put("throughSeq", session.asOfSeq)
+            .put("maxMessages", 60)
+            .put("turnWindow", JSONObject().put("minMessages", 1).put("minTurns", 1))
+        val value = rpc("session/page", JSONObject().put("request", request))
+        val items = EventParser.parse(value.optJSONArray("records") ?: return null)
+        return items.filterIsInstance<UserMessage>()
+            .lastOrNull()
+            ?.text
+            ?.replace(Regex("\\s+"), " ")
+            ?.trim()
+            ?.takeIf { it.isNotBlank() }
+            ?.take(120)
     }
 
     suspend fun answerQuestions(

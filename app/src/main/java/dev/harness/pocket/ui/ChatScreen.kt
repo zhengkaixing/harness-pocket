@@ -98,6 +98,7 @@ import dev.harness.pocket.data.Attachment
 import dev.harness.pocket.data.ChatImage
 import dev.harness.pocket.data.ChatItem
 import dev.harness.pocket.data.ChatState
+import dev.harness.pocket.data.ContextPressure
 import dev.harness.pocket.data.ModelCatalog
 import dev.harness.pocket.data.ModelChoice
 import dev.harness.pocket.data.NoticeItem
@@ -301,7 +302,8 @@ fun ChatScreen(
             permissionCatalog = state.permissionCatalog,
             permissionBusy = chat.permissionBusy,
             onPermission = onPermission,
-            workspace = state.activeSession?.cwd
+            workspace = state.activeSession?.cwd,
+            context = chat.context
         )
 
         ResourceStrip(
@@ -426,7 +428,8 @@ private fun ChatControls(
     permissionCatalog: PermissionCatalog?,
     permissionBusy: Boolean,
     onPermission: (String) -> Unit,
-    workspace: String?
+    workspace: String?,
+    context: ContextPressure?
 ) {
     Row(
         Modifier
@@ -448,6 +451,7 @@ private fun ChatControls(
             busy = permissionBusy,
             onSelect = onPermission
         )
+        context?.let { ContextPill(it) }
         if (!workspace.isNullOrBlank()) {
             val name = workspace.trimEnd('/').substringAfterLast('/').ifBlank { workspace }
             Surface(
@@ -475,6 +479,69 @@ private fun ChatControls(
                         modifier = Modifier.widthIn(max = 120.dp)
                     )
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ContextPill(context: ContextPressure) {
+    val window = context.contextWindow ?: return
+    if (window <= 0) return
+    val percent = context.percent ?: return
+    val used = context.usedTokens ?: return
+    var open by remember { mutableStateOf(false) }
+    val tint = when {
+        percent >= 90 -> Color(0xFFD9534F)
+        percent >= 70 -> Color(0xFFD99A2B)
+        else -> Blue
+    }
+    Box {
+        Surface(
+            modifier = Modifier.clickable { open = true },
+            shape = RoundedCornerShape(100.dp),
+            color = Color.White.copy(alpha = 0.8f),
+            border = BorderStroke(1.dp, Line)
+        ) {
+            Row(
+                Modifier.padding(horizontal = 9.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                CircularProgressIndicator(
+                    progress = percent / 100f,
+                    modifier = Modifier.size(13.dp),
+                    color = tint,
+                    strokeWidth = 2.dp
+                )
+                Spacer(Modifier.width(5.dp))
+                Text(
+                    text = "上下文 $percent%",
+                    color = tint,
+                    fontSize = 10.5.sp,
+                    maxLines = 1
+                )
+            }
+        }
+        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+            Column(Modifier.padding(horizontal = 14.dp, vertical = 8.dp)) {
+                Text(
+                    text = "上下文占用 $percent%",
+                    color = Ink,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    text = "${formatTokens(used)} / ${formatTokens(window)} tokens",
+                    color = InkSoft,
+                    fontSize = 12.sp
+                )
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    text = "按当前对话预估，仅作参考",
+                    color = Muted,
+                    fontSize = 11.sp
+                )
             }
         }
     }

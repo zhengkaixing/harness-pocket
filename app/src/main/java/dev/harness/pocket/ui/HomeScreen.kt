@@ -194,6 +194,7 @@ fun HomeScreen(
                                 val isPinned = session.sessionId in pinnedIds
                                 SessionCard(
                                     session = session,
+                                    lastPrompt = state.lastPrompts[session.sessionId],
                                     pinned = isPinned,
                                     onClick = { onOpenSession(session) },
                                     onTogglePin = {
@@ -544,6 +545,7 @@ private fun Hero() {
 @Composable
 private fun SessionCard(
     session: SessionSummary,
+    lastPrompt: String?,
     pinned: Boolean,
     onClick: () -> Unit,
     onTogglePin: () -> Unit,
@@ -630,6 +632,16 @@ private fun SessionCard(
                                 maxLines = 1
                             )
                         }
+                    }
+                    if (!lastPrompt.isNullOrBlank()) {
+                        Spacer(Modifier.height(3.dp))
+                        Text(
+                            text = lastPrompt,
+                            color = InkSoft,
+                            fontSize = 12.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
                     }
                 }
             }

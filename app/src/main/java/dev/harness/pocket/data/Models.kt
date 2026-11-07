@@ -1,5 +1,7 @@
 package dev.harness.pocket.data
 
+import kotlin.math.roundToInt
+
 data class Connection(
     val baseUrl: String,
     val token: String,
@@ -138,6 +140,30 @@ data class TokenUsage(
     )
 }
 
+data class ContextPressure(
+    val pressureTokens: Long? = null,
+    val projectedTokens: Long? = null,
+    val contextWindow: Long? = null
+) {
+    val usedTokens: Long?
+        get() = projectedTokens ?: pressureTokens
+
+    val percent: Int?
+        get() {
+            val used = usedTokens ?: return null
+            val window = contextWindow?.takeIf { it > 0 } ?: return null
+            return ((used.toDouble() / window.toDouble()) * 100.0)
+                .roundToInt()
+                .coerceIn(0, 100)
+        }
+}
+
+data class SessionLiveState(
+    val inbox: List<UserMessage> = emptyList(),
+    val questions: List<AskBatch> = emptyList(),
+    val context: ContextPressure? = null
+)
+
 data class SessionSummary(
     val sessionId: String,
     val title: String?,
@@ -270,6 +296,7 @@ data class ChatState(
     val hasMoreHistory: Boolean = false,
     val loadingEarlier: Boolean = false,
     val usage: TokenUsage? = null,
+    val context: ContextPressure? = null,
     val lastPromptAt: Long? = null
 ) {
     val allItems: List<ChatItem>
@@ -283,6 +310,7 @@ data class AppState(
     val connecting: Boolean = false,
     val connectError: String? = null,
     val sessions: List<SessionSummary> = emptyList(),
+    val lastPrompts: Map<String, String> = emptyMap(),
     val sessionsLoading: Boolean = false,
     val sessionsError: String? = null,
     val creating: Boolean = false,
