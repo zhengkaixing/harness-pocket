@@ -73,6 +73,7 @@ fun HarnessDrawer(
     state: AppState,
     onClose: () -> Unit,
     onNewChat: () -> Unit,
+    onNewChatInWorkspace: (WorkspaceInfo) -> Unit,
     onWorkspace: () -> Unit,
     onMoveWorkspace: (String, String?) -> Unit,
     onOpenSession: (SessionSummary) -> Unit,
@@ -257,6 +258,10 @@ fun HarnessDrawer(
                                 onMoveWorkspace(key, workspaceOrder.getOrNull(registryIndex + 2))
                             }
                         },
+                        onNewChat = {
+                            onClose()
+                            onNewChatInWorkspace(group.workspace)
+                        },
                         onClick = { expanded[key] = !open }
                     )
                     if (open) {
@@ -376,6 +381,7 @@ private fun DrawerWorkspaceHeader(
     canMoveDown: Boolean,
     onMoveUp: () -> Unit,
     onMoveDown: () -> Unit,
+    onNewChat: () -> Unit,
     onClick: () -> Unit
 ) {
     var moveMenu by remember { mutableStateOf(false) }
@@ -421,6 +427,13 @@ private fun DrawerWorkspaceHeader(
                 )
             }
         }
+        SoftIconButton(
+            icon = Icons.Rounded.Add,
+            onClick = onNewChat,
+            contentDescription = "在此工作区新建对话",
+            background = Color.Transparent,
+            size = 24.dp
+        )
         if (group.runningCount > 0) {
             Surface(
                 shape = RoundedCornerShape(100.dp),

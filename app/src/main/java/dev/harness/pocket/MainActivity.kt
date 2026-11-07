@@ -151,6 +151,7 @@ private fun AppRoot(
                     state = state,
                     onClose = closeDrawer,
                     onNewChat = vm::newSession,
+                    onNewChatInWorkspace = vm::newSessionInWorkspace,
                     onWorkspace = {
                         workspaceOpen = true
                         if (state.workspaces.isEmpty()) vm.refreshWorkspaces()

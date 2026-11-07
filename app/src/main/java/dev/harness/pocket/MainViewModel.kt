@@ -141,21 +141,41 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
         startPolling(session.sessionId, reset = true)
         viewModelScope.launch {
-            try {
-                val questions = api.questionBatches(session.sessionId)
-                if (questions.isNotEmpty() && _state.value.activeSession?.sessionId == session.sessionId) {
-                    _state.update { it.copy(chat = it.chat.copy(questions = questions)) }
-                }
-            } catch (_: CancellationException) {
+            val inbox = loadInbox(session.sessionId)
+            val questions = try {
+                api.questionBatches(session.sessionId)
+            } catch (e: CancellationException) {
+                throw e
             } catch (_: Exception) {
+                emptyList()
+            }
+            if (_state.value.activeSession?.sessionId == session.sessionId) {
+                _state.update { st ->
+                    st.copy(
+                        chat = st.chat.copy(
+                            questions = if (questions.isNotEmpty()) questions else st.chat.questions,
+                            queued = inbox?.let { mergeQueue(it, st.chat.queued) } ?: st.chat.queued
+                        )
+                    )
+                }
             }
         }
     }
 
-    fun newSession() {
+    fun newSession() = createSession(null)
+
+    fun newSessionInWorkspace(workspace: WorkspaceInfo) = createSession(workspace)
+
+    private fun createSession(explicitWorkspace: WorkspaceInfo?) {
         if (_state.value.creating) return
-        val workspace = _state.value.selectedWorkspace
-        _state.update { it.copy(creating = true, sessionsError = null) }
+        val workspace = explicitWorkspace ?: _state.value.selectedWorkspace
+        _state.update {
+            it.copy(
+                creating = true,
+                sessionsError = null,
+                selectedWorkspace = explicitWorkspace ?: it.selectedWorkspace
+            )
+        }
         viewModelScope.launch {
             try {
                 val id = api.createSession(workspaceId = workspace?.workspaceId)
@@ -177,9 +197,20 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     permission = _state.value.permissionCatalog?.defaultPreset
                 )
                 _state.update {
+                    val workspaces = if (workspace == null) {
+                        it.workspaces
+                    } else {
+                        it.workspaces.map { group ->
+                            if (group.workspaceId != workspace.workspaceId) group
+                            else group.copy(
+                                sessionIds = listOf(id) + group.sessionIds.filterNot { sid -> sid == id }
+                            )
+                        }
+                    }
                     it.copy(
                         creating = false,
-                        sessions = listOf(summary) + it.sessions.filterNot { s -> s.sessionId == id }
+                        sessions = listOf(summary) + it.sessions.filterNot { s -> s.sessionId == id },
+                        workspaces = workspaces
                     )
                 }
                 openSession(summary)
@@ -944,6 +975,27 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    private suspend fun loadInbox(sessionId: String): List<UserMessage>? {
+        return try {
+            api.pendingInbox(sessionId)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    private fun mergeQueue(server: List<UserMessage>, local: List<UserMessage>): List<UserMessage> {
+        val serverKeys = server.map { it.key }.toSet()
+        val serverRpcIds = server.mapNotNull { it.rpcId }.toSet()
+        val localOnly = local.filter { item ->
+            item.key !in serverKeys &&
+                !item.key.startsWith("inbox:") &&
+                (item.rpcId == null || item.rpcId !in serverRpcIds)
+        }
+        return server + localOnly
+    }
+
     private fun startPolling(sessionId: String, reset: Boolean) {
         pollJob?.cancel()
         if (reset) pageSeq = -1
@@ -1004,7 +1056,23 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                             val echoedRpcIds = parsed.filterIsInstance<UserMessage>()
                                 .mapNotNull { it.rpcId }
                                 .toSet()
+                            val inbox = if (row.running || _state.value.chat.queued.isNotEmpty()) {
+                                loadInbox(sessionId)
+                            } else {
+                                null
+                            }
                             _state.update { st ->
+                                val remainingQueued = st.chat.queued.filterNot {
+                                    it.rpcId != null && it.rpcId in echoedRpcIds
+                                }
+                                val nextQueued = inbox?.let { server ->
+                                    mergeQueue(
+                                        server.filterNot { item ->
+                                            item.rpcId != null && item.rpcId in echoedRpcIds
+                                        },
+                                        remainingQueued
+                                    )
+                                } ?: remainingQueued
                                 val oldestParsed = parsed.minOfOrNull { it.seq }
                                 val older = st.chat.items.filter { item ->
                                     oldestParsed == null || item.seq < oldestParsed
@@ -1018,9 +1086,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                                         loading = false,
                                         items = mergedItems,
                                         pending = stillPending,
-                                        queued = st.chat.queued.filterNot {
-                                            it.rpcId != null && it.rpcId in echoedRpcIds
-                                        },
+                                        queued = nextQueued,
                                         hasMoreHistory = if (keptOlder) {
                                             st.chat.hasMoreHistory
                                         } else {

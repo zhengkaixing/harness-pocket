@@ -234,6 +234,80 @@ class HarnessApi {
         )
     }
 
+    suspend fun pendingInbox(sessionId: String): List<UserMessage> {
+        val value = rpc(
+            "session/projections",
+            JSONObject().put("request", JSONObject().put("sessionId", sessionId))
+        )
+        val inbox = value.optJSONObject("values")?.optJSONObject("inbox") ?: return emptyList()
+        val messages = inbox.optJSONArray("next-turn") ?: return emptyList()
+        val result = ArrayList<UserMessage>()
+        for (i in 0 until messages.length()) {
+            val wrapper = messages.optJSONObject(i) ?: continue
+            val message = wrapper.optJSONObject("message") ?: wrapper
+            val itemId = message.optString("id").ifBlank { wrapper.optString("id") }
+            if (itemId.isBlank()) continue
+            val content = message.optJSONArray("content")
+            val text = buildString {
+                if (content != null) {
+                    for (j in 0 until content.length()) {
+                        val block = content.optJSONObject(j) ?: continue
+                        if (block.optString("type") != "text") continue
+                        if (isNotEmpty()) append('\n')
+                        append(block.optString("text"))
+                    }
+                } else {
+                    append(message.optString("text"))
+                }
+            }.trim()
+            val attachments = ArrayList<String>()
+            val images = ArrayList<ChatImage>()
+            if (content != null) {
+                for (j in 0 until content.length()) {
+                    val block = content.optJSONObject(j) ?: continue
+                    when (block.optString("type")) {
+                        "file" -> attachments.add(
+                            block.optString("name").ifBlank {
+                                block.optString("fileName").ifBlank { "附件" }
+                            }
+                        )
+                        "image" -> {
+                            val attachment = block.optJSONObject("attachment")
+                            val id = attachment?.optString("attachmentId").orEmpty()
+                            if (id.isNotBlank()) {
+                                images.add(
+                                    ChatImage(
+                                        attachmentId = id,
+                                        mediaType = attachment?.optString("mediaType")
+                                            ?.takeIf { it.isNotBlank() } ?: "image/png",
+                                        width = attachment?.optInt("width") ?: 0,
+                                        height = attachment?.optInt("height") ?: 0,
+                                        name = attachment?.optString("name")
+                                            ?.takeIf { it.isNotBlank() }
+                                    )
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+            if (text.isBlank() && attachments.isEmpty() && images.isEmpty()) continue
+            val source = message.optJSONObject("source")
+            result.add(
+                UserMessage(
+                    key = "inbox:$itemId",
+                    seq = 0,
+                    text = text,
+                    rpcId = source?.optString("rpcId")?.takeIf { it.isNotBlank() },
+                    queued = true,
+                    attachments = attachments,
+                    images = images
+                )
+            )
+        }
+        return result
+    }
+
     suspend fun answerQuestions(
         sessionId: String,
         callId: String,

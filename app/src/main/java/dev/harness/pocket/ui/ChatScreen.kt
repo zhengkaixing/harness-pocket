@@ -74,6 +74,7 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
@@ -81,8 +82,8 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -108,6 +109,7 @@ import dev.harness.pocket.data.UserMessage
 import java.util.Locale
 import kotlinx.coroutines.delay
 
+@OptIn(ExperimentalComposeUiApi::class)
 @Composable
 fun ChatScreen(
     state: AppState,
@@ -144,8 +146,8 @@ fun ChatScreen(
     var menuOpen by remember { mutableStateOf(false) }
     var renameOpen by remember { mutableStateOf(false) }
     val focusManager = LocalFocusManager.current
+    val keyboardController = LocalSoftwareKeyboardController.current
     val focusRequester = remember { FocusRequester() }
-    val context = LocalContext.current
     val voiceLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.StartActivityForResult()
     ) { result ->
@@ -173,14 +175,10 @@ fun ChatScreen(
             putExtra(RecognizerIntent.EXTRA_PROMPT, "请说出要输入的内容")
             putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
         }
-        if (intent.resolveActivity(context.packageManager) == null) {
-            voiceError = "当前设备没有可用的语音识别服务。请安装或启用 Google 语音服务/系统语音助手，也可以使用输入法键盘上的麦克风按钮。模拟器通常不带语音识别。"
-            return
-        }
         try {
             voiceLauncher.launch(intent)
         } catch (_: ActivityNotFoundException) {
-            voiceError = "语音识别没有启动成功。请检查系统语音服务是否已启用，或改用输入法键盘上的麦克风。"
+            voiceError = "当前设备没有可用的语音识别服务。请安装或启用 Google 语音服务/系统语音助手，也可以使用输入法键盘上的麦克风按钮。模拟器通常不带语音识别。"
         } catch (_: SecurityException) {
             voiceError = "没有权限使用语音识别。请检查系统语音服务或输入法的麦克风权限。"
         }
@@ -196,6 +194,15 @@ fun ChatScreen(
             confirmButton = {
                 TextButton(onClick = { voiceError = null }) {
                     Text("知道了", color = Blue)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    voiceError = null
+                    focusRequester.requestFocus()
+                    keyboardController?.show()
+                }) {
+                    Text("用键盘语音", color = InkSoft)
                 }
             }
         )
@@ -1196,7 +1203,6 @@ private fun EarlierHistoryButton(loading: Boolean, onClick: () -> Unit) {
 
 @Composable
 private fun QueueStrip(queued: List<UserMessage>) {
-    val preview = queued.firstOrNull()?.text?.replace('\n', ' ')?.take(32).orEmpty()
     Surface(
         modifier = Modifier
             .fillMaxWidth()
@@ -1205,19 +1211,63 @@ private fun QueueStrip(queued: List<UserMessage>) {
         color = Color(0xFFFFF7E8),
         border = BorderStroke(1.dp, Color(0xFFF2DFC0))
     ) {
-        Row(
-            Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text("队列 ${queued.size} 条", color = Color(0xFF8A5A12), fontSize = 10.5.sp, fontWeight = FontWeight.Medium)
-            if (preview.isNotBlank()) {
-                Spacer(Modifier.width(8.dp))
+        Column(Modifier.padding(horizontal = 10.dp, vertical = 7.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    preview,
-                    color = Color(0xFF9A6A22),
+                    "待发送任务 ${queued.size} 条",
+                    color = Color(0xFF8A5A12),
                     fontSize = 10.5.sp,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+                    fontWeight = FontWeight.Medium
+                )
+                Spacer(Modifier.weight(1f))
+                Text("发送完成后自动清空", color = Color(0xFFB08A50), fontSize = 9.sp)
+            }
+            queued.take(3).forEachIndexed { index, item ->
+                val imageCount = item.images.size
+                val fileCount = item.attachments.size
+                val meta = listOfNotNull(
+                    if (imageCount > 0) "图片 $imageCount 张" else null,
+                    if (fileCount > 0) item.attachments.joinToString("、") else null
+                ).joinToString(" · ")
+                Row(
+                    Modifier.padding(top = 5.dp),
+                    verticalAlignment = Alignment.Top
+                ) {
+                    Text(
+                        "${index + 1}.",
+                        color = Color(0xFFB08A50),
+                        fontSize = 10.sp,
+                        modifier = Modifier.width(16.dp)
+                    )
+                    Column(Modifier.weight(1f)) {
+                        Text(
+                            item.text.trim().ifBlank {
+                                if (meta.isNotBlank()) "附件任务" else "任务"
+                            },
+                            color = Color(0xFF6F4A14),
+                            fontSize = 11.sp,
+                            lineHeight = 15.sp,
+                            maxLines = 3,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        if (meta.isNotBlank()) {
+                            Text(
+                                meta,
+                                color = Color(0xFF9A6A22),
+                                fontSize = 9.sp,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    }
+                }
+            }
+            if (queued.size > 3) {
+                Text(
+                    "还有 ${queued.size - 3} 条任务…",
+                    color = Color(0xFF9A6A22),
+                    fontSize = 9.5.sp,
+                    modifier = Modifier.padding(top = 4.dp, start = 16.dp)
                 )
             }
         }
