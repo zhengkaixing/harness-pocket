@@ -97,6 +97,7 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import dev.harness.pocket.data.AiModel
 import dev.harness.pocket.data.AppState
+import dev.harness.pocket.data.ApprovalRequest
 import dev.harness.pocket.data.AskAnswer
 import dev.harness.pocket.data.AssistantMessage
 import dev.harness.pocket.data.Attachment
@@ -131,6 +132,10 @@ fun ChatScreen(
     onSettings: () -> Unit,
     onModel: (ModelChoice) -> Unit,
     onPermission: (String) -> Unit,
+    approvals: List<ApprovalRequest>,
+    approvalBusyId: String?,
+    approvalError: String?,
+    onAnswerApproval: (ApprovalRequest, Boolean) -> Unit,
     onAttach: () -> Unit,
     onOpenGallery: () -> Unit,
     onOpenCamera: () -> Unit,
@@ -341,6 +346,15 @@ fun ChatScreen(
                     }
                 }
             }
+        }
+
+        approvals.firstOrNull()?.let { request ->
+            ApprovalCard(
+                request = request,
+                busy = approvalBusyId == request.eventId,
+                error = approvalError,
+                onDecision = { allow -> onAnswerApproval(request, allow) }
+            )
         }
 
         if (chat.queued.isNotEmpty()) {
@@ -1335,6 +1349,114 @@ private fun EarlierHistoryButton(loading: Boolean, onClick: () -> Unit) {
             Text("正在加载更早消息…", color = Muted, fontSize = 11.sp)
         } else {
             Text("↑ 加载更早消息", color = Blue, fontSize = 11.sp, fontWeight = FontWeight.Medium)
+        }
+    }
+}
+
+@Composable
+private fun ApprovalCard(
+    request: ApprovalRequest,
+    busy: Boolean,
+    error: String?,
+    onDecision: (Boolean) -> Unit
+) {
+    val amber = Color(0xFFB7791F)
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 12.dp, vertical = 4.dp),
+        shape = RoundedCornerShape(16.dp),
+        color = Color.White,
+        border = BorderStroke(1.dp, Color(0xFFF0D29A)),
+        shadowElevation = 2.dp
+    ) {
+        Column(Modifier.padding(14.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier
+                        .size(36.dp)
+                        .background(Color(0xFFFFF6E5), CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        Icons.Rounded.Lock,
+                        contentDescription = null,
+                        tint = amber,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+                Spacer(Modifier.width(10.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        "工具请求权限",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = Ink
+                    )
+                    Text(
+                        request.toolName,
+                        fontSize = 12.sp,
+                        color = InkSoft,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+                if (busy) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(18.dp),
+                        color = Blue,
+                        strokeWidth = 2.dp
+                    )
+                }
+            }
+
+            request.reason?.let { reason ->
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    reason,
+                    fontSize = 12.sp,
+                    color = InkSoft,
+                    maxLines = 3,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+
+            Spacer(Modifier.height(6.dp))
+            Text(
+                "允许一次后，该工具可按请求的权限执行。",
+                fontSize = 11.sp,
+                color = Muted
+            )
+
+            if (error != null) {
+                Spacer(Modifier.height(4.dp))
+                Text(error, fontSize = 11.sp, color = Red, maxLines = 2)
+            }
+
+            Spacer(Modifier.height(8.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                TextButton(onClick = { onDecision(false) }, enabled = !busy) {
+                    Text("拒绝", fontSize = 12.sp, color = Muted)
+                }
+                Spacer(Modifier.width(4.dp))
+                TextButton(
+                    onClick = { onDecision(true) },
+                    enabled = !busy,
+                    shape = RoundedCornerShape(10.dp),
+                    modifier = Modifier.background(Blue, RoundedCornerShape(10.dp))
+                ) {
+                    Text(
+                        if (busy) "处理中…" else "允许一次",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = Color.White
+                    )
+                }
+            }
         }
     }
 }

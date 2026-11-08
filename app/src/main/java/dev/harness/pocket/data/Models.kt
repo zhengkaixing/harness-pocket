@@ -281,6 +281,19 @@ data class PromptPart(
     val name: String? = null
 )
 
+data class ApprovalRequest(
+    val eventId: String,
+    val agentId: String,
+    val toolName: String,
+    val callId: String? = null,
+    val reason: String? = null
+)
+
+sealed class ApprovalUpdate {
+    data class Asked(val request: ApprovalRequest) : ApprovalUpdate()
+    data class Finished(val eventId: String) : ApprovalUpdate()
+}
+
 data class ChatState(
     val loading: Boolean = true,
     val items: List<ChatItem> = emptyList(),
@@ -337,7 +350,10 @@ data class AppState(
     val resourceStatus: ResourceStatus? = null,
     val resourcesLoading: Boolean = false,
     val resourcesBusy: Boolean = false,
-    val resourcesError: String? = null
+    val resourcesError: String? = null,
+    val approvals: List<ApprovalRequest> = emptyList(),
+    val approvalBusyId: String? = null,
+    val approvalError: String? = null
 ) {
     fun isPinned(sessionId: String): Boolean = pinnedSessionIds.contains(sessionId)
     fun isArchived(sessionId: String): Boolean = archivedSessionIds.contains(sessionId)

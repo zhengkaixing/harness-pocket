@@ -1,6 +1,11 @@
 package dev.harness.pocket.data
 
+import android.os.Handler
+import android.os.Looper
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -43,11 +48,137 @@ class HarnessApi {
     @Volatile
     private var connection: Connection? = null
 
+    private val mainHandler = Handler(Looper.getMainLooper())
+    private var approvalSocket: WebSocket? = null
+    private var approvalClientId: String? = null
+    private var approvalGeneration = 0
+    private var approvalReconnectScheduled = false
+    private val _approvalUpdates = MutableSharedFlow<ApprovalUpdate>(extraBufferCapacity = 32)
+    val approvalUpdates: SharedFlow<ApprovalUpdate> = _approvalUpdates.asSharedFlow()
+
     fun setConnection(value: Connection?) {
         connection = value
+        if (value == null) stopApprovalStream()
     }
 
     fun currentConnection(): Connection? = connection
+
+    /**
+     * Keeps a forwarded-event stream open so the Host can ask this client to
+     * approve dangerous tool calls. This is intentionally separate from the
+     * session polling loop.
+     */
+    fun startApprovalStream() {
+        val conn = connection ?: return
+        if (approvalSocket != null) return
+        val generation = ++approvalGeneration
+        val wsBase = conn.baseUrl
+            .replaceFirst("https://", "wss://")
+            .replaceFirst("http://", "ws://")
+        val request = Request.Builder()
+            .url("$wsBase/api/remote.mux")
+            .header("Cookie", conn.cookie)
+            .header("Origin", conn.baseUrl)
+            .build()
+        val socket = client.newWebSocket(request, object : WebSocketListener() {
+            override fun onOpen(webSocket: WebSocket, response: Response) {
+                if (generation != approvalGeneration) {
+                    webSocket.close(1000, "stale")
+                    return
+                }
+                val open = JSONObject()
+                    .put("type", "open")
+                    .put("streamId", "events-${UUID.randomUUID()}")
+                    .put("endpoint", "\$events")
+                    .put("payload", JSONObject().put("args", JSONObject()))
+                webSocket.send(open.toString())
+            }
+
+            override fun onMessage(webSocket: WebSocket, text: String) {
+                if (generation != approvalGeneration) return
+                val message = runCatching { JSONObject(text) }.getOrNull() ?: return
+                if (message.optString("type") != "item") return
+                val value = message.optJSONObject("value") ?: return
+                handleApprovalFrame(value)
+            }
+
+            override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
+                if (generation != approvalGeneration) return
+                approvalSocket = null
+                approvalClientId = null
+                scheduleApprovalReconnect()
+            }
+
+            override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
+                if (generation != approvalGeneration) return
+                approvalSocket = null
+                approvalClientId = null
+                scheduleApprovalReconnect()
+            }
+        })
+        approvalSocket = socket
+    }
+
+    fun stopApprovalStream() {
+        approvalGeneration++
+        approvalClientId = null
+        approvalSocket?.close(1000, "disconnected")
+        approvalSocket = null
+    }
+
+    suspend fun answerApproval(eventId: String, allow: Boolean) {
+        val clientId = approvalClientId
+            ?: throw ApiException("审批连接尚未就绪，请稍后重试")
+        val outcome = JSONObject()
+            .put("kind", "result")
+            .put("value", if (allow) "allowed-once" else "rejected")
+        val args = JSONObject()
+            .put("clientId", clientId)
+            .put("eventId", eventId)
+            .put("outcome", outcome)
+        rpc("\$events/result", args)
+    }
+
+    private fun handleApprovalFrame(value: JSONObject) {
+        when (value.optString("type")) {
+            "ready" -> {
+                approvalClientId = value.optString("clientId").takeIf { it.isNotBlank() }
+            }
+            "waterfall" -> {
+                if (value.optString("event") != "approval/request") return
+                val eventId = value.optString("eventId").takeIf { it.isNotBlank() } ?: return
+                val request = value.optJSONObject("request") ?: return
+                val toolName = request.optString("toolName").ifBlank { "工具调用" }
+                val reason = request.optString("displayReason")
+                    .ifBlank { request.optString("reason") }
+                    .takeIf { it.isNotBlank() }
+                _approvalUpdates.tryEmit(
+                    ApprovalUpdate.Asked(
+                        ApprovalRequest(
+                            eventId = eventId,
+                            agentId = value.optString("agentId"),
+                            toolName = toolName,
+                            callId = request.optString("callId").takeIf { it.isNotBlank() },
+                            reason = reason
+                        )
+                    )
+                )
+            }
+            "cancel" -> {
+                val eventId = value.optString("eventId").takeIf { it.isNotBlank() } ?: return
+                _approvalUpdates.tryEmit(ApprovalUpdate.Finished(eventId))
+            }
+        }
+    }
+
+    private fun scheduleApprovalReconnect() {
+        if (approvalReconnectScheduled) return
+        approvalReconnectScheduled = true
+        mainHandler.postDelayed({
+            approvalReconnectScheduled = false
+            if (connection != null) startApprovalStream()
+        }, 3_000L)
+    }
 
     suspend fun connect(baseUrl: String, token: String): Connection = withContext(Dispatchers.IO) {
         connectMutex.withLock { openConnection(baseUrl, token) }
@@ -57,7 +188,7 @@ class HarnessApi {
         val base = baseUrl.trimEnd('/')
         val encoded = URLEncoder.encode(token, "UTF-8")
         val request = Request.Builder()
-            .url("$base/connect?token=$encoded&interactions=none")
+            .url("$base/connect?token=$encoded&interactions=answer")
             .get()
             .header("Accept", "text/html,application/json")
             .build()

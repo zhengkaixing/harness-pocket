@@ -49,6 +49,9 @@ Harness Pocket 是一个**非官方的原生 Android 客户端**，用来远程�
     <td width="50%"><img src="docs/screenshots/chat-table.png" alt="Markdown 表格" /><br/><sub><b>富文本</b>：表格、有序列表、代码块按块渲染</sub></td>
     <td width="50%"><img src="docs/screenshots/composer-chat.png" alt="微信式输入栏" /><br/><sub><b>输入栏</b>：白色胶囊、加号面板与全屏编辑</sub></td>
   </tr>
+  <tr>
+    <td colspan="2" align="center"><img src="docs/screenshots/approval-test.png" width="45%" alt="工具审批" /><br/><sub><b>工具审批</b>：危险操作先确认，允许一次或拒绝</sub></td>
+  </tr>
 </table>
 
 ## 功能
@@ -69,6 +72,7 @@ Harness Pocket 是一个**非官方的原生 Android 客户端**，用来远程�
 - **资源与并发**：读取 `dsh-conversation-queue` 插件的 `/dsh-resource/status`，展示内存、提交内存、磁盘占用和并发闸门的运行/等待数量；可直接把最大并发调到 1–8。未安装插件时显示明确提示。
 - **工具调用可视化**：把 `tool/call`、`tool/result` 渲染成可展开卡片，参数和结果都能看。
 - **Markdown 与富文本**：标题、有序/无序/嵌套列表、引用、粗体、行内代码、代码块和表格；表格按列宽铺排，代码块支持一键复制。
+- **工具审批**：危险工具请求会在对话页显示“工具请求权限”卡片，展示工具名和原因，可直接“允许一次”或“拒绝”；旧版本保存的连接会在启动时自动升级为可接收审批事件的 Cookie。
 - **自动续期**：API Cookie 过期后，用本地保存的启动令牌自动重新 `/connect`。
 - **无遥测**：不接入任何统计 SDK，令牌和会话只保存在本机。
 
@@ -81,7 +85,7 @@ Harness Pocket 是一个**非官方的原生 Android 客户端**，用来远程�
 └───────────────┬──────────────────┘
                 │ 1. GET /connect?token=... → 签名 Cookie
                 │ 2. POST /api/session/* → Remote RPC
-                │ 3. WS /api/remote.mux → workspace/follow
+                │ 3. WS /api/remote.mux → workspace/follow + $events
                 ▼
 ┌──────────────────────────────────┐
 │ 电脑上的 dsh web                  │
@@ -105,6 +109,17 @@ Harness Pocket 是一个**非官方的原生 Android 客户端**，用来远程�
 工具调用卡片、Markdown 代码块、停止任务、重命名与错误提示也都做了回归。
 
 0.10.1 移除了语音输入入口，设备没有语音服务时不再显示麦克风或相关弹窗；输入栏保留文字、附件、加号面板与全屏编辑。
+
+0.11.0 新增并验证了：
+
+- 工具请求 `danger-full-access` 时，对话页底部弹出“工具请求权限”卡片，可选择“允许一次”或“拒绝”。
+- 审批通过常驻的 `/api/remote.mux` `$events` 事件流接收，应答走 `$events/result`，不再需要回电脑处理。
+- 连接握手改为 `interactions=answer`；升级安装后会静默用保存的令牌重新连接，旧版 `interactions=none` 的 Cookie 不会漏掉审批。
+
+<p align="center">
+  <img src="docs/screenshots/approval-test.png" width="45%" alt="工具审批卡片" />
+  <img src="docs/screenshots/approval-answered.png" width="45%" alt="审批后卡片消失" />
+</p>
 
 0.10.2 修复了相册/文件选择器返回的 MIME 与实际图片字节不一致、导致服务端报 `Declared image type does not match its bytes` 的问题：发送前按文件头识别真实格式；发送失败时保留已输入的草稿文字。
 
@@ -253,7 +268,7 @@ Harness Pocket 是一个**非官方的原生 Android 客户端**，用来远程�
 
 ### 直接安装 APK
 
-本地预构建的 APK 在 `dist/HarnessPocket-0.10.2-debug.apk`（二进制不提交到 Git 仓库）；从源码重新构建的产物在：
+本地预构建的 APK 在 `dist/HarnessPocket-0.11.0-debug.apk`（二进制不提交到 Git 仓库）；从源码重新构建的产物在：
 
 ```text
 app/build/outputs/apk/debug/app-debug.apk
@@ -357,7 +372,7 @@ app/src/main/java/dev/harness/pocket/
 
 - **轮询而非长连接**：当前通过 `session/list` + `session/page` 刷新，助手文本在消息落盘后出现，不是逐 token 打字机效果。后续会接入 `session/follow` WebSocket。
 - **历史窗口**：每次最多取 80 条消息、24 条消息 / 4 个 turn 的窗口；很长的会话可能只显示最近部分。
-- **审批交互**：以 `interactions=none` 连接，沙箱内自动放行的工具可以直接执行；需要人工审批的操作目前无法在 App 内点“同意”。请先在 Web 端处理审批，或把相应策略配置为自动允许。
+- **审批交互**：需要人工审批的工具会在对话页显示“允许一次/拒绝”卡片；审批事件依赖 `interactions=answer` 与常驻 `$events` 连接，若服务器断开 WebSocket，卡片会在重连后继续出现。自动放行的工具仍直接执行。
 - **图片需要视觉模型**：图片会直接内联发送；如果当前模型不支持图片，服务端会返回 `Model "..." does not support image input`，换用 Claude Haiku 5.5 等视觉模型即可，或先移除图片。
 - **附件大小**：单个附件读取上限 20 MB；普通文件先上传换 `receiptId`，图片直接 base64 内联，超大图片会明显增加请求体。
 - **权限切换依赖命令**：App 通过 `commands/execute` 执行 `/permission <preset>`；如果服务端禁用了命令或协议变化，权限菜单会显示错误而不会静默修改。
@@ -371,7 +386,7 @@ app/src/main/java/dev/harness/pocket/
 ## Roadmap
 
 - [ ] `session/follow` WebSocket，逐字流式输出
-- [ ] 审批卡片（approval/asked / approval/decided）
+- [x] 审批卡片（工具权限允许一次 / 拒绝）
 - [x] 模型与推理强度选择
 - [x] 图片、文件附件
 - [x] 权限模式与工作区选择
@@ -385,6 +400,13 @@ app/src/main/java/dev/harness/pocket/
 - [ ] 可配置的 HTTPS / 证书校验
 
 ## 更新日志
+
+### 0.11.0
+
+- 新增工具审批卡片：收到 `approval/request` 时显示工具名和原因，可“允许一次”或“拒绝”。
+- 常驻 `/api/remote.mux` 的 `$events` 事件流接收审批请求，应答提交到 `$events/result`。
+- 连接握手改为 `interactions=answer`；启动时静默刷新旧 Cookie，升级后无需重新连接即可收到审批。
+- 审批卡片与队列、问答卡同时显示，不遮挡输入区。
 
 ### 0.10.2
 

@@ -13,7 +13,7 @@ http://host:port/?token=<token>
 浏览器打开这个 URL 后会换到签名 Cookie。原生客户端走同一条 `/connect` 通道：
 
 ```http
-GET /connect?token=<url-encoded-token>&interactions=none HTTP/1.1
+GET /connect?token=<url-encoded-token>&interactions=answer HTTP/1.1
 Host: host:port
 ```
 
@@ -28,7 +28,7 @@ Set-Cookie: dsh-auth-<authority-hash>=v2...; Max-Age=2592000; Path=/; HttpOnly; 
 要点：
 
 - 必须把 `token` 放在 query 中，不能用 `Authorization` 头。
-- `interactions=none` 表示客户端不接收/回答审批交互；`interactions=answer` 才会收到审批事件。
+- `interactions=answer` 表示客户端接收并回答审批交互；`interactions=none` 收不到审批事件。Harness Pocket 0.11.0 起使用 `answer`。
 - 同一次请求里 `interactions` 只能声明一次；重复 query 参数会返回 400。
 - Cookie 名称以 `dsh-auth-` 开头，绑定 Host（authority）；换域名或端口后需要重新 `/connect`。
 - 后续 HTTP 和 WebSocket 都带上这个 Cookie。
@@ -467,6 +467,38 @@ Cookie: dsh-auth-...
 
 之后是增量事件帧。`assistantStream: true` 时还会收到无 cursor 的 assistant 增量帧，用于逐字渲染。当前 App 用 `session/page` 轮询，后续计划切换到这里。
 
+### 4.1 工具审批事件流
+
+`approval/request` 是 Remote Event waterfall，不是普通 HTTP RPC。客户端用 `interactions=answer` 连接后，在同一个 mux 上单独开一个 `$events` 流：
+
+```json
+{"type":"open","streamId":"events-uuid","endpoint":"$events","payload":{"args":{}}}
+```
+
+服务端先回 ready：
+
+```json
+{"type":"item","value":{"type":"ready","clientId":"...","host":{"home":"..."}}}
+```
+
+审批请求帧：
+
+```json
+{"type":"item","value":{"type":"waterfall","event":"approval/request","eventId":"...","agentId":"...","request":{"toolName":"pwsh","callId":"...","reason":"...","displayReason":"..."}}}
+```
+
+应答走普通 HTTP RPC：
+
+```http
+POST /api/$events/result
+```
+
+```json
+{"type":"client-request","rpcId":"...","method":"$events/result","payload":{"args":{"clientId":"...","eventId":"...","outcome":{"kind":"result","value":"allowed-once"}}}}
+```
+
+`outcome.value` 只能是 `allowed-once` 或 `rejected`。服务端也可能发 `cancel` 帧撤销未决审批。App 收到 waterfall 后把它放进 `AppState.approvals`，由 `ApprovalCard` 展示。
+
 ## 5. 事件模型
 
 每条持久事件：
@@ -578,7 +610,7 @@ App 目前处理的事件：
 2. `session/page` 的 `throughSeq` 不能超过 `projections.asOfSeq`。
 3. `tool/call` 与 `assistant/message` 里的 `tool-call` 可能表达同一件事；App 以 `assistant/message` 的 `tool-call` 建卡，以 `tool/result` 回填，避免重复。
 4. `request/header` 这类事件可能比正常消息大几十倍，分页时不要盲目放大 `maxMessages`。
-5. 服务端的 `approval/policy` 可能是 `ask`；沙箱内自动放行的命令仍可直接执行，需要人工审批的操作在 `interactions=none` 下不会被 App 处理。
+5. 服务端的 `approval/policy` 可能是 `ask`；自动放行的命令仍可直接执行，需要人工审批的操作由 App 的 `ApprovalCard` 处理。旧 Cookie 的 `interactions=none` 收不到审批，App 启动时会用保存的 token 静默重连。
 
 ## 7. 免责声明
 

@@ -7,12 +7,15 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import dev.harness.pocket.data.ApiException
 import dev.harness.pocket.data.AppState
+import dev.harness.pocket.data.ApprovalRequest
+import dev.harness.pocket.data.ApprovalUpdate
 import dev.harness.pocket.data.AskAnswer
 import dev.harness.pocket.data.Attachment
 import dev.harness.pocket.data.AuthException
 import dev.harness.pocket.data.ChatDraft
 import dev.harness.pocket.data.ChatImage
 import dev.harness.pocket.data.ChatState
+import dev.harness.pocket.data.Connection
 import dev.harness.pocket.data.ConnectionInput
 import dev.harness.pocket.data.EventParser
 import dev.harness.pocket.data.HarnessApi
@@ -55,6 +58,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private var previewJob: Job? = null
     private var pageSeq = -1
     private var lastModelChoice: ModelChoice? = null
+    private var approvalObserverStarted = false
 
     init {
         val saved = prefs.loadConnection()
@@ -66,6 +70,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 connection = saved,
                 workspaces = prefs.loadWorkspaces()
             )
+            startApprovalObserver()
+            refreshSavedConnection(saved)
             loadSessions()
             loadCatalogs()
         } else {
@@ -73,6 +79,27 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 restoring = false,
                 savedBase = prefs.lastBase()
             )
+        }
+    }
+
+    /**
+     * Older app versions connected with `interactions=none`, which cannot
+     * receive tool approval requests. Re-run the handshake silently with the
+     * stored token so an upgraded install picks up an answer-enabled cookie.
+     */
+    private fun refreshSavedConnection(saved: Connection) {
+        viewModelScope.launch {
+            try {
+                val fresh = api.connect(saved.baseUrl, saved.token)
+                prefs.saveConnection(fresh)
+                _state.update { it.copy(connection = fresh, savedBase = fresh.baseUrl) }
+                api.stopApprovalStream()
+                api.startApprovalStream()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                // Keep the existing cookie; normal requests may still work.
+            }
         }
     }
 
@@ -91,9 +118,13 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                         connecting = false,
                         connectError = null,
                         sessions = emptyList(),
-                        sessionsError = null
+                        sessionsError = null,
+                        approvals = emptyList(),
+                        approvalBusyId = null,
+                        approvalError = null
                     )
                 }
+                startApprovalObserver()
                 loadSessions()
                 loadCatalogs()
             } catch (e: CancellationException) {
@@ -127,6 +158,68 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun refreshSessions() = loadSessions()
+
+    private fun startApprovalObserver() {
+        if (!approvalObserverStarted) {
+            approvalObserverStarted = true
+            viewModelScope.launch {
+                api.approvalUpdates.collect { update ->
+                    when (update) {
+                        is ApprovalUpdate.Asked -> _state.update { st ->
+                            if (st.approvals.any { it.eventId == update.request.eventId }) {
+                                st
+                            } else {
+                                st.copy(
+                                    approvals = st.approvals + update.request,
+                                    approvalError = null
+                                )
+                            }
+                        }
+                        is ApprovalUpdate.Finished -> _state.update { st ->
+                            st.copy(
+                                approvals = st.approvals.filterNot {
+                                    it.eventId == update.eventId
+                                },
+                                approvalBusyId = st.approvalBusyId
+                                    .takeUnless { it == update.eventId },
+                                approvalError = null
+                            )
+                        }
+                    }
+                }
+            }
+        }
+        api.startApprovalStream()
+    }
+
+    fun answerApproval(request: ApprovalRequest, allow: Boolean) {
+        if (_state.value.approvalBusyId != null) return
+        viewModelScope.launch {
+            _state.update {
+                it.copy(approvalBusyId = request.eventId, approvalError = null)
+            }
+            try {
+                api.answerApproval(request.eventId, allow)
+                _state.update { st ->
+                    st.copy(
+                        approvals = st.approvals.filterNot {
+                            it.eventId == request.eventId
+                        },
+                        approvalBusyId = null
+                    )
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _state.update {
+                    it.copy(
+                        approvalBusyId = null,
+                        approvalError = friendlyError(e)
+                    )
+                }
+            }
+        }
+    }
 
     private fun loadPromptPreviews(sessions: List<SessionSummary>) {
         previewJob?.cancel()
