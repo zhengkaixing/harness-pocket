@@ -286,7 +286,11 @@ fun ChatScreen(
                 }
 
                 chat.allItems.isEmpty() && chat.error != null -> {
-                    ChatErrorState(message = chat.error, onRetry = onRefresh)
+                    ChatErrorState(
+                        title = if (chat.loadError) "对话加载失败" else "发送失败",
+                        message = chat.error,
+                        onRetry = onRefresh
+                    )
                 }
 
                 else -> {
@@ -1092,7 +1096,7 @@ private fun ChatWelcome(onSuggestion: (String) -> Unit) {
 }
 
 @Composable
-private fun ChatErrorState(message: String, onRetry: () -> Unit) {
+private fun ChatErrorState(title: String, message: String, onRetry: () -> Unit) {
     Column(
         Modifier
             .fillMaxSize()
@@ -1100,7 +1104,7 @@ private fun ChatErrorState(message: String, onRetry: () -> Unit) {
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        Text("对话加载失败", color = Ink, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+        Text(title, color = Ink, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
         Spacer(Modifier.height(6.dp))
         Text(message, color = Muted, fontSize = 12.sp, lineHeight = 18.sp)
         Spacer(Modifier.height(14.dp))

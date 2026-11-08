@@ -290,6 +290,7 @@ data class ChatState(
     val sending: Boolean = false,
     val title: String? = null,
     val error: String? = null,
+    val loadError: Boolean = false,
     val asOfSeq: Int = 0,
     val model: ModelChoice? = null,
     val permission: String? = null,

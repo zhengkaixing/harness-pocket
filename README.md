@@ -106,6 +106,8 @@ Harness Pocket 是一个**非官方的原生 Android 客户端**，用来远程�
 
 0.10.1 移除了语音输入入口，设备没有语音服务时不再显示麦克风或相关弹窗；输入栏保留文字、附件、加号面板与全屏编辑。
 
+0.10.2 修复了相册/文件选择器返回的 MIME 与实际图片字节不一致、导致服务端报 `Declared image type does not match its bytes` 的问题：发送前按文件头识别真实格式；发送失败时保留已输入的草稿文字。
+
 0.10.0 新增并验证了：
 
 - 输入栏改为微信式：白色胶囊输入框、右侧加号；拍照、相册和文件统一收进加号面板。
@@ -251,7 +253,7 @@ Harness Pocket 是一个**非官方的原生 Android 客户端**，用来远程�
 
 ### 直接安装 APK
 
-本地预构建的 APK 在 `dist/HarnessPocket-0.10.1-debug.apk`（二进制不提交到 Git 仓库）；从源码重新构建的产物在：
+本地预构建的 APK 在 `dist/HarnessPocket-0.10.2-debug.apk`（二进制不提交到 Git 仓库）；从源码重新构建的产物在：
 
 ```text
 app/build/outputs/apk/debug/app-debug.apk
@@ -383,6 +385,11 @@ app/src/main/java/dev/harness/pocket/
 - [ ] 可配置的 HTTPS / 证书校验
 
 ## 更新日志
+
+### 0.10.2
+
+- 发送图片前按文件头识别真实格式，不再直接信任相册/文件选择器返回的 MIME，修复 `Declared image type does not match its bytes`。
+- 发送失败时保留已输入的草稿文字，并把错误标题区分为“发送失败”和“对话加载失败”。
 
 ### 0.10.1
 

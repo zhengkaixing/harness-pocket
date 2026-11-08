@@ -16,6 +16,7 @@ import dev.harness.pocket.data.ChatState
 import dev.harness.pocket.data.ConnectionInput
 import dev.harness.pocket.data.EventParser
 import dev.harness.pocket.data.HarnessApi
+import dev.harness.pocket.data.ImageMime
 import dev.harness.pocket.data.ModelChoice
 import dev.harness.pocket.data.Prefs
 import dev.harness.pocket.data.PromptPart
@@ -326,7 +327,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 val bytes = attachment.bytes ?: return@mapNotNull null
                 PromptPart(
                     type = "image",
-                    mediaType = attachment.mime ?: "image/png",
+                    mediaType = ImageMime.detect(bytes) ?: attachment.mime ?: "image/png",
                     data = Base64.getEncoder().encodeToString(bytes),
                     name = attachment.name
                 )
@@ -344,11 +345,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             queued = wasRunning,
             attachments = attachments.filterNot { it.isImage }.map { it.name },
             images = attachments.filter { it.isImage && it.bytes != null }.map { attachment ->
+                val bytes = attachment.bytes!!
                 ChatImage(
                     attachmentId = "pending:${attachment.id}",
-                    mediaType = attachment.mime ?: "image/png",
+                    mediaType = ImageMime.detect(bytes) ?: attachment.mime ?: "image/png",
                     name = attachment.name,
-                    data = Base64.getEncoder().encodeToString(attachment.bytes!!)
+                    data = Base64.getEncoder().encodeToString(bytes)
                 )
             }
         )
@@ -408,13 +410,20 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 }
                 handleAuthFailure(e.message ?: "登录已过期，请重新连接")
             } catch (e: Exception) {
-                _state.update {
-                    it.copy(
-                        chat = it.chat.copy(
+                _state.update { st ->
+                    val draft = st.drafts[sessionId] ?: ChatDraft()
+                    st.copy(
+                        drafts = st.drafts + (
+                            sessionId to draft.copy(
+                                text = draft.text.ifBlank { clean }
+                            )
+                        ),
+                        chat = st.chat.copy(
                             sending = false,
                             pending = null,
-                            queued = it.chat.queued.filterNot { q -> q.key == pending.key },
-                            error = friendlyError(e)
+                            queued = st.chat.queued.filterNot { q -> q.key == pending.key },
+                            error = friendlyError(e),
+                            loadError = false
                         )
                     )
                 }
@@ -804,14 +813,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     "gif" -> "image/gif"
                     else -> null
                 }
-                val effectiveMime = when {
+                val effectiveMime = ImageMime.detect(file.bytes) ?: when {
                     mime?.startsWith("image/") == true -> mime
                     imageMime != null -> imageMime
                     else -> file.mime
                 }
-                val isImage = effectiveMime in setOf(
-                    "image/png", "image/jpeg", "image/webp", "image/gif"
-                )
+                val isImage = ImageMime.supportedImage(effectiveMime)
                 val attachment = Attachment(
                     id = UUID.randomUUID().toString(),
                     name = file.name,
@@ -1216,7 +1223,13 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     return@launch
                 } catch (e: Exception) {
                     _state.update {
-                        it.copy(chat = it.chat.copy(loading = false, error = friendlyError(e)))
+                        it.copy(
+                            chat = it.chat.copy(
+                                loading = false,
+                                error = friendlyError(e),
+                                loadError = true
+                            )
+                        )
                     }
                     wait = 4000L
                 }
