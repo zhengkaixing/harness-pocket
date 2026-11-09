@@ -52,6 +52,9 @@ Harness Pocket 是一个**非官方的原生 Android 客户端**，用来远程�
   <tr>
     <td colspan="2" align="center"><img src="docs/screenshots/approval-test.png" width="45%" alt="工具审批" /><br/><sub><b>工具审批</b>：危险操作先确认，允许一次或拒绝</sub></td>
   </tr>
+  <tr>
+    <td colspan="2" align="center"><img src="docs/screenshots/automation-list.png" width="45%" alt="自动化任务" /><br/><sub><b>自动化任务</b>：查看所有定时任务，点击回到原会话</sub></td>
+  </tr>
 </table>
 
 ## 功能
@@ -70,6 +73,7 @@ Harness Pocket 是一个**非官方的原生 Android 客户端**，用来远程�
 - **附件**：支持一次多选图片/文件；图片直接内联为 base64，任意文件先走 `fileUploads/upload` 换 `receiptId`；单文件上限 20 MB。
 - **可选中复制**：对话正文、用户气泡、工具结果和错误提示都支持长按选中，调用系统文本选择工具栏复制。
 - **资源与并发**：读取 `dsh-conversation-queue` 插件的 `/dsh-resource/status`，展示内存、提交内存、磁盘占用和并发闸门的运行/等待数量；可直接把最大并发调到 1–8。未安装插件时显示明确提示。
+- **自动化任务**：抽屉新增入口，读取 `schedule/catalog` 展示全部已开启/未运行任务；每行显示标题、指令摘要、时间规则、下次运行时间和绑定会话，点击可回到原会话。
 - **工具调用可视化**：把 `tool/call`、`tool/result` 渲染成可展开卡片，参数和结果都能看。
 - **更早历史只看对话**：点击“加载更早消息”后，旧历史中的工具调用卡（读取文件、修改文件等）自动隐藏，只保留你发送的内容和助手结果；最近一页的工具卡仍完整显示。
 - **Markdown 与富文本**：标题、有序/无序/嵌套列表、引用、粗体、行内代码、代码块和表格；表格按列宽铺排，代码块支持一键复制。
@@ -110,6 +114,16 @@ Harness Pocket 是一个**非官方的原生 Android 客户端**，用来远程�
 工具调用卡片、Markdown 代码块、停止任务、重命名与错误提示也都做了回归。
 
 0.10.1 移除了语音输入入口，设备没有语音服务时不再显示麦克风或相关弹窗；输入栏保留文字、附件、加号面板与全屏编辑。
+
+0.12.0 新增并验证了：
+
+- 抽屉新增“自动化任务”入口，读取 `schedule/catalog` 展示所有会话的定时任务，包含已开启和未运行状态。
+- 任务卡片显示标题、指令摘要、规则（每天/每周/间隔/Cron）、下次运行时间和原会话；点击可回到原会话继续处理。
+- 该页只读展示，不在手机上创建、编辑或删除任务；创建仍由会话中的提醒工具完成。
+
+<p align="center">
+  <img src="docs/screenshots/automation-list.png" width="45%" alt="自动化任务列表" />
+</p>
 
 0.11.1 新增并验证了：
 
@@ -278,7 +292,7 @@ Harness Pocket 是一个**非官方的原生 Android 客户端**，用来远程�
 
 ### 直接安装 APK
 
-本地预构建的 APK 在 `dist/HarnessPocket-0.11.1-debug.apk`（二进制不提交到 Git 仓库）；从源码重新构建的产物在：
+本地预构建的 APK 在 `dist/HarnessPocket-0.12.0-debug.apk`（二进制不提交到 Git 仓库）；从源码重新构建的产物在：
 
 ```text
 app/build/outputs/apk/debug/app-debug.apk
@@ -410,6 +424,12 @@ app/src/main/java/dev/harness/pocket/
 - [ ] 可配置的 HTTPS / 证书校验
 
 ## 更新日志
+
+### 0.12.0
+
+- 新增“自动化任务”页：从抽屉进入，读取 `schedule/catalog` 展示全部已开启和未运行任务。
+- 每个任务显示标题、指令摘要、时间规则、下次运行时间和原会话；点击可回到原会话。
+- 该页只读，创建/修改/删除仍在会话或 Web 端完成。
 
 ### 0.11.1
 

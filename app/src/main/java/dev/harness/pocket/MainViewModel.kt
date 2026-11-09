@@ -302,6 +302,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             val draft = it.drafts[session.sessionId] ?: ChatDraft()
             it.copy(
                 activeSession = session,
+                automationsVisible = false,
                 chat = ChatState(
                     loading = true,
                     title = session.title,
@@ -1094,8 +1095,38 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         startPolling(session.sessionId, reset = true)
     }
 
+    fun openAutomations() {
+        _state.update { it.copy(automationsVisible = true, resourcesVisible = false) }
+        refreshAutomations()
+    }
+
+    fun closeAutomations() {
+        _state.update { it.copy(automationsVisible = false) }
+    }
+
+    fun refreshAutomations() {
+        if (_state.value.automationsLoading) return
+        viewModelScope.launch {
+            _state.update { it.copy(automationsLoading = true, automationsError = null) }
+            try {
+                val tasks = api.scheduleCatalog()
+                _state.update {
+                    it.copy(automations = tasks, automationsLoading = false)
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: AuthException) {
+                handleAuthFailure(e.message ?: "登录已过期，请重新连接")
+            } catch (e: Exception) {
+                _state.update {
+                    it.copy(automationsLoading = false, automationsError = friendlyError(e))
+                }
+            }
+        }
+    }
+
     fun openResources() {
-        _state.update { it.copy(resourcesVisible = true) }
+        _state.update { it.copy(resourcesVisible = true, automationsVisible = false) }
         refreshResources()
     }
 

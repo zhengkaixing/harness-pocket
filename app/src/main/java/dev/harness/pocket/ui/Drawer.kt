@@ -30,6 +30,7 @@ import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material.icons.rounded.KeyboardArrowUp
 import androidx.compose.material.icons.rounded.Memory
 import androidx.compose.material.icons.rounded.PushPin
+import androidx.compose.material.icons.rounded.Schedule
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material3.Divider
@@ -79,6 +80,7 @@ fun HarnessDrawer(
     onOpenSession: (SessionSummary) -> Unit,
     onSettings: () -> Unit,
     onResources: () -> Unit,
+    onAutomations: () -> Unit,
     onPinSession: (SessionSummary) -> Unit,
     onUnpinSession: (SessionSummary) -> Unit,
     onArchiveSession: (SessionSummary) -> Unit
@@ -178,6 +180,10 @@ fun HarnessDrawer(
             DrawerAction(Icons.Rounded.Memory, "资源与并发") {
                 onClose()
                 onResources()
+            }
+            DrawerAction(Icons.Rounded.Schedule, "自动化任务") {
+                onClose()
+                onAutomations()
             }
             DrawerAction(Icons.Rounded.Settings, "连接设置") {
                 onClose()

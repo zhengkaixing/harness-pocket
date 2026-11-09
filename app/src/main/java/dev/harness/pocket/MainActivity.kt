@@ -33,6 +33,7 @@ import androidx.core.content.FileProvider
 import androidx.core.view.WindowCompat
 import dev.harness.pocket.data.AppState
 import dev.harness.pocket.ui.AlbumPicker
+import dev.harness.pocket.ui.AutomationScreen
 import dev.harness.pocket.ui.ChatScreen
 import dev.harness.pocket.ui.ConnectScreen
 import dev.harness.pocket.ui.HarnessDrawer
@@ -195,13 +196,21 @@ private fun AppRoot(
                     onOpenSession = vm::openSession,
                     onSettings = { showSettings = true },
                     onResources = vm::openResources,
+                    onAutomations = vm::openAutomations,
                     onPinSession = vm::togglePin,
                     onUnpinSession = vm::togglePin,
                     onArchiveSession = vm::archiveSession
                 )
             }
         ) {
-            if (state.resourcesVisible) {
+            if (state.automationsVisible) {
+                AutomationScreen(
+                    state = state,
+                    onBack = vm::closeAutomations,
+                    onRefresh = vm::refreshAutomations,
+                    onOpenSession = vm::openSession
+                )
+            } else if (state.resourcesVisible) {
                 ResourceScreen(
                     state = state,
                     onBack = vm::closeResources,

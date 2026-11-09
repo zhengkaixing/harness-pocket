@@ -825,6 +825,47 @@ class HarnessApi {
         resourceStatus()
     }
 
+    suspend fun scheduleCatalog(): List<AutomationTask> {
+        val raw = rpcRaw("schedule/catalog", JSONObject())
+        val rows = raw as? JSONArray ?: throw ApiException("服务器没有返回自动化任务")
+        val result = ArrayList<AutomationTask>(rows.length())
+        for (i in 0 until rows.length()) {
+            val row = rows.optJSONObject(i) ?: continue
+            result.add(parseAutomationTask(row))
+        }
+        return result
+    }
+
+    private fun parseAutomationTask(row: JSONObject): AutomationTask {
+        val weekdaysJson = row.optJSONArray("weekdays")
+        val weekdays = if (weekdaysJson == null) emptyList() else buildList {
+            for (i in 0 until weekdaysJson.length()) add(weekdaysJson.optInt(i))
+        }
+        val delivery = row.optJSONObject("lastDelivery")?.let {
+            AutomationDelivery(
+                scheduledAt = it.optString("scheduledAt"),
+                deliveredAt = it.optString("deliveredAt"),
+                messageId = it.optString("messageId")
+            )
+        }
+        return AutomationTask(
+            id = row.optString("id"),
+            sessionId = row.optString("sessionId"),
+            title = row.optString("title").ifBlank { "未命名任务" },
+            prompt = row.optString("prompt"),
+            kind = row.optString("kind"),
+            status = row.optString("status").ifBlank { "active" },
+            scheduledAt = row.optString("scheduledAt"),
+            afterSeconds = if (row.isNull("afterSeconds")) null else row.optLong("afterSeconds"),
+            everySeconds = if (row.isNull("everySeconds")) null else row.optLong("everySeconds"),
+            time = row.optString("time").takeIf { it.isNotBlank() },
+            timeZone = row.optString("timeZone").takeIf { it.isNotBlank() },
+            weekdays = weekdays,
+            expression = row.optString("expression").takeIf { it.isNotBlank() },
+            lastDelivery = delivery
+        )
+    }
+
     private fun parseResourceStatus(json: JSONObject): ResourceStatus {
         val memoryJson = json.optJSONObject("memory") ?: JSONObject()
         val gateJson = json.optJSONObject("gate") ?: JSONObject()
@@ -956,10 +997,19 @@ class HarnessApi {
         )
     }
 
-    private suspend fun rpc(method: String, args: JSONObject): JSONObject =
-        withContext(Dispatchers.IO) { rpcBlocking(method, args, true) }
+    private suspend fun rpc(method: String, args: JSONObject): JSONObject {
+        val raw = rpcRaw(method, args)
+        return when (raw) {
+            is JSONObject -> raw
+            is Boolean -> JSONObject().put("value", raw)
+            else -> JSONObject()
+        }
+    }
 
-    private suspend fun rpcBlocking(method: String, args: JSONObject, allowRetry: Boolean): JSONObject {
+    private suspend fun rpcRaw(method: String, args: JSONObject): Any? =
+        withContext(Dispatchers.IO) { rpcRawBlocking(method, args, true) }
+
+    private suspend fun rpcRawBlocking(method: String, args: JSONObject, allowRetry: Boolean): Any? {
         val conn = connection ?: throw AuthException("尚未连接")
         val rpcId = UUID.randomUUID().toString()
         val body = JSONObject()
@@ -987,7 +1037,7 @@ class HarnessApi {
                     }
                 }
                 if (renewed == null) throw AuthException("登录已过期，请重新连接")
-                return rpcBlocking(method, args, false)
+                return rpcRawBlocking(method, args, false)
             }
 
             val text = response.body?.string().orEmpty()
@@ -1018,12 +1068,7 @@ class HarnessApi {
                 }
                 throw ApiException(message, code)
             }
-            val raw = result.opt("value")
-            return when (raw) {
-                is JSONObject -> raw
-                is Boolean -> JSONObject().put("value", raw)
-                else -> JSONObject()
-            }
+            return result.opt("value")
         }
     }
 }

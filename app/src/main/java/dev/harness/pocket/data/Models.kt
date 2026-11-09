@@ -336,6 +336,31 @@ data class ChatState(
         }
 }
 
+data class AutomationDelivery(
+    val scheduledAt: String,
+    val deliveredAt: String,
+    val messageId: String
+)
+
+data class AutomationTask(
+    val id: String,
+    val sessionId: String,
+    val title: String,
+    val prompt: String,
+    val kind: String,
+    val status: String,
+    val scheduledAt: String,
+    val afterSeconds: Long? = null,
+    val everySeconds: Long? = null,
+    val time: String? = null,
+    val timeZone: String? = null,
+    val weekdays: List<Int> = emptyList(),
+    val expression: String? = null,
+    val lastDelivery: AutomationDelivery? = null
+) {
+    val active: Boolean get() = status == "active"
+}
+
 data class AppState(
     val restoring: Boolean = true,
     val savedBase: String = "http://8.130.48.9:18080",
@@ -365,6 +390,10 @@ data class AppState(
     val resourcesLoading: Boolean = false,
     val resourcesBusy: Boolean = false,
     val resourcesError: String? = null,
+    val automationsVisible: Boolean = false,
+    val automations: List<AutomationTask> = emptyList(),
+    val automationsLoading: Boolean = false,
+    val automationsError: String? = null,
     val approvals: List<ApprovalRequest> = emptyList(),
     val approvalBusyId: String? = null,
     val approvalError: String? = null
