@@ -342,6 +342,15 @@ data class AutomationDelivery(
     val messageId: String
 )
 
+data class AutomationChange(
+    val kind: String,
+    val time: String? = null,
+    val timeZone: String? = null,
+    val weekdays: List<Int> = emptyList(),
+    val everySeconds: Long? = null,
+    val expression: String? = null
+)
+
 data class AutomationTask(
     val id: String,
     val sessionId: String,
@@ -394,6 +403,8 @@ data class AppState(
     val automations: List<AutomationTask> = emptyList(),
     val automationsLoading: Boolean = false,
     val automationsError: String? = null,
+    val automationsBusyId: String? = null,
+    val automationsActionError: String? = null,
     val approvals: List<ApprovalRequest> = emptyList(),
     val approvalBusyId: String? = null,
     val approvalError: String? = null

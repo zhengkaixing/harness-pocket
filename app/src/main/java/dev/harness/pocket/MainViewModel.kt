@@ -13,6 +13,8 @@ import dev.harness.pocket.data.AskAnswer
 import dev.harness.pocket.data.AssistantMessage
 import dev.harness.pocket.data.Attachment
 import dev.harness.pocket.data.AuthException
+import dev.harness.pocket.data.AutomationChange
+import dev.harness.pocket.data.AutomationTask
 import dev.harness.pocket.data.ChatDraft
 import dev.harness.pocket.data.ChatImage
 import dev.harness.pocket.data.ChatState
@@ -1096,7 +1098,13 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun openAutomations() {
-        _state.update { it.copy(automationsVisible = true, resourcesVisible = false) }
+        _state.update {
+            it.copy(
+                automationsVisible = true,
+                resourcesVisible = false,
+                automationsActionError = null
+            )
+        }
         refreshAutomations()
     }
 
@@ -1107,7 +1115,13 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun refreshAutomations() {
         if (_state.value.automationsLoading) return
         viewModelScope.launch {
-            _state.update { it.copy(automationsLoading = true, automationsError = null) }
+            _state.update {
+                it.copy(
+                    automationsLoading = true,
+                    automationsError = null,
+                    automationsActionError = null
+                )
+            }
             try {
                 val tasks = api.scheduleCatalog()
                 _state.update {
@@ -1120,6 +1134,60 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             } catch (e: Exception) {
                 _state.update {
                     it.copy(automationsLoading = false, automationsError = friendlyError(e))
+                }
+            }
+        }
+    }
+
+    fun deleteAutomation(task: AutomationTask) {
+        if (_state.value.automationsBusyId != null) return
+        viewModelScope.launch {
+            _state.update {
+                it.copy(automationsBusyId = task.id, automationsActionError = null)
+            }
+            try {
+                api.deleteAutomation(task)
+                _state.update { st ->
+                    st.copy(
+                        automations = st.automations.filterNot { it.id == task.id },
+                        automationsBusyId = null
+                    )
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: AuthException) {
+                handleAuthFailure(e.message ?: "登录已过期，请重新连接")
+            } catch (e: Exception) {
+                _state.update {
+                    it.copy(
+                        automationsBusyId = null,
+                        automationsActionError = friendlyError(e)
+                    )
+                }
+            }
+        }
+    }
+
+    fun updateAutomation(task: AutomationTask, change: AutomationChange) {
+        if (_state.value.automationsBusyId != null) return
+        viewModelScope.launch {
+            _state.update {
+                it.copy(automationsBusyId = task.id, automationsActionError = null)
+            }
+            try {
+                api.updateAutomation(task, change)
+                _state.update { it.copy(automationsBusyId = null) }
+                refreshAutomations()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: AuthException) {
+                handleAuthFailure(e.message ?: "登录已过期，请重新连接")
+            } catch (e: Exception) {
+                _state.update {
+                    it.copy(
+                        automationsBusyId = null,
+                        automationsActionError = friendlyError(e)
+                    )
                 }
             }
         }

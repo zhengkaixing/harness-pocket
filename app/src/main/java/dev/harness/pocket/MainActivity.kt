@@ -208,7 +208,9 @@ private fun AppRoot(
                     state = state,
                     onBack = vm::closeAutomations,
                     onRefresh = vm::refreshAutomations,
-                    onOpenSession = vm::openSession
+                    onOpenSession = vm::openSession,
+                    onDelete = vm::deleteAutomation,
+                    onUpdate = vm::updateAutomation
                 )
             } else if (state.resourcesVisible) {
                 ResourceScreen(

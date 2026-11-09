@@ -836,6 +836,92 @@ class HarnessApi {
         return result
     }
 
+    suspend fun deleteAutomation(task: AutomationTask) {
+        val request = JSONObject()
+            .put("id", task.id)
+            .put("sessionId", task.sessionId)
+        val value = rpc("schedule/delete", request)
+        if (!value.optBoolean("deleted") && value.optString("code") != "schedule_not_found") {
+            throw ApiException(automationErrorText(value, "删除任务失败"))
+        }
+    }
+
+    suspend fun updateAutomation(task: AutomationTask, change: AutomationChange) {
+        val request = JSONObject()
+            .put("expected", expectedRecord(task))
+            .put("change", automationChangeJson(change))
+            .put("id", task.id)
+            .put("sessionId", task.sessionId)
+        val value = rpc("schedule/update", request)
+        if (!value.optBoolean("updated")) {
+            throw ApiException(automationErrorText(value, "修改任务失败"))
+        }
+    }
+
+    private fun automationErrorText(value: JSONObject, fallback: String): String {
+        val message = value.optString("message").takeIf { it.isNotBlank() }
+        if (message != null) return message
+        return when (value.optString("code")) {
+            "schedule_conflict" -> "任务已在别处修改，请刷新后重试"
+            "schedule_ended" -> "任务已结束，无法修改"
+            "subagent_session" -> "这个任务属于子代理会话，不能在手机上修改"
+            "schedule_not_found" -> "任务不存在或已删除"
+            else -> fallback
+        }
+    }
+
+    private fun expectedRecord(task: AutomationTask): JSONObject {
+        val expected = JSONObject()
+            .put("id", task.id)
+            .put("kind", task.kind)
+            .put("title", task.title)
+            .put("prompt", task.prompt)
+            .put("scheduledAt", task.scheduledAt)
+        when (task.kind) {
+            "after" -> expected.put("afterSeconds", task.afterSeconds ?: 0)
+            "every" -> expected.put("everySeconds", task.everySeconds ?: 0)
+            "daily", "weekly" -> {
+                expected.put("time", task.time.orEmpty())
+                expected.put("timeZone", task.timeZone.orEmpty())
+                if (task.kind == "weekly") {
+                    expected.put("weekdays", JSONArray(task.weekdays))
+                }
+            }
+            "cron" -> {
+                expected.put("expression", task.expression.orEmpty())
+                expected.put("timeZone", task.timeZone.orEmpty())
+            }
+        }
+        return expected
+    }
+
+    private fun automationChangeJson(change: AutomationChange): JSONObject {
+        val value = JSONObject().put("kind", change.kind)
+        when (change.kind) {
+            "daily" -> value.put(
+                "daily",
+                JSONObject()
+                    .put("time", change.time.orEmpty())
+                    .put("time_zone", change.timeZone.orEmpty())
+            )
+            "weekly" -> value.put(
+                "weekly",
+                JSONObject()
+                    .put("time", change.time.orEmpty())
+                    .put("time_zone", change.timeZone.orEmpty())
+                    .put("weekdays", JSONArray(change.weekdays))
+            )
+            "every" -> value.put("every_seconds", change.everySeconds ?: 0)
+            "cron" -> value.put(
+                "cron",
+                JSONObject()
+                    .put("expression", change.expression.orEmpty())
+                    .put("time_zone", change.timeZone.orEmpty())
+            )
+        }
+        return value
+    }
+
     private fun parseAutomationTask(row: JSONObject): AutomationTask {
         val weekdaysJson = row.optJSONArray("weekdays")
         val weekdays = if (weekdaysJson == null) emptyList() else buildList {
