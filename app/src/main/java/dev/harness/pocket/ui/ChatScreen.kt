@@ -170,7 +170,7 @@ fun ChatScreen(
         onRefreshResources()
     }
 
-    val lastAssistant = chat.allItems.lastOrNull() as? AssistantMessage
+    val lastAssistant = chat.visibleItems.lastOrNull() as? AssistantMessage
     val showTyping = chat.sending || (chat.running && lastAssistant?.text.isNullOrBlank())
     val runningSince = chat.items.filterIsInstance<TurnStart>().lastOrNull()?.startedAt
         ?: chat.lastPromptAt
@@ -183,15 +183,15 @@ fun ChatScreen(
     LaunchedEffect(
         state.activeSession?.sessionId,
         chat.loading,
-        chat.allItems.size,
+        chat.visibleItems.size,
         chat.questions.size,
         showTyping,
         chat.error,
         chat.hasMoreHistory
     ) {
         if (chat.loading) return@LaunchedEffect
-        if (chat.allItems.isEmpty() && chat.questions.isEmpty()) return@LaunchedEffect
-        val target = chat.allItems.size +
+        if (chat.visibleItems.isEmpty() && chat.questions.isEmpty()) return@LaunchedEffect
+        val target = chat.visibleItems.size +
             chat.questions.size +
             (if (showTyping) 1 else 0) +
             (if (chat.error != null) 1 else 0) +
@@ -275,7 +275,7 @@ fun ChatScreen(
                 .fillMaxWidth()
         ) {
             when {
-                chat.loading && chat.allItems.isEmpty() -> {
+                chat.loading && chat.visibleItems.isEmpty() -> {
                     Column(
                         Modifier.align(Alignment.Center),
                         horizontalAlignment = Alignment.CenterHorizontally
@@ -290,7 +290,7 @@ fun ChatScreen(
                     }
                 }
 
-                chat.allItems.isEmpty() && chat.error != null -> {
+                chat.visibleItems.isEmpty() && chat.error != null -> {
                     ChatErrorState(
                         title = if (chat.loadError) "对话加载失败" else "发送失败",
                         message = chat.error,
@@ -305,7 +305,7 @@ fun ChatScreen(
                         contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 20.dp),
                         verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
-                        if (chat.allItems.isEmpty() && chat.questions.isEmpty()) {
+                        if (chat.visibleItems.isEmpty() && chat.questions.isEmpty()) {
                             item(key = "welcome") {
                                 ChatWelcome(
                                     onSuggestion = {
@@ -324,7 +324,7 @@ fun ChatScreen(
                                     )
                                 }
                             }
-                            items(chat.allItems, key = { it.key }) { item ->
+                            items(chat.visibleItems, key = { it.key }) { item ->
                                 ChatItemRow(item, onLoadImage)
                             }
                             items(chat.questions, key = { "question:${it.callId}" }) { batch ->
@@ -338,7 +338,7 @@ fun ChatScreen(
                         if (showTyping) {
                             item(key = "typing") { TypingBubble() }
                         }
-                        if (chat.error != null && chat.allItems.isNotEmpty()) {
+                        if (chat.error != null && chat.visibleItems.isNotEmpty()) {
                             item(key = "inline-error") {
                                 ChatInlineError(message = chat.error, onRetry = onRefresh)
                             }

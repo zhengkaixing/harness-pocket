@@ -10,6 +10,7 @@ import dev.harness.pocket.data.AppState
 import dev.harness.pocket.data.ApprovalRequest
 import dev.harness.pocket.data.ApprovalUpdate
 import dev.harness.pocket.data.AskAnswer
+import dev.harness.pocket.data.AssistantMessage
 import dev.harness.pocket.data.Attachment
 import dev.harness.pocket.data.AuthException
 import dev.harness.pocket.data.ChatDraft
@@ -25,6 +26,7 @@ import dev.harness.pocket.data.Prefs
 import dev.harness.pocket.data.PromptPart
 import dev.harness.pocket.data.SessionLiveState
 import dev.harness.pocket.data.SessionSummary
+import dev.harness.pocket.data.ToolItem
 import dev.harness.pocket.data.UserMessage
 import dev.harness.pocket.data.WorkspaceInfo
 import dev.harness.pocket.data.WorkspaceSnapshot
@@ -1043,7 +1045,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         val current = _state.value
         val session = current.activeSession ?: return
         if (current.chat.loadingEarlier || !current.chat.hasMoreHistory) return
-        val firstSeq = current.chat.items.minOfOrNull { it.seq } ?: return
+        val historyItems = current.chat.items
+            .filter { it is UserMessage || it is AssistantMessage || it is ToolItem }
+        val firstSeq = historyItems.minOfOrNull { it.seq } ?: return
+        val historyBoundary = firstSeq
         viewModelScope.launch {
             _state.update { it.copy(chat = it.chat.copy(loadingEarlier = true, error = null)) }
             try {
@@ -1060,7 +1065,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                         chat = st.chat.copy(
                             items = merged,
                             hasMoreHistory = page.hasMore,
-                            loadingEarlier = false
+                            loadingEarlier = false,
+                            historyToolCutoffSeq = st.chat.historyToolCutoffSeq
+                                ?: historyBoundary
                         )
                     )
                 }

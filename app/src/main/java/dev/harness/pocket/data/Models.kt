@@ -299,6 +299,7 @@ data class ChatState(
     val items: List<ChatItem> = emptyList(),
     val pending: UserMessage? = null,
     val queued: List<UserMessage> = emptyList(),
+    val historyToolCutoffSeq: Int? = null,
     val running: Boolean = false,
     val sending: Boolean = false,
     val title: String? = null,
@@ -320,6 +321,19 @@ data class ChatState(
 ) {
     val allItems: List<ChatItem>
         get() = items + queued + listOfNotNull(pending)
+
+    /**
+     * Older history loaded with "加载更早消息" keeps only user prompts and
+     * assistant results. Tool call/result cards before [historyToolCutoffSeq]
+     * stay in [items] for pagination, but are omitted from the rendered list.
+     */
+    val visibleItems: List<ChatItem>
+        get() {
+            val cutoff = historyToolCutoffSeq ?: return allItems
+            return allItems.filter { item ->
+                item !is ToolItem || item.seq >= cutoff
+            }
+        }
 }
 
 data class AppState(
