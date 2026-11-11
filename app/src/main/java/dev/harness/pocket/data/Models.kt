@@ -105,8 +105,18 @@ data class AskQuestion(
 data class AskBatch(
     val callId: String,
     val state: String,
-    val questions: List<AskQuestion>
+    val questions: List<AskQuestion>,
+    // Legacy ask_user_question calls arrive as forwarded user-questions/request
+    // events rather than through the userQuestions projection. Answering one
+    // must go back through the $events stream using these fields.
+    val eventId: String? = null,
+    val agentId: String? = null
 )
+
+sealed class QuestionUpdate {
+    data class Asked(val batch: AskBatch) : QuestionUpdate()
+    data class Finished(val eventId: String) : QuestionUpdate()
+}
 
 data class AskAnswer(
     val id: String,

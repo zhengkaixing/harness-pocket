@@ -55,6 +55,8 @@ class HarnessApi {
     private var approvalReconnectScheduled = false
     private val _approvalUpdates = MutableSharedFlow<ApprovalUpdate>(extraBufferCapacity = 32)
     val approvalUpdates: SharedFlow<ApprovalUpdate> = _approvalUpdates.asSharedFlow()
+    private val _questionUpdates = MutableSharedFlow<QuestionUpdate>(extraBufferCapacity = 32)
+    val questionUpdates: SharedFlow<QuestionUpdate> = _questionUpdates.asSharedFlow()
 
     fun setConnection(value: Connection?) {
         connection = value
@@ -139,7 +141,41 @@ class HarnessApi {
         rpc("\$events/result", args)
     }
 
+    suspend fun answerQuestionEvent(eventId: String, answers: List<AskAnswer>) {
+        val clientId = approvalClientId
+            ?: throw ApiException("交互连接尚未就绪，请稍后重试")
+        val outcome = JSONObject()
+            .put("kind", "result")
+            .put(
+                "value",
+                JSONObject().put("answers", answersJson(answers))
+            )
+        val args = JSONObject()
+            .put("clientId", clientId)
+            .put("eventId", eventId)
+            .put("outcome", outcome)
+        rpc("\$events/result", args)
+    }
+
+    private fun answersJson(answers: List<AskAnswer>): JSONArray {
+        val array = JSONArray()
+        answers.forEach { answer ->
+            val item = JSONObject()
+                .put("id", answer.id)
+                .put("selected", JSONArray(answer.selected))
+            if (!answer.custom.isNullOrBlank()) item.put("custom", answer.custom.trim())
+            array.put(item)
+        }
+        return array
+    }
+
     private fun handleApprovalFrame(value: JSONObject) {
+        if (value.optString("type") == "waterfall" &&
+            value.optString("event") == "user-questions/request"
+        ) {
+            handleQuestionWaterfall(value)
+            return
+        }
         when (value.optString("type")) {
             "ready" -> {
                 approvalClientId = value.optString("clientId").takeIf { it.isNotBlank() }
@@ -167,8 +203,70 @@ class HarnessApi {
             "cancel" -> {
                 val eventId = value.optString("eventId").takeIf { it.isNotBlank() } ?: return
                 _approvalUpdates.tryEmit(ApprovalUpdate.Finished(eventId))
+                _questionUpdates.tryEmit(QuestionUpdate.Finished(eventId))
             }
         }
+    }
+
+    private fun handleQuestionWaterfall(value: JSONObject) {
+        val eventId = value.optString("eventId").takeIf { it.isNotBlank() } ?: return
+        val request = value.optJSONObject("request") ?: return
+        val questions = parseLiveQuestions(request.optJSONArray("questions"))
+        if (questions.isEmpty()) return
+        val wait = request.optJSONObject("wait")
+        val callId = wait?.optString("callId")?.takeIf { it.isNotBlank() }
+            ?: request.optString("callId").takeIf { it.isNotBlank() }
+            ?: eventId
+        _questionUpdates.tryEmit(
+            QuestionUpdate.Asked(
+                AskBatch(
+                    callId = callId,
+                    state = "open",
+                    questions = questions,
+                    eventId = eventId,
+                    agentId = value.optString("agentId").takeIf { it.isNotBlank() }
+                )
+            )
+        )
+    }
+
+    private fun parseLiveQuestions(rawQuestions: JSONArray?): List<AskQuestion> {
+        if (rawQuestions == null) return emptyList()
+        val questions = ArrayList<AskQuestion>()
+        for (i in 0 until rawQuestions.length()) {
+            val question = rawQuestions.optJSONObject(i) ?: continue
+            val id = question.optString("id")
+            val text = question.optString("question")
+            if (id.isBlank() || text.isBlank()) continue
+            val options = ArrayList<AskOption>()
+            val rawOptions = question.optJSONArray("options") ?: JSONArray()
+            for (j in 0 until rawOptions.length()) {
+                val option = rawOptions.optJSONObject(j) ?: continue
+                val label = option.optString("label")
+                if (label.isBlank()) continue
+                options.add(
+                    AskOption(
+                        label = label,
+                        description = option.optString("description")
+                            .takeIf { it.isNotBlank() }
+                    )
+                )
+            }
+            questions.add(
+                AskQuestion(
+                    id = id,
+                    question = text,
+                    detail = question.optString("detail").takeIf { it.isNotBlank() },
+                    header = question.optString("header").takeIf { it.isNotBlank() },
+                    options = options,
+                    multiSelect = question.optBoolean(
+                        "multiSelect",
+                        question.optBoolean("multi_select", false)
+                    )
+                )
+            )
+        }
+        return questions
     }
 
     private fun scheduleApprovalReconnect() {
@@ -564,20 +662,12 @@ class HarnessApi {
         callId: String,
         answers: List<AskAnswer>
     ): Boolean {
-        val array = JSONArray()
-        answers.forEach { answer ->
-            val item = JSONObject()
-                .put("id", answer.id)
-                .put("selected", JSONArray(answer.selected))
-            if (!answer.custom.isNullOrBlank()) item.put("custom", answer.custom.trim())
-            array.put(item)
-        }
         val value = rpc(
             "userQuestions/answer",
             JSONObject()
                 .put("agentId", sessionId)
                 .put("callId", callId)
-                .put("answer", JSONObject().put("answers", array))
+                .put("answer", JSONObject().put("answers", answersJson(answers)))
         )
         return value.optBoolean("value", true)
     }

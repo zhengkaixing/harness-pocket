@@ -87,6 +87,10 @@ object EventParser {
                                 val callId = block.optString("id")
                                     .ifBlank { "tool-$seq-${out.size}" }
                                 val name = block.optString("name").ifBlank { "tool" }
+                                if (name == "ask_user_question") {
+                                    // Rendered by the live question card instead.
+                                    continue
+                                }
                                 val input = block.opt("arguments")?.toString().orEmpty()
                                 toolIndex[callId] = out.size
                                 out.add(

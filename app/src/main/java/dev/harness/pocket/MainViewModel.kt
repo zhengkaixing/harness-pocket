@@ -10,6 +10,7 @@ import dev.harness.pocket.data.AppState
 import dev.harness.pocket.data.ApprovalRequest
 import dev.harness.pocket.data.ApprovalUpdate
 import dev.harness.pocket.data.AskAnswer
+import dev.harness.pocket.data.AskBatch
 import dev.harness.pocket.data.AssistantMessage
 import dev.harness.pocket.data.Attachment
 import dev.harness.pocket.data.AuthException
@@ -27,6 +28,7 @@ import dev.harness.pocket.data.ImageMime
 import dev.harness.pocket.data.ModelChoice
 import dev.harness.pocket.data.Prefs
 import dev.harness.pocket.data.PromptPart
+import dev.harness.pocket.data.QuestionUpdate
 import dev.harness.pocket.data.SessionLiveState
 import dev.harness.pocket.data.SessionSummary
 import dev.harness.pocket.data.ToolItem
@@ -55,6 +57,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private val prefs = Prefs(app)
     private val api = HarnessApi()
     private val imageCache = LinkedHashMap<String, ChatImage>()
+    private val pendingQuestions = LinkedHashMap<String, AskBatch>()
 
     private val _state = MutableStateFlow(AppState())
     val state: StateFlow<AppState> = _state.asStateFlow()
@@ -129,6 +132,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                         approvalError = null
                     )
                 }
+                pendingQuestions.clear()
                 startApprovalObserver()
                 loadSessions()
                 loadCatalogs()
@@ -167,6 +171,44 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private fun startApprovalObserver() {
         if (!approvalObserverStarted) {
             approvalObserverStarted = true
+            viewModelScope.launch {
+                api.questionUpdates.collect { update ->
+                    when (update) {
+                        is QuestionUpdate.Asked -> {
+                            val batch = update.batch
+                            pendingQuestions[batch.eventId ?: batch.callId] = batch
+                            val active = _state.value.activeSession
+                            if (active != null &&
+                                (batch.agentId == null || batch.agentId == active.sessionId)
+                            ) {
+                                _state.update { st ->
+                                    val others = st.chat.questions.filterNot {
+                                        it.callId == batch.callId
+                                    }
+                                    st.copy(
+                                        chat = st.chat.copy(
+                                            questions = others + batch,
+                                            error = null
+                                        )
+                                    )
+                                }
+                            }
+                        }
+                        is QuestionUpdate.Finished -> {
+                            pendingQuestions.remove(update.eventId)
+                            _state.update { st ->
+                                st.copy(
+                                    chat = st.chat.copy(
+                                        questions = st.chat.questions.filterNot {
+                                            it.eventId == update.eventId
+                                        }
+                                    )
+                                )
+                            }
+                        }
+                    }
+                }
+            }
             viewModelScope.launch {
                 api.approvalUpdates.collect { update ->
                     when (update) {
@@ -301,6 +343,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     fun openSession(session: SessionSummary) {
         pageSeq = -1
+        val pending = pendingQuestions.values.filter {
+            it.agentId == null || it.agentId == session.sessionId
+        }
         _state.update {
             val draft = it.drafts[session.sessionId] ?: ChatDraft()
             it.copy(
@@ -313,7 +358,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     asOfSeq = session.asOfSeq,
                     model = session.model ?: lastModelChoice,
                     permission = session.permission,
-                    questions = session.questions,
+                    questions = (session.questions + pending).distinctBy { it.callId },
                     attachments = draft.attachments,
                     usage = session.usage,
                     lastPromptAt = session.lastPromptAt
@@ -328,11 +373,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 _state.update { st ->
                     st.copy(
                         chat = st.chat.copy(
-                            questions = if (live.questions.isNotEmpty()) {
-                                live.questions
-                            } else {
-                                st.chat.questions
-                            },
+                            questions = (live.questions + st.chat.questions)
+                                .distinctBy { it.callId },
                             queued = mergeQueue(live.inbox, st.chat.queued),
                             context = live.context ?: st.chat.context
                         )
@@ -938,10 +980,16 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         _state.update { it.copy(chat = it.chat.copy(questionBusy = true, error = null)) }
         viewModelScope.launch {
             try {
-                val accepted = api.answerQuestions(session.sessionId, callId, answers)
-                if (!accepted) {
-                    throw ApiException("这个问题已经结束，无法再提交")
+                val batch = _state.value.chat.questions.find { it.callId == callId }
+                if (batch?.eventId != null) {
+                    api.answerQuestionEvent(batch.eventId, answers)
+                } else {
+                    val accepted = api.answerQuestions(session.sessionId, callId, answers)
+                    if (!accepted) {
+                        throw ApiException("这个问题已经结束，无法再提交")
+                    }
                 }
+                batch?.let { pendingQuestions.remove(it.eventId ?: it.callId) }
                 _state.update {
                     it.copy(
                         chat = it.chat.copy(
