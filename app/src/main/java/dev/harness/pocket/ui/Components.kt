@@ -1,11 +1,14 @@
 package dev.harness.pocket.ui
 
 import android.graphics.BitmapFactory
+import android.util.Base64
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.rememberTransformableState
+import androidx.compose.foundation.gestures.transformable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -37,6 +40,7 @@ import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.CheckBox
 import androidx.compose.material.icons.rounded.CheckBoxOutlineBlank
+import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.ContentCopy
 import androidx.compose.material.icons.rounded.ErrorOutline
 import androidx.compose.material.icons.rounded.ExpandLess
@@ -73,10 +77,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalClipboardManager
@@ -89,6 +95,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import dev.harness.pocket.BuildConfig
 import dev.harness.pocket.data.AskAnswer
 import dev.harness.pocket.data.AskBatch
@@ -98,7 +106,6 @@ import dev.harness.pocket.data.ToolItem
 import dev.harness.pocket.data.TurnTime
 import kotlinx.coroutines.delay
 import org.json.JSONObject
-import java.util.Base64
 import kotlin.math.PI
 import kotlin.math.sin
 
@@ -355,9 +362,12 @@ fun ChatImageBox(
 ) {
     var payload by remember(image.attachmentId) { mutableStateOf(image.data) }
     var failed by remember(image.attachmentId) { mutableStateOf(false) }
+    var reload by remember(image.attachmentId) { mutableStateOf(0) }
+    var viewerOpen by remember(image.attachmentId) { mutableStateOf(false) }
 
-    LaunchedEffect(image.attachmentId) {
+    LaunchedEffect(image.attachmentId, reload) {
         if (payload.isNullOrBlank()) {
+            failed = false
             payload = try {
                 load(image.attachmentId)?.data
             } catch (_: Exception) {
@@ -367,14 +377,8 @@ fun ChatImageBox(
         }
     }
 
-    val bitmap = remember(payload) {
-        payload?.let { data ->
-            runCatching {
-                val bytes = Base64.getDecoder().decode(data)
-                BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
-            }.getOrNull()
-        }
-    }
+    val bitmap = remember(payload) { payload?.let { decodeImageBitmap(it) } }
+    val cannotShow = bitmap == null && (!payload.isNullOrBlank() || failed)
 
     if (bitmap != null) {
         Image(
@@ -383,20 +387,37 @@ fun ChatImageBox(
             modifier = modifier
                 .fillMaxWidth()
                 .heightIn(max = 360.dp)
-                .clip(RoundedCornerShape(14.dp)),
+                .clip(RoundedCornerShape(14.dp))
+                .clickable { viewerOpen = true },
             contentScale = ContentScale.Fit
         )
+        if (viewerOpen) {
+            ImageViewerDialog(
+                bitmap = bitmap,
+                title = image.name ?: "图片",
+                onDismiss = { viewerOpen = false }
+            )
+        }
     } else {
         Box(
             modifier
                 .fillMaxWidth()
                 .height(148.dp)
                 .clip(RoundedCornerShape(14.dp))
-                .background(Color(0xFFF1F4FA)),
+                .background(Color(0xFFF1F4FA))
+                .clickable(enabled = cannotShow) {
+                    payload = null
+                    failed = false
+                    reload += 1
+                },
             contentAlignment = Alignment.Center
         ) {
-            if (failed) {
-                Text("图片加载失败", color = Muted, fontSize = 11.5.sp)
+            if (cannotShow) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text("图片加载失败", color = Muted, fontSize = 11.5.sp)
+                    Spacer(Modifier.height(5.dp))
+                    Text("轻触重试", color = Blue, fontSize = 11.sp)
+                }
             } else {
                 CircularProgressIndicator(
                     modifier = Modifier.size(18.dp),
@@ -404,6 +425,90 @@ fun ChatImageBox(
                     strokeWidth = 1.8.dp
                 )
             }
+        }
+    }
+}
+
+private fun decodeImageBitmap(raw: String): android.graphics.Bitmap? {
+    var text = raw.trim()
+    if (text.startsWith("data:", ignoreCase = true)) {
+        text = text.substringAfter(',', missingDelimiterValue = "")
+    }
+    text = text.filterNot { it.isWhitespace() }
+    if (text.isBlank()) return null
+    val flags = listOf(Base64.DEFAULT, Base64.URL_SAFE or Base64.NO_WRAP)
+    for (flag in flags) {
+        val bytes = runCatching { Base64.decode(text, flag) }.getOrNull() ?: continue
+        val bitmap = runCatching { BitmapFactory.decodeByteArray(bytes, 0, bytes.size) }.getOrNull()
+        if (bitmap != null) return bitmap
+    }
+    return null
+}
+
+@Composable
+private fun ImageViewerDialog(
+    bitmap: android.graphics.Bitmap,
+    title: String,
+    onDismiss: () -> Unit
+) {
+    var scale by remember { mutableStateOf(1f) }
+    var offset by remember { mutableStateOf(Offset.Zero) }
+    val transformState = rememberTransformableState { zoomChange, panChange, _ ->
+        scale = (scale * zoomChange).coerceIn(1f, 5f)
+        offset = if (scale <= 1f) Offset.Zero else offset + panChange
+    }
+
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Box(
+            Modifier
+                .fillMaxSize()
+                .background(Color.Black)
+                .transformable(transformState)
+        ) {
+            Image(
+                bitmap = bitmap.asImageBitmap(),
+                contentDescription = title,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .graphicsLayer {
+                        scaleX = scale
+                        scaleY = scale
+                        translationX = offset.x
+                        translationY = offset.y
+                    },
+                contentScale = ContentScale.Fit
+            )
+            Row(
+                Modifier
+                    .align(Alignment.TopEnd)
+                    .systemBarsPadding()
+                    .padding(12.dp)
+                    .background(Color(0x99000000), RoundedCornerShape(20.dp))
+                    .clickable(onClick = onDismiss)
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    Icons.Rounded.Close,
+                    contentDescription = "关闭图片",
+                    tint = Color.White,
+                    modifier = Modifier.size(18.dp)
+                )
+                Spacer(Modifier.width(5.dp))
+                Text("关闭", color = Color.White, fontSize = 12.sp)
+            }
+            Text(
+                text = "双指缩放",
+                color = Color(0x99FFFFFF),
+                fontSize = 11.sp,
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .systemBarsPadding()
+                    .padding(bottom = 22.dp)
+            )
         }
     }
 }
@@ -896,18 +1001,6 @@ fun ToolCard(
                 modifier = Modifier.size(16.dp)
             )
         }
-        if (item.images.isNotEmpty()) {
-            Column(
-                Modifier
-                    .fillMaxWidth()
-                    .padding(start = 10.dp, end = 10.dp, bottom = 10.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                item.images.forEach { image ->
-                    ChatImageBox(image = image, load = onLoadImage)
-                }
-            }
-        }
         if (expanded) {
             Box(
                 Modifier
@@ -926,6 +1019,13 @@ fun ToolCard(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
+                if (item.images.isNotEmpty()) {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        item.images.forEach { image ->
+                            ChatImageBox(image = image, load = onLoadImage)
+                        }
+                    }
+                }
                 if (item.input.isNotBlank()) {
                     ToolCode(label = "参数", text = item.input)
                 }

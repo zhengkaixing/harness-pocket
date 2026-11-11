@@ -115,6 +115,17 @@ Harness Pocket 是一个**非官方的原生 Android 客户端**，用来远程�
 
 0.10.1 移除了语音输入入口，设备没有语音服务时不再显示麦克风或相关弹窗；输入栏保留文字、附件、加号面板与全屏编辑。
 
+0.15.0 修复并验证了：
+
+- 图片加载兼容 `data:image/...;base64,` 前缀、含换行的 base64 和 URL-safe base64；加载失败时显示“轻触重试”。
+- 对话中的图片点击可全屏查看，支持双指缩放（1–5 倍）和拖动，右上角关闭。
+- 工具卡收起时严格只显示一行，工具结果里的图片也只在展开后出现，避免占位撑开消息。
+
+<p align="center">
+  <img src="docs/screenshots/chat-tool-line.png" width="44%" alt="工具调用严格一行" />
+  <img src="docs/screenshots/chat-image-viewer.png" width="44%" alt="图片全屏查看" />
+</p>
+
 0.14.0 新增并验证了：
 
 - 对话里的工具调用不再默认铺开完整参数；收起态是一行浅灰摘要，例如“读取 ChatScreen.kt”“修改 Components.kt”“运行构建命令”。
@@ -314,7 +325,7 @@ Harness Pocket 是一个**非官方的原生 Android 客户端**，用来远程�
 
 ### 直接安装 APK
 
-本地预构建的 APK 在 `dist/HarnessPocket-0.14.0-debug.apk`（二进制不提交到 Git 仓库）；从源码重新构建的产物在：
+本地预构建的 APK 在 `dist/HarnessPocket-0.15.0-debug.apk`（二进制不提交到 Git 仓库）；从源码重新构建的产物在：
 
 ```text
 app/build/outputs/apk/debug/app-debug.apk
@@ -446,6 +457,12 @@ app/src/main/java/dev/harness/pocket/
 - [ ] 可配置的 HTTPS / 证书校验
 
 ## 更新日志
+
+### 0.15.0
+
+- 修复对话图片加载：兼容 data URI 前缀、换行和 URL-safe base64；失败时可轻触重试。
+- 图片支持点击全屏查看，双指缩放 1–5 倍、拖动平移，右上角关闭。
+- 工具卡收起态严格一行，工具结果图片移入展开区，不再在消息流中占位。
 
 ### 0.14.0
 
