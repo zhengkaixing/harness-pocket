@@ -233,6 +233,7 @@ private fun AppRoot(
                     onSettings = { showSettings = true },
                     onModel = vm::selectModel,
                     onPermission = vm::selectPermission,
+                    onToggleComputerUse = vm::toggleComputerUse,
                     approvals = state.approvals,
                     approvalBusyId = state.approvalBusyId,
                     approvalError = state.approvalError,

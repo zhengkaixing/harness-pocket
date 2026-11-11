@@ -39,6 +39,7 @@ import androidx.compose.material.icons.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.ArrowUpward
 import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.rounded.Computer
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.Folder
@@ -104,6 +105,7 @@ import dev.harness.pocket.data.Attachment
 import dev.harness.pocket.data.ChatImage
 import dev.harness.pocket.data.ChatItem
 import dev.harness.pocket.data.ChatState
+import dev.harness.pocket.data.ComputerUseState
 import dev.harness.pocket.data.ContextPressure
 import dev.harness.pocket.data.ModelCatalog
 import dev.harness.pocket.data.ModelChoice
@@ -132,6 +134,7 @@ fun ChatScreen(
     onSettings: () -> Unit,
     onModel: (ModelChoice) -> Unit,
     onPermission: (String) -> Unit,
+    onToggleComputerUse: () -> Unit,
     approvals: List<ApprovalRequest>,
     approvalBusyId: String?,
     approvalError: String?,
@@ -260,6 +263,9 @@ fun ChatScreen(
             permissionCatalog = state.permissionCatalog,
             permissionBusy = chat.permissionBusy,
             onPermission = onPermission,
+            computerUse = chat.computerUse,
+            computerUseBusy = chat.computerUseBusy,
+            onToggleComputerUse = onToggleComputerUse,
             workspace = state.activeSession?.cwd,
             context = chat.context
         )
@@ -419,6 +425,9 @@ private fun ChatControls(
     permissionCatalog: PermissionCatalog?,
     permissionBusy: Boolean,
     onPermission: (String) -> Unit,
+    computerUse: ComputerUseState,
+    computerUseBusy: Boolean,
+    onToggleComputerUse: () -> Unit,
     workspace: String?,
     context: ContextPressure?
 ) {
@@ -441,6 +450,11 @@ private fun ChatControls(
             catalog = permissionCatalog,
             busy = permissionBusy,
             onSelect = onPermission
+        )
+        ComputerUsePill(
+            state = computerUse,
+            busy = computerUseBusy,
+            onToggle = onToggleComputerUse
         )
         context?.let { ContextPill(it) }
         if (!workspace.isNullOrBlank()) {
@@ -471,6 +485,76 @@ private fun ChatControls(
                     )
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun ComputerUsePill(
+    state: ComputerUseState,
+    busy: Boolean,
+    onToggle: () -> Unit
+) {
+    val unavailable = state.available == false
+    val enabled = state.enabled && !unavailable
+    val dot = when {
+        busy -> Blue
+        unavailable -> Muted
+        enabled -> Green
+        else -> Amber
+    }
+    val label = when {
+        busy -> "AI 切换中"
+        unavailable -> "AI 控制不可用"
+        state.error != null -> "AI 控制失败"
+        enabled -> "AI 控制中"
+        else -> "AI 控制电脑"
+    }
+    Surface(
+        shape = RoundedCornerShape(100.dp),
+        color = when {
+            enabled -> Green.copy(alpha = 0.10f)
+            else -> Color.White.copy(alpha = 0.8f)
+        },
+        border = BorderStroke(
+            1.dp,
+            if (enabled) Green.copy(alpha = 0.45f) else Line
+        ),
+        modifier = Modifier.clickable(enabled = !busy, onClick = onToggle)
+    ) {
+        Row(
+            Modifier.padding(horizontal = 9.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                Modifier
+                    .size(6.dp)
+                    .background(dot, CircleShape)
+            )
+            Spacer(Modifier.width(5.dp))
+            Box(
+                Modifier
+                    .size(20.dp)
+                    .background(
+                        if (enabled) Green.copy(alpha = 0.16f) else Color(0xFFF0F3F8),
+                        RoundedCornerShape(6.dp)
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    Icons.Rounded.Computer,
+                    contentDescription = null,
+                    tint = if (enabled) Green else Color(0xFF5B6B86),
+                    modifier = Modifier.size(13.dp)
+                )
+            }
+            Spacer(Modifier.width(5.dp))
+            Text(
+                label,
+                color = if (unavailable) Muted else InkSoft,
+                fontSize = 10.5.sp,
+                maxLines = 1
+            )
         }
     }
 }

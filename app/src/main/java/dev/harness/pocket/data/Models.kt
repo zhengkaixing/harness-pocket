@@ -294,6 +294,13 @@ sealed class ApprovalUpdate {
     data class Finished(val eventId: String) : ApprovalUpdate()
 }
 
+data class ComputerUseState(
+    val enabled: Boolean = false,
+    val bridged: Int? = null,
+    val available: Boolean? = null,
+    val error: String? = null
+)
+
 data class ChatState(
     val loading: Boolean = true,
     val items: List<ChatItem> = emptyList(),
@@ -311,6 +318,8 @@ data class ChatState(
     val attachments: List<Attachment> = emptyList(),
     val modelBusy: Boolean = false,
     val permissionBusy: Boolean = false,
+    val computerUse: ComputerUseState = ComputerUseState(),
+    val computerUseBusy: Boolean = false,
     val questions: List<AskBatch> = emptyList(),
     val questionBusy: Boolean = false,
     val hasMoreHistory: Boolean = false,

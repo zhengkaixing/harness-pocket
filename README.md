@@ -68,6 +68,7 @@ Harness Pocket 是一个**非官方的原生 Android 客户端**，用来远程�
 - **工作区选择与排序**：通过 `workspace/follow` 读取工作区列表，新会话可以绑定到指定目录；文件夹按服务端顺序展示，标题右侧的拖动按钮支持上移/下移，顺序会写回服务端并与网页端同步；工作区标题右侧的加号可直接在该目录下新建对话。
 - **模型与推理强度**：从 `session/modelCatalog` 选择模型，再选择 Off / Minimal / Low / Medium / High / Xhigh / Max 等推理强度。
 - **权限模式**：仅可查看、工作区内修改、完全权限；通过 `/permission <preset>` 命令真正写入会话策略。
+- **AI 控制电脑**：对话输入区新增开关，一键开启/关闭宿主 `dsh-windows-mcp` 的桌面工具控制权；与网页端共享同一 Host 全局状态，开启后显示“AI 正在控制电脑”，插件未安装或 Cookie 失效时明确提示。
 - **微信式输入栏**：白色胶囊输入框、右侧加号；相机/相册/文件收进加号面板；相册使用自绘四列九宫格，最多 9 张。
 - **全屏编辑与草稿**：输入超过 80 字或 3 行显示全屏按钮；全屏可查看附件缩略图并编辑发送；草稿文字和附件按会话保存，切换页面或重开会话后恢复。
 - **附件**：支持一次多选图片/文件；图片直接内联为 base64，任意文件先走 `fileUploads/upload` 换 `receiptId`；单文件上限 20 MB。
@@ -114,6 +115,16 @@ Harness Pocket 是一个**非官方的原生 Android 客户端**，用来远程�
 工具调用卡片、Markdown 代码块、停止任务、重命名与错误提示也都做了回归。
 
 0.10.1 移除了语音输入入口，设备没有语音服务时不再显示麦克风或相关弹窗；输入栏保留文字、附件、加号面板与全屏编辑。
+
+0.16.0 新增了：
+
+- 对话输入区新增“AI 控制电脑”开关；点击即切换宿主 `dsh-windows-mcp` 的桌面工具控制权，与网页端共享同一全局状态。
+- 开启时显示绿色“AI 控制中”，关闭时显示琥珀色“AI 控制电脑”；插件未安装、Cookie 不被接受或请求失败时显示“不可用/失败”提示，不会静默失败。
+- 通过 `GET/POST /dsh-windows-mcp/state` 直接访问插件路由，不经过 `session/*` RPC；已验证开启、关闭和 App 重启后的状态同步。
+
+<p align="center">
+  <img src="docs/screenshots/computer-use-pill.png" width="44%" alt="AI 控制电脑开关" />
+</p>
 
 0.15.0 修复并验证了：
 
@@ -325,7 +336,7 @@ Harness Pocket 是一个**非官方的原生 Android 客户端**，用来远程�
 
 ### 直接安装 APK
 
-本地预构建的 APK 在 `dist/HarnessPocket-0.15.0-debug.apk`（二进制不提交到 Git 仓库）；从源码重新构建的产物在：
+本地预构建的 APK 在 `dist/HarnessPocket-0.16.0-debug.apk`（二进制不提交到 Git 仓库）；从源码重新构建的产物在：
 
 ```text
 app/build/outputs/apk/debug/app-debug.apk
@@ -457,6 +468,12 @@ app/src/main/java/dev/harness/pocket/
 - [ ] 可配置的 HTTPS / 证书校验
 
 ## 更新日志
+
+### 0.16.0
+
+- 对话输入区新增“AI 控制电脑”开关，直接控制宿主 `dsh-windows-mcp` 的桌面工具；与网页端共享 Host 全局状态。
+- 开关支持开启/关闭、加载中、不可用和失败提示；当前状态显示为绿色“AI 控制中”或琥珀色“AI 控制电脑”。
+- 新增 `GET/POST /dsh-windows-mcp/state` 接入，404 与 401 均有明确错误提示。
 
 ### 0.15.0
 

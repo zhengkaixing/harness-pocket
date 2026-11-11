@@ -280,6 +280,75 @@ class HarnessApi {
         return result.filter { it.sessionId.isNotBlank() }
     }
 
+    /**
+     * The desktop-control switch comes from the optional `dsh-windows-mcp`
+     * client plugin. Its state route lives on the Host's web server, not the
+     * RPC dispatcher, and a write must carry the signed browser cookie the
+     * `/connect` handshake already gave us.
+     */
+    suspend fun computerUse(): ComputerUseState =
+        withContext(Dispatchers.IO) { computerUseBlocking(null, true) }
+
+    suspend fun setComputerUse(enabled: Boolean): ComputerUseState =
+        withContext(Dispatchers.IO) {
+            computerUseBlocking(JSONObject().put("enabled", enabled), true)
+        }
+
+    private suspend fun computerUseBlocking(body: JSONObject?, allowRetry: Boolean): ComputerUseState {
+        val conn = connection ?: throw AuthException("尚未连接")
+        val builder = Request.Builder()
+            .url("${conn.baseUrl}/dsh-windows-mcp/state")
+            .header("Cookie", conn.cookie)
+            .header("Origin", conn.baseUrl)
+            .header("Accept", "application/json")
+        if (body == null) {
+            builder.get()
+        } else {
+            builder.post(body.toString().toRequestBody(jsonMedia))
+        }
+        client.newCall(builder.build()).execute().use { response ->
+            val text = response.body?.string().orEmpty()
+            if (response.code == 404) {
+                return ComputerUseState(
+                    available = false,
+                    error = "宿主未安装桌面控制插件"
+                )
+            }
+            if (response.code == 401 && allowRetry) {
+                val renewed = connectMutex.withLock {
+                    openConnection(conn.baseUrl, conn.token)
+                }
+                if (renewed != null) {
+                    return computerUseBlocking(body, false)
+                }
+            }
+            if (!response.isSuccessful) {
+                if (response.code == 401) {
+                    throw AuthException("桌面控制需要来自 DSH 窗口的登录凭据")
+                }
+                throw ApiException(
+                    "HTTP ${response.code}" +
+                        if (text.isNotBlank()) " · ${text.take(160)}" else ""
+                )
+            }
+            val json = try {
+                JSONObject(text)
+            } catch (_: Exception) {
+                throw ApiException("桌面控制状态格式异常")
+            }
+            val bridged = if (json.has("bridged") && !json.isNull("bridged")) {
+                json.optInt("bridged")
+            } else {
+                null
+            }
+            return ComputerUseState(
+                enabled = json.optBoolean("enabled", false),
+                bridged = bridged,
+                available = true
+            )
+        }
+    }
+
     suspend fun page(
         sessionId: String,
         throughSeq: Int,

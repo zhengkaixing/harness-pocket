@@ -19,6 +19,7 @@ import dev.harness.pocket.data.ChatDraft
 import dev.harness.pocket.data.ChatImage
 import dev.harness.pocket.data.ChatState
 import dev.harness.pocket.data.Connection
+import dev.harness.pocket.data.ComputerUseState
 import dev.harness.pocket.data.ConnectionInput
 import dev.harness.pocket.data.EventParser
 import dev.harness.pocket.data.HarnessApi
@@ -320,6 +321,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             )
         }
         startPolling(session.sessionId, reset = true)
+        refreshComputerUse()
         viewModelScope.launch {
             val live = loadLiveState(session.sessionId)
             if (live != null && _state.value.activeSession?.sessionId == session.sessionId) {
@@ -780,6 +782,87 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             } catch (e: Exception) {
                 _state.update {
                     it.copy(chat = it.chat.copy(modelBusy = false, error = friendlyError(e)))
+                }
+            }
+        }
+    }
+
+    fun refreshComputerUse() {
+        if (_state.value.connection == null) return
+        viewModelScope.launch {
+            try {
+                val view = api.computerUse()
+                _state.update { st ->
+                    st.copy(chat = st.chat.copy(computerUse = view))
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _state.update { st ->
+                    st.copy(
+                        chat = st.chat.copy(
+                            computerUse = ComputerUseState(
+                                available = false,
+                                error = friendlyError(e)
+                            )
+                        )
+                    )
+                }
+            }
+        }
+    }
+
+    fun toggleComputerUse() {
+        val chat = _state.value.chat
+        if (chat.computerUseBusy) return
+        val target = !chat.computerUse.enabled
+        _state.update { st ->
+            st.copy(
+                chat = st.chat.copy(
+                    computerUse = st.chat.computerUse.copy(
+                        enabled = target,
+                        error = null
+                    ),
+                    computerUseBusy = true
+                )
+            )
+        }
+        viewModelScope.launch {
+            try {
+                val view = api.setComputerUse(target)
+                _state.update { st ->
+                    st.copy(
+                        chat = st.chat.copy(
+                            computerUse = view,
+                            computerUseBusy = false
+                        )
+                    )
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: AuthException) {
+                _state.update { st ->
+                    st.copy(
+                        chat = st.chat.copy(
+                            computerUse = st.chat.computerUse.copy(
+                                enabled = !target,
+                                error = e.message
+                            ),
+                            computerUseBusy = false
+                        )
+                    )
+                }
+            } catch (e: Exception) {
+                _state.update { st ->
+                    st.copy(
+                        chat = st.chat.copy(
+                            computerUse = st.chat.computerUse.copy(
+                                enabled = !target,
+                                error = friendlyError(e)
+                            ),
+                            computerUseBusy = false
+                        )
+                    )
                 }
             }
         }
