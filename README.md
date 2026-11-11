@@ -39,7 +39,7 @@ Harness Pocket 是一个**非官方的原生 Android 客户端**，用来远程�
   </tr>
   <tr>
     <td width="50%"><img src="docs/screenshots/chat-doubao.png" alt="对话页" /><br/><sub><b>对话页</b>：豆包式布局，支持 Markdown 与停止任务</sub></td>
-    <td width="50%"><img src="docs/screenshots/tool-call.png" alt="工具调用" /><br/><sub><b>工具调用</b>：参数和结果可展开查看</sub></td>
+    <td width="50%"><img src="docs/screenshots/chat-tool-line.png" alt="工具调用" /><br/><sub><b>工具调用</b>：默认一行摘要，点开看参数和结果</sub></td>
   </tr>
   <tr>
     <td width="50%"><img src="docs/screenshots/model-effort.png" alt="模型与推理强度" /><br/><sub><b>模型</b>：按 provider 分组，支持推理强度</sub></td>
@@ -74,7 +74,7 @@ Harness Pocket 是一个**非官方的原生 Android 客户端**，用来远程�
 - **可选中复制**：对话正文、用户气泡、工具结果和错误提示都支持长按选中，调用系统文本选择工具栏复制。
 - **资源与并发**：读取 `dsh-conversation-queue` 插件的 `/dsh-resource/status`，展示内存、提交内存、磁盘占用和并发闸门的运行/等待数量；可直接把最大并发调到 1–8。未安装插件时显示明确提示。
 - **自动化任务**：抽屉新增入口，读取 `schedule/catalog` 展示全部已开启/未运行任务；点开可看完整指令、规则和关联会话，修改每天/每周/间隔重复或时区；右滑任务可删除，详情也可进入原会话。
-- **工具调用可视化**：把 `tool/call`、`tool/result` 渲染成可展开卡片，参数和结果都能看。
+- **工具调用一行摘要**：把 `tool/call`、`tool/result` 收成网页端式单行，动态显示“读取 ChatScreen.kt / 修改 Components.kt / 运行 <命令>”等摘要；运行中显示转圈、失败标红，需要时点开看完整参数和结果。
 - **更早历史只看对话**：点击“加载更早消息”后，旧历史中的工具调用卡（读取文件、修改文件等）自动隐藏，只保留你发送的内容和助手结果；最近一页的工具卡仍完整显示。
 - **Markdown 与富文本**：标题、有序/无序/嵌套列表、引用、粗体、行内代码、代码块和表格；表格按列宽铺排，代码块支持一键复制。
 - **工具审批**：危险工具请求会在对话页显示“工具请求权限”卡片，展示工具名和原因，可直接“允许一次”或“拒绝”；旧版本保存的连接会在启动时自动升级为可接收审批事件的 Cookie。
@@ -114,6 +114,17 @@ Harness Pocket 是一个**非官方的原生 Android 客户端**，用来远程�
 工具调用卡片、Markdown 代码块、停止任务、重命名与错误提示也都做了回归。
 
 0.10.1 移除了语音输入入口，设备没有语音服务时不再显示麦克风或相关弹窗；输入栏保留文字、附件、加号面板与全屏编辑。
+
+0.14.0 新增并验证了：
+
+- 对话里的工具调用不再默认铺开完整参数；收起态是一行浅灰摘要，例如“读取 ChatScreen.kt”“修改 Components.kt”“运行构建命令”。
+- 摘要按工具名和参数动态生成；命令优先用 description，文件和路径只显示文件名，运行中显示转圈和“执行中”，完成后是绿点，失败标红。
+- 点这一行展开 `tool/call` 的完整参数与结果，再次点击收起；错误不再自动展开，避免打断阅读。
+
+<p align="center">
+  <img src="docs/screenshots/chat-tool-line.png" width="44%" alt="工具调用一行摘要" />
+  <img src="docs/screenshots/chat-tool-expanded.png" width="44%" alt="展开工具参数与结果" />
+</p>
 
 0.13.0 新增并验证了：
 
@@ -303,7 +314,7 @@ Harness Pocket 是一个**非官方的原生 Android 客户端**，用来远程�
 
 ### 直接安装 APK
 
-本地预构建的 APK 在 `dist/HarnessPocket-0.13.0-debug.apk`（二进制不提交到 Git 仓库）；从源码重新构建的产物在：
+本地预构建的 APK 在 `dist/HarnessPocket-0.14.0-debug.apk`（二进制不提交到 Git 仓库）；从源码重新构建的产物在：
 
 ```text
 app/build/outputs/apk/debug/app-debug.apk
@@ -435,6 +446,12 @@ app/src/main/java/dev/harness/pocket/
 - [ ] 可配置的 HTTPS / 证书校验
 
 ## 更新日志
+
+### 0.14.0
+
+- 对话工具调用改为网页端式单行摘要：读取/修改文件、运行命令、搜索等按参数动态生成；运行时显示转圈和“执行中”，完成后显示绿点，失败标红。
+- 点击摘要行展开完整工具名、参数 JSON 和结果，再点收起；错误不再自动展开。
+- 工具摘要中的文件路径只显示文件名，避免长路径撑满一行。
 
 ### 0.13.0
 

@@ -4,6 +4,7 @@ import android.graphics.BitmapFactory
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -96,6 +97,7 @@ import dev.harness.pocket.data.NoticeItem
 import dev.harness.pocket.data.ToolItem
 import dev.harness.pocket.data.TurnTime
 import kotlinx.coroutines.delay
+import org.json.JSONObject
 import java.util.Base64
 import kotlin.math.PI
 import kotlin.math.sin
@@ -827,125 +829,111 @@ fun ToolCard(
     item: ToolItem,
     onLoadImage: suspend (String) -> ChatImage? = { null }
 ) {
-    var expanded by remember(item.key) { mutableStateOf(item.isError) }
-    LaunchedEffect(item.isError) {
-        if (item.isError) expanded = true
-    }
-
-    val status = when {
-        !item.done -> "执行中"
-        item.isError -> "失败"
-        else -> "完成"
-    }
+    var expanded by remember(item.key) { mutableStateOf(false) }
     val statusColor = when {
         !item.done -> Blue
         item.isError -> Red
         else -> Green
     }
+    val summary = toolActivitySummary(item)
 
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        color = Color.White,
-        border = BorderStroke(1.dp, Line)
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(if (expanded) Color.White else Color(0xFFF7F8FB))
+            .then(
+                if (expanded) {
+                    Modifier.border(BorderStroke(1.dp, Line), RoundedCornerShape(12.dp))
+                } else {
+                    Modifier
+                }
+            )
     ) {
-        Column {
-            Row(
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .clickable { expanded = !expanded }
+                .padding(horizontal = 10.dp, vertical = 7.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                Icons.Rounded.Terminal,
+                contentDescription = null,
+                tint = if (item.isError) Red else if (item.done) Muted else Blue,
+                modifier = Modifier.size(14.dp)
+            )
+            Spacer(Modifier.width(7.dp))
+            Text(
+                text = summary,
+                color = if (item.isError) Red else InkSoft,
+                fontSize = 12.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f)
+            )
+            if (!item.done) {
+                Spacer(Modifier.width(7.dp))
+                CircularProgressIndicator(
+                    modifier = Modifier.size(12.dp),
+                    color = Blue,
+                    strokeWidth = 1.6.dp
+                )
+                Spacer(Modifier.width(5.dp))
+                Text("执行中", color = Blue, fontSize = 10.sp)
+            } else if (item.isError) {
+                Spacer(Modifier.width(7.dp))
+                Text("失败", color = Red, fontSize = 10.sp, fontWeight = FontWeight.Medium)
+            } else {
+                Spacer(Modifier.width(7.dp))
+                Box(Modifier.size(5.dp).background(statusColor, CircleShape))
+            }
+            Spacer(Modifier.width(3.dp))
+            Icon(
+                imageVector = if (expanded) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,
+                contentDescription = if (expanded) "收起工具详情" else "展开工具详情",
+                tint = Muted,
+                modifier = Modifier.size(16.dp)
+            )
+        }
+        if (item.images.isNotEmpty()) {
+            Column(
                 Modifier
                     .fillMaxWidth()
-                    .clickable { expanded = !expanded }
-                    .padding(12.dp),
-                verticalAlignment = Alignment.CenterVertically
+                    .padding(start = 10.dp, end = 10.dp, bottom = 10.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Box(
-                    Modifier
-                        .size(32.dp)
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(Color(0xFFF0F4FF)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        Icons.Rounded.Terminal,
-                        contentDescription = null,
-                        tint = Blue,
-                        modifier = Modifier.size(17.dp)
-                    )
+                item.images.forEach { image ->
+                    ChatImageBox(image = image, load = onLoadImage)
                 }
-                Spacer(Modifier.width(10.dp))
-                Column(Modifier.weight(1f)) {
-                    Text(
-                        text = toolLabel(item.name),
-                        color = Ink,
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                    Text(
-                        text = item.name,
-                        color = Muted,
-                        fontSize = 10.sp,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-                if (!item.done) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(13.dp),
-                        color = Blue,
-                        strokeWidth = 1.8.dp
-                    )
-                    Spacer(Modifier.width(7.dp))
-                } else {
-                    Box(Modifier.size(6.dp).background(statusColor, CircleShape))
-                    Spacer(Modifier.width(5.dp))
-                }
+            }
+        }
+        if (expanded) {
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .height(1.dp)
+                    .background(Line)
+            )
+            Column(
+                Modifier.padding(12.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
                 Text(
-                    text = status,
-                    color = statusColor,
-                    fontSize = 10.5.sp,
-                    fontWeight = FontWeight.Medium
+                    item.name,
+                    color = Muted,
+                    fontSize = 10.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
-                Spacer(Modifier.width(4.dp))
-                Icon(
-                    imageVector = if (expanded) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,
-                    contentDescription = null,
-                    tint = Muted,
-                    modifier = Modifier.size(18.dp)
-                )
-            }
-            if (item.images.isNotEmpty()) {
-                Column(
-                    Modifier
-                        .fillMaxWidth()
-                        .padding(start = 12.dp, end = 12.dp, bottom = 12.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    item.images.forEach { image ->
-                        ChatImageBox(image = image, load = onLoadImage)
-                    }
+                if (item.input.isNotBlank()) {
+                    ToolCode(label = "参数", text = item.input)
                 }
-            }
-            if (expanded) {
-                Box(
-                    Modifier
-                        .fillMaxWidth()
-                        .height(1.dp)
-                        .background(Line)
+                ToolCode(
+                    label = if (item.isError) "错误" else "结果",
+                    text = item.result?.ifBlank { "没有输出" } ?: "等待结果…",
+                    isError = item.isError
                 )
-                Column(
-                    Modifier.padding(12.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    if (item.input.isNotBlank()) {
-                        ToolCode(label = "参数", text = item.input)
-                    }
-                    ToolCode(
-                        label = if (item.isError) "错误" else "结果",
-                        text = item.result?.ifBlank { "没有输出" } ?: "等待结果…",
-                        isError = item.isError
-                    )
-                }
             }
         }
     }
@@ -1287,4 +1275,58 @@ fun toolLabel(name: String): String = when {
     name.contains("agent", true) -> "调用子代理"
     name == "todo_write" -> "更新计划"
     else -> name
+}
+
+private fun toolActivitySummary(item: ToolItem): String {
+    val args = runCatching { JSONObject(item.input) }.getOrNull()
+    fun arg(vararg names: String): String? {
+        if (args == null) return null
+        for (name in names) {
+            val value = args.opt(name)
+            if (value is String && value.isNotBlank()) return value
+        }
+        return null
+    }
+
+    val file = arg("path", "file_path", "filePath", "file")?.let(::shortFileName)
+    val command = arg("description", "command")
+        ?.lineSequence()
+        ?.firstOrNull { it.isNotBlank() }
+        ?.trim()
+    val pattern = arg("pattern", "query")
+    val url = arg("url")
+    val verb = when {
+        item.name.contains("pwsh", true) || item.name.contains("bash", true) || item.name.contains("shell", true) -> "运行"
+        item.name.contains("read", true) -> "读取"
+        item.name.contains("write", true) || item.name.contains("edit", true) || item.name.contains("patch", true) -> "修改"
+        item.name.contains("grep", true) || item.name.contains("search", true) -> "搜索"
+        item.name.contains("glob", true) -> "查找"
+        item.name == "web_fetch" -> "读取网页"
+        item.name == "web_search" -> "联网搜索"
+        item.name == "present" -> "生成文件"
+        item.name.contains("agent", true) -> "调用子代理"
+        item.name == "todo_write" -> "更新计划"
+        else -> toolLabel(item.name)
+    }
+    val detail = when {
+        item.name.contains("pwsh", true) || item.name.contains("bash", true) || item.name.contains("shell", true) -> command
+        item.name == "web_fetch" -> url
+        item.name == "web_search" -> arg("query")
+        item.name == "present" -> null
+        item.name == "todo_write" -> null
+        item.name.contains("agent", true) -> arg("description")
+        item.name.contains("read", true) ||
+            item.name.contains("write", true) ||
+            item.name.contains("edit", true) ||
+            item.name.contains("patch", true) -> file
+        else -> pattern ?: file
+    }
+    val suffix = detail?.take(90)?.let { " $it" }.orEmpty()
+    val running = if (item.done) "" else "正在"
+    return "$running$verb$suffix".trim()
+}
+
+private fun shortFileName(raw: String): String {
+    val path = raw.replace('\\', '/').trimEnd('/')
+    return path.substringAfterLast('/').ifBlank { raw }
 }
