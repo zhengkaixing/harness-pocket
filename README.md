@@ -116,6 +116,22 @@ Harness Pocket 是一个**非官方的原生 Android 客户端**，用来远程�
 
 0.10.1 移除了语音输入入口，设备没有语音服务时不再显示麦克风或相关弹窗；输入栏保留文字、附件、加号面板与全屏编辑。
 
+0.17.0 修复并验证了：
+
+- 修复真实会话图片加载：DSH `session/attachment` 的 `data` 是字节数组而非 base64 字符串，旧版解析失败；现在按字节解码后再显示，工具结果里的图片也能加载。
+- 连续工具调用不再逐条占一行，而是汇总为“3 个工具调用”这样一个紧凑区域；点开才看到每条工具摘要、参数和结果。
+- 工具结果图片仍只在展开后出现，点击可全屏查看；图片加载失败时保留“轻触重试”。
+- 已在 MuMu 上用与真实协议一致的 mock 附件（字节数组）验证助手图片、工具结果图片、全屏查看和工具汇总展开。
+
+<p align="center">
+  <img src="docs/screenshots/chat-tool-group.png" width="44%" alt="连续工具调用汇总" />
+  <img src="docs/screenshots/chat-tool-group-expanded.png" width="44%" alt="展开工具调用汇总" />
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/chat-tool-image.png" width="44%" alt="工具结果图片加载" />
+</p>
+
 0.16.0 新增了：
 
 - 对话输入区新增“AI 控制电脑”开关；点击即切换宿主 `dsh-windows-mcp` 的桌面工具控制权，与网页端共享同一全局状态。
@@ -336,7 +352,7 @@ Harness Pocket 是一个**非官方的原生 Android 客户端**，用来远程�
 
 ### 直接安装 APK
 
-本地预构建的 APK 在 `dist/HarnessPocket-0.16.0-debug.apk`（二进制不提交到 Git 仓库）；从源码重新构建的产物在：
+本地预构建的 APK 在 `dist/HarnessPocket-0.17.0-debug.apk`（二进制不提交到 Git 仓库）；从源码重新构建的产物在：
 
 ```text
 app/build/outputs/apk/debug/app-debug.apk
@@ -468,6 +484,12 @@ app/src/main/java/dev/harness/pocket/
 - [ ] 可配置的 HTTPS / 证书校验
 
 ## 更新日志
+
+### 0.17.0
+
+- 修复真实会话图片加载：`session/attachment` 返回的 `data` 是字节数组，改为字节解码后显示；工具结果里的图片恢复可用。
+- 连续工具调用汇总为一行“N 个工具调用”，展开后查看每条工具摘要、参数和结果。
+- 助手图片、工具结果图片、全屏查看器和失败重试均已回归。
 
 ### 0.16.0
 

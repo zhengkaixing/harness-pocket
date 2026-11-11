@@ -1040,6 +1040,94 @@ fun ToolCard(
 }
 
 @Composable
+fun ToolActivityGroupCard(
+    items: List<ToolItem>,
+    onLoadImage: suspend (String) -> ChatImage? = { null }
+) {
+    if (items.isEmpty()) return
+    var expanded by remember(items.first().key) { mutableStateOf(false) }
+    val running = items.any { !it.done }
+    val errors = items.any { it.isError }
+
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(if (expanded) Color.White else Color(0xFFF7F8FB))
+            .then(
+                if (expanded) {
+                    Modifier.border(BorderStroke(1.dp, Line), RoundedCornerShape(12.dp))
+                } else {
+                    Modifier
+                }
+            )
+    ) {
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .clickable { expanded = !expanded }
+                .padding(horizontal = 10.dp, vertical = 7.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                Icons.Rounded.Terminal,
+                contentDescription = null,
+                tint = if (errors) Red else if (running) Blue else Muted,
+                modifier = Modifier.size(14.dp)
+            )
+            Spacer(Modifier.width(7.dp))
+            Text(
+                text = "${items.size} 个工具调用",
+                color = if (errors) Red else InkSoft,
+                fontSize = 12.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f)
+            )
+            if (running) {
+                Spacer(Modifier.width(7.dp))
+                CircularProgressIndicator(
+                    modifier = Modifier.size(12.dp),
+                    color = Blue,
+                    strokeWidth = 1.6.dp
+                )
+                Spacer(Modifier.width(5.dp))
+                Text("执行中", color = Blue, fontSize = 10.sp)
+            } else if (errors) {
+                Spacer(Modifier.width(7.dp))
+                Text("有失败", color = Red, fontSize = 10.sp, fontWeight = FontWeight.Medium)
+            } else {
+                Spacer(Modifier.width(7.dp))
+                Box(Modifier.size(5.dp).background(Green, CircleShape))
+            }
+            Spacer(Modifier.width(3.dp))
+            Icon(
+                imageVector = if (expanded) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,
+                contentDescription = if (expanded) "收起工具调用" else "展开工具调用",
+                tint = Muted,
+                modifier = Modifier.size(16.dp)
+            )
+        }
+        if (expanded) {
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .height(1.dp)
+                    .background(Line)
+            )
+            Column(
+                Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                items.forEach { tool ->
+                    ToolCard(tool, onLoadImage)
+                }
+            }
+        }
+    }
+}
+
+@Composable
 private fun ToolCode(label: String, text: String, isError: Boolean = false) {
     Column {
         Text(

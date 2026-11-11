@@ -305,6 +305,7 @@ fun ChatScreen(
                 }
 
                 else -> {
+                    val rows = remember(chat.visibleItems) { chatRows(chat.visibleItems) }
                     LazyColumn(
                         state = listState,
                         modifier = Modifier.fillMaxSize(),
@@ -330,8 +331,18 @@ fun ChatScreen(
                                     )
                                 }
                             }
-                            items(chat.visibleItems, key = { it.key }) { item ->
-                                ChatItemRow(item, onLoadImage)
+                            items(rows, key = { it.key }) { row ->
+                                val tools = row.items.filterIsInstance<ToolItem>()
+                                if (row.items.size > 1 && tools.size == row.items.size) {
+                                    Row(Modifier.fillMaxWidth()) {
+                                        Spacer(Modifier.width(30.dp))
+                                        Box(Modifier.weight(1f)) {
+                                            ToolActivityGroupCard(tools, onLoadImage)
+                                        }
+                                    }
+                                } else {
+                                    ChatItemRow(row.items.first(), onLoadImage)
+                                }
                             }
                             items(chat.questions, key = { "question:${it.callId}" }) { batch ->
                                 QuestionCard(
@@ -1044,6 +1055,34 @@ private fun ChatTopBar(
             }
         }
     }
+}
+
+private data class ChatRow(val items: List<ChatItem>) {
+    // Keep the first item's key stable while a live tool group grows.
+    val key: String get() = items.firstOrNull()?.key ?: "empty"
+}
+
+private fun chatRows(items: List<ChatItem>): List<ChatRow> {
+    val rows = ArrayList<ChatRow>()
+    var pendingTools = ArrayList<ToolItem>()
+
+    fun flushTools() {
+        if (pendingTools.isNotEmpty()) {
+            rows.add(ChatRow(pendingTools.toList()))
+            pendingTools = ArrayList()
+        }
+    }
+
+    for (item in items) {
+        if (item is ToolItem) {
+            pendingTools.add(item)
+        } else {
+            flushTools()
+            rows.add(ChatRow(listOf(item)))
+        }
+    }
+    flushTools()
+    return rows
 }
 
 @Composable

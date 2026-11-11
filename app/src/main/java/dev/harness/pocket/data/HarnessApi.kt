@@ -593,7 +593,15 @@ class HarnessApi {
             )
         )
         val attachment = value.optJSONObject("attachment") ?: return null
-        val data = value.optString("data").takeIf { it.isNotBlank() } ?: return null
+        val data = when (val raw = value.opt("data")) {
+            // The DSH API serializes image bytes as a JSON number array.
+            is JSONArray -> {
+                val bytes = ByteArray(raw.length()) { index -> raw.optInt(index).toByte() }
+                Base64.getEncoder().encodeToString(bytes)
+            }
+            is String -> raw
+            else -> null
+        }?.takeIf { it.isNotBlank() } ?: return null
         return ChatImage(
             attachmentId = attachmentId,
             mediaType = attachment.optString("mediaType").ifBlank { "image/png" },
