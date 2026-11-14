@@ -369,7 +369,25 @@ fun ChatImageBox(
         if (payload.isNullOrBlank()) {
             failed = false
             payload = try {
-                load(image.attachmentId)?.data
+                val source = image.source?.trim().orEmpty()
+                val sourceIsMedia = source.startsWith("data:", true) ||
+                    source.startsWith("http://", true) ||
+                    source.startsWith("https://", true) ||
+                    source.startsWith("/") ||
+                    source.startsWith("\\") ||
+                    source.matches(Regex("^[A-Za-z]:[\\\\/].*")) ||
+                    source.matches(Regex("^[^:]+\\.[A-Za-z0-9]{2,5}$"))
+                val candidates = buildList {
+                    if (sourceIsMedia) add(source)
+                    add(image.attachmentId)
+                    if (!sourceIsMedia && source.isNotBlank()) add(source)
+                }.filter { it.isNotBlank() }.distinct()
+                var loaded: ChatImage? = null
+                for (candidate in candidates) {
+                    loaded = load(candidate)
+                    if (!loaded?.data.isNullOrBlank()) break
+                }
+                loaded?.data
             } catch (_: Exception) {
                 null
             }

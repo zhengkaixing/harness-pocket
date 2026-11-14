@@ -130,7 +130,8 @@ data class ChatImage(
     val width: Int = 0,
     val height: Int = 0,
     val name: String? = null,
-    val data: String? = null
+    val data: String? = null,
+    val source: String? = null
 )
 
 data class TokenUsage(

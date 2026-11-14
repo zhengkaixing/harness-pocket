@@ -1,4 +1,4 @@
-plugins {
+﻿plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
 }
@@ -11,8 +11,8 @@ android {
         applicationId = "dev.harness.pocket"
         minSdk = 26
         targetSdk = 33
-        versionCode = 32
-        versionName = "0.19.0"
+        versionCode = 33
+        versionName = "0.19.1"
     }
 
     buildTypes {
@@ -62,3 +62,4 @@ dependencies {
 
     debugImplementation("androidx.compose.ui:ui-tooling")
 }
+

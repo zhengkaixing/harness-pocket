@@ -117,6 +117,13 @@ Harness Pocket 是一个**非官方的原生 Android 客户端**，用来远程�
 
 0.10.1 移除了语音输入入口，设备没有语音服务时不再显示麦克风或相关弹窗；输入栏保留文字、附件、加号面板与全屏编辑。
 
+0.19.1 修复了：
+
+- 工具结果里的图片（例如 `read_image` 返回的 `qq_state.png`）在真实会话中仍可能只显示“图片加载失败”的问题。
+- 解析工具结果文本中的 `<path>`，当附件接口不可用时回退到 `/api/file?path=` 读取宿主机图片；加载成功的图片仍可点击全屏查看和缩放。
+
+![工具结果图片回退](docs/screenshots/chat-tool-image-fallback.png)
+
 0.19.0 修复了：
 
 - 助手消息里的 Markdown 本地图片（例如 `![二维码](E:\path\qr.png)`）不再只显示成 `!二维码` 文本。
@@ -370,7 +377,7 @@ Harness Pocket 是一个**非官方的原生 Android 客户端**，用来远程�
 
 ### 直接安装 APK
 
-本地预构建的 APK 在 `dist/HarnessPocket-0.19.0-debug.apk`（二进制不提交到 Git 仓库）；从源码重新构建的产物在：
+本地预构建的 APK 在 `dist/HarnessPocket-0.19.1-debug.apk`（二进制不提交到 Git 仓库）；从源码重新构建的产物在：
 
 ```text
 app/build/outputs/apk/debug/app-debug.apk
@@ -502,6 +509,11 @@ app/src/main/java/dev/harness/pocket/
 - [ ] 可配置的 HTTPS / 证书校验
 
 ## 更新日志
+
+### 0.19.1
+
+- 修复工具结果图片在真实会话中仍显示“图片加载失败”的问题：工具结果里的图片现在会解析结果文本中的 `<path>`，在附件接口不可用时回退到 DSH 的 `/api/file?path=` 路由读取绝对路径。
+- 回退读取同样携带当前连接 Cookie，图片加载成功后支持点击全屏查看和缩放。
 
 ### 0.19.0
 

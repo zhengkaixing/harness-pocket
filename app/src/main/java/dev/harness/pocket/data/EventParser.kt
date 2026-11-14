@@ -126,11 +126,14 @@ object EventParser {
                     if (index !in out.indices) continue
                     val old = out[index] as? ToolItem ?: continue
                     val content = message.optJSONArray("content")
+                    val resultText = blocksText(content)
+                    val mediaSource = extractMediaSource(resultText)
+                        ?: extractMediaSource(old.input)
                     out[index] = old.copy(
-                        result = blocksText(content),
+                        result = resultText,
                         isError = message.optBoolean("isError", false),
                         done = true,
-                        images = imagesOf(content)
+                        images = imagesOf(content).map { it.copy(source = mediaSource) }
                     )
                 }
 
@@ -196,6 +199,23 @@ object EventParser {
             .replace("\\n", " ")
             .replace("\\\"", "\"")
             .trim()
+    }
+
+    private fun extractMediaSource(text: String): String? {
+        if (text.isBlank()) return null
+        val pathTag = Regex("<path>\\s*([^<]+?)\\s*</path>", RegexOption.IGNORE_CASE)
+            .find(text)
+            ?.groupValues
+            ?.getOrNull(1)
+            ?.trim()
+        if (!pathTag.isNullOrBlank()) return pathTag
+        val argumentPath = Regex("\"file_path\"\\s*:\\s*\"((?:\\\\.|[^\"])*)\"")
+            .find(text)
+            ?.groupValues
+            ?.getOrNull(1)
+            ?.replace("\\\\", "\\")
+            ?.trim()
+        return argumentPath?.takeIf { it.isNotBlank() }
     }
 
     private fun plainText(blocks: JSONArray?): String {
