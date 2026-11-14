@@ -389,8 +389,14 @@ fun ChatImageBox(
                 }.filter { it.isNotBlank() }.distinct()
                 var loaded: ChatImage? = null
                 for (candidate in candidates) {
-                    loaded = load(candidate)
-                    if (!loaded?.data.isNullOrBlank()) break
+                    val candidateImage = load(candidate)
+                    // A successful HTTP response is not enough: proxies can
+                    // return an HTML login page, and a bad attachment payload
+                    // can decode to nothing. Only accept real image bytes.
+                    if (candidateImage?.data?.let { decodeImageBitmap(it) != null } == true) {
+                        loaded = candidateImage
+                        break
+                    }
                 }
                 loaded?.data
             } catch (_: Exception) {

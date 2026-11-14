@@ -723,6 +723,12 @@ class HarnessApi {
         }
         val remote = source.startsWith("http://", ignoreCase = true) ||
             source.startsWith("https://", ignoreCase = true)
+        // For a host path, ask the session-scoped workspace RPC first. It
+        // works on forwarded/remote DSH instances where /api/file is not
+        // reachable from the phone.
+        if (!remote && sessionId != null) {
+            readWorkspaceFile(sessionId, source)?.let { return@withContext it }
+        }
         val url = if (remote) {
             source
         } else {
@@ -738,7 +744,8 @@ class HarnessApi {
             builder.header("Cookie", conn.cookie)
         }
         val http = if (remote) client else mediaClient
-        http.newCall(builder.build()).execute().use { response ->
+        try {
+            http.newCall(builder.build()).execute().use { response ->
             if (!response.isSuccessful) {
                 if (!remote && sessionId != null) {
                     return@withContext readWorkspaceFile(sessionId, source)
@@ -764,6 +771,9 @@ class HarnessApi {
                 mediaType = mediaType,
                 data = Base64.getEncoder().encodeToString(bytes)
             )
+            }
+        } catch (_: Exception) {
+            if (!remote && sessionId != null) readWorkspaceFile(sessionId, source) else null
         }
     }
 
@@ -1406,15 +1416,26 @@ class HarnessApi {
                 return rpcRawBlocking(method, args, false)
             }
 
-            val text = response.body?.string().orEmpty()
+            val responseBytes = response.body?.bytes() ?: ByteArray(0)
+            val responseText = if (response.header("Content-Type")
+                    ?.startsWith("multipart/", ignoreCase = true) == true
+            ) null else String(responseBytes, Charsets.UTF_8)
             if (!response.isSuccessful) {
                 throw ApiException(
-                    "HTTP ${response.code}" + if (text.isNotBlank()) " · ${text.take(180)}" else ""
+                    "HTTP ${response.code}" +
+                        if (!responseText.isNullOrBlank()) " · ${responseText.take(180)}" else ""
                 )
             }
 
             val envelope = try {
-                JSONObject(text)
+                if (responseText != null) {
+                    JSONObject(responseText)
+                } else {
+                    parseMultipartEnvelope(
+                        responseBytes,
+                        response.header("Content-Type").orEmpty()
+                    )
+                }
             } catch (_: Exception) {
                 throw ApiException("服务器返回了无法解析的数据")
             }
@@ -1437,6 +1458,88 @@ class HarnessApi {
             val value = result.opt("value")
             return mergeRpcAttachments(value, result.optJSONArray("attachments"))
         }
+    }
+
+    /**
+     * Binary RPC methods such as workspaceFiles/readBytes answer with
+     * multipart/form-data: one JSON metadata part and one or more raw byte
+     * parts. Turn that back into the ordinary JSON envelope so the rest of the
+     * client can keep using mergeRpcAttachments.
+     */
+    private fun parseMultipartEnvelope(body: ByteArray, contentType: String): JSONObject {
+        val boundary = contentType.substringAfter("boundary=", "")
+            .trim()
+            .trim('"')
+        if (boundary.isBlank()) throw ApiException("服务器返回了无法解析的数据")
+        val delimiter = "--$boundary".toByteArray(Charsets.UTF_8)
+        var cursor = 0
+        var metadata: ByteArray? = null
+        val parts = HashMap<String, ByteArray>()
+        while (true) {
+            val delimiterAt = indexOfBytes(body, delimiter, cursor)
+            if (delimiterAt < 0) break
+            var start = delimiterAt + delimiter.size
+            if (start + 2 <= body.size &&
+                body[start] == '\r'.code.toByte() &&
+                body[start + 1] == '\n'.code.toByte()
+            ) {
+                start += 2
+            }
+            if (start + 2 <= body.size &&
+                body[start] == '-'.code.toByte() &&
+                body[start + 1] == '-'.code.toByte()
+            ) {
+                break
+            }
+            val headerEnd = indexOfBytes(body, "\r\n\r\n".toByteArray(Charsets.UTF_8), start)
+            if (headerEnd < 0) break
+            val next = indexOfBytes(body, delimiter, headerEnd + 4)
+            if (next < 0) break
+            val headerText = String(body, start, headerEnd - start, Charsets.UTF_8)
+            val name = Regex("name=\"([^\"]*)\"").find(headerText)?.groupValues?.get(1)
+                .orEmpty()
+            val payloadEnd = if (next >= 2 &&
+                body[next - 2] == '\r'.code.toByte() &&
+                body[next - 1] == '\n'.code.toByte()
+            ) next - 2 else next
+            val payload = if (payloadEnd > headerEnd + 4) {
+                body.copyOfRange(headerEnd + 4, payloadEnd)
+            } else {
+                ByteArray(0)
+            }
+            if (name == "metadata") metadata = payload else if (name.isNotBlank()) parts[name] = payload
+            cursor = next
+        }
+        val meta = metadata ?: throw ApiException("服务器返回了无法解析的数据")
+        val envelope = JSONObject(String(meta, Charsets.UTF_8))
+        val result = envelope.optJSONObject("result")
+        val attachments = result?.optJSONArray("attachments")
+        if (attachments != null) {
+            for (i in 0 until attachments.length()) {
+                val attachment = attachments.optJSONObject(i) ?: continue
+                val part = attachment.optString("part")
+                val bytes = parts[part]
+                if (bytes != null) {
+                    attachment.put("bytes", Base64.getEncoder().encodeToString(bytes))
+                }
+            }
+        }
+        return envelope
+    }
+
+    private fun indexOfBytes(haystack: ByteArray, needle: ByteArray, from: Int): Int {
+        if (needle.isEmpty() || from < 0 || from > haystack.size - needle.size) return -1
+        for (i in from..haystack.size - needle.size) {
+            var matched = true
+            for (j in needle.indices) {
+                if (haystack[i + j] != needle[j]) {
+                    matched = false
+                    break
+                }
+            }
+            if (matched) return i
+        }
+        return -1
     }
 
     /** The gateway returns native Uint8Array results out-of-band in `attachments`. */
