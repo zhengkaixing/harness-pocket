@@ -707,7 +707,7 @@ class HarnessApi {
      * absolute host path. Absolute paths use DSH's authenticated `/api/file`
      * route, the same route the web client uses for local Markdown images.
      */
-    suspend fun readMedia(source: String): ChatImage? = withContext(Dispatchers.IO) {
+    suspend fun readMedia(source: String, sessionId: String? = null): ChatImage? = withContext(Dispatchers.IO) {
         val conn = connection ?: throw ApiException("尚未连接 Harness")
         if (source.startsWith("data:", ignoreCase = true)) {
             return@withContext ChatImage(
@@ -732,7 +732,12 @@ class HarnessApi {
             builder.header("Cookie", conn.cookie)
         }
         client.newCall(builder.build()).execute().use { response ->
-            if (!response.isSuccessful) return@withContext null
+            if (!response.isSuccessful) {
+                if (!remote && sessionId != null) {
+                    return@withContext readWorkspaceFile(sessionId, source)
+                }
+                return@withContext null
+            }
             val bytes = response.body?.bytes() ?: return@withContext null
             val type = response.header("Content-Type")
                 ?.substringBefore(';')
@@ -744,6 +749,38 @@ class HarnessApi {
                 mediaType = type,
                 data = Base64.getEncoder().encodeToString(bytes)
             )
+        }
+    }
+
+    /**
+     * Reads a file through the workspace RPC. Unlike `/api/file`, this path is
+     * scoped by the session and is available on remote/forwarded DSH instances
+     * where the media route is not exposed.
+     */
+    private suspend fun readWorkspaceFile(sessionId: String, source: String): ChatImage? {
+        return try {
+            val args = JSONObject()
+                .put("workspaceFileScopeId", sessionId)
+                .put("path", source)
+                .put("options", JSONObject())
+            val value = rpc("workspaceFiles/readBytes", args)
+            val data = value.optString("data")
+            if (data.isBlank()) null else ChatImage(
+                attachmentId = source.take(200),
+                mediaType = imageMediaType(source),
+                data = data
+            )
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    private fun imageMediaType(source: String): String {
+        return when (source.substringAfterLast('.', "").lowercase()) {
+            "jpg", "jpeg" -> "image/jpeg"
+            "webp" -> "image/webp"
+            "gif" -> "image/gif"
+            else -> "image/png"
         }
     }
 
@@ -1366,7 +1403,47 @@ class HarnessApi {
                 }
                 throw ApiException(message, code)
             }
-            return result.opt("value")
+            val value = result.opt("value")
+            return mergeRpcAttachments(value, result.optJSONArray("attachments"))
         }
+    }
+
+    /** The gateway returns native Uint8Array results out-of-band in `attachments`. */
+    private fun mergeRpcAttachments(value: Any?, attachments: JSONArray?): Any? {
+        if (value == null || attachments == null) return value
+        for (i in 0 until attachments.length()) {
+            val attachment = attachments.optJSONObject(i) ?: continue
+            val path = attachment.optJSONArray("path") ?: continue
+            val bytes = attachmentBytes(attachment.opt("bytes")) ?: continue
+            val encoded = Base64.getEncoder().encodeToString(bytes)
+            when (value) {
+                is JSONObject -> {
+                    if (path.length() == 1) {
+                        value.put(path.optString(0), encoded)
+                    }
+                }
+                is JSONArray -> {
+                    if (path.length() == 1) {
+                        val index = path.optInt(0, -1)
+                        if (index in 0 until value.length()) value.put(index, encoded)
+                    }
+                }
+            }
+        }
+        return value
+    }
+
+    private fun attachmentBytes(raw: Any?): ByteArray? = when (raw) {
+        is JSONArray -> ByteArray(raw.length()) { raw.optInt(it).toByte() }
+        is JSONObject -> {
+            val size = raw.optInt("length", raw.length())
+            if (size <= 0) null else ByteArray(size) { raw.optInt(it.toString()).toByte() }
+        }
+        is String -> try {
+            Base64.getDecoder().decode(raw)
+        } catch (_: IllegalArgumentException) {
+            null
+        }
+        else -> null
     }
 }

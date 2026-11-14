@@ -965,9 +965,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             attachmentId.startsWith("https://", ignoreCase = true) ||
             attachmentId.startsWith("/") ||
             attachmentId.contains('\\') ||
-            Regex("^[A-Za-z]:").containsMatchIn(attachmentId)
+            Regex("^[A-Za-z]:").containsMatchIn(attachmentId) ||
+            Regex("\\.(png|jpe?g|webp|gif)$", RegexOption.IGNORE_CASE)
+                .containsMatchIn(attachmentId.substringBefore('?'))
         val image = try {
-            if (direct) api.readMedia(attachmentId) else api.readAttachment(sessionId, attachmentId)
+            if (direct) api.readMedia(attachmentId, sessionId) else api.readAttachment(sessionId, attachmentId)
         } catch (e: CancellationException) {
             throw e
         } catch (_: Exception) {

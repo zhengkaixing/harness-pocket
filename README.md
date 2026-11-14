@@ -117,6 +117,11 @@ Harness Pocket 是一个**非官方的原生 Android 客户端**，用来远程�
 
 0.10.1 移除了语音输入入口，设备没有语音服务时不再显示麦克风或相关弹窗；输入栏保留文字、附件、加号面板与全屏编辑。
 
+0.19.2 修复了：
+
+- 当 `/api/file` 被远端实例拒绝或无法访问时，Markdown 本地图片会改用 `workspaceFiles/readBytes` RPC 兜底读取，二维码等图片在转发/远端 DSH 上也能加载。
+- 支持工具结果里的相对路径图片，并透传 RPC 返回的二进制附件。
+
 0.19.1 修复了：
 
 - 工具结果里的图片（例如 `read_image` 返回的 `qq_state.png`）在真实会话中仍可能只显示“图片加载失败”的问题。
@@ -377,7 +382,7 @@ Harness Pocket 是一个**非官方的原生 Android 客户端**，用来远程�
 
 ### 直接安装 APK
 
-本地预构建的 APK 在 `dist/HarnessPocket-0.19.1-debug.apk`（二进制不提交到 Git 仓库）；从源码重新构建的产物在：
+本地预构建的 APK 在 `dist/HarnessPocket-0.19.2-debug.apk`（二进制不提交到 Git 仓库）；从源码重新构建的产物在：
 
 ```text
 app/build/outputs/apk/debug/app-debug.apk
@@ -509,6 +514,11 @@ app/src/main/java/dev/harness/pocket/
 - [ ] 可配置的 HTTPS / 证书校验
 
 ## 更新日志
+
+### 0.19.2
+
+- 修复远端/转发 DSH 实例上 Markdown 本地图片仍然加载失败：`/api/file` 不可用时回退到 `workspaceFiles/readBytes` RPC，用 session 作用域读取宿主机图片。
+- 支持 RPC 二进制附件和工具结果里的相对图片路径，二维码等 Markdown 图片可直接显示并点击放大。
 
 ### 0.19.1
 
