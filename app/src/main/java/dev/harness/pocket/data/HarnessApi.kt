@@ -43,6 +43,12 @@ class HarnessApi {
         .followRedirects(false)
         .build()
 
+    /** `/api/file` answers 302 to a signed media URL; follow that redirect. */
+    private val mediaClient = client.newBuilder()
+        .followRedirects(true)
+        .followSslRedirects(true)
+        .build()
+
     private val connectMutex = Mutex()
 
     @Volatile
@@ -731,7 +737,8 @@ class HarnessApi {
         if (!remote || source.startsWith(conn.baseUrl)) {
             builder.header("Cookie", conn.cookie)
         }
-        client.newCall(builder.build()).execute().use { response ->
+        val http = if (remote) client else mediaClient
+        http.newCall(builder.build()).execute().use { response ->
             if (!response.isSuccessful) {
                 if (!remote && sessionId != null) {
                     return@withContext readWorkspaceFile(sessionId, source)

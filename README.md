@@ -117,6 +117,13 @@ Harness Pocket 是一个**非官方的原生 Android 客户端**，用来远程�
 
 0.10.1 移除了语音输入入口，设备没有语音服务时不再显示麦克风或相关弹窗；输入栏保留文字、附件、加号面板与全屏编辑。
 
+0.19.3 修复了：
+
+- DSH 的 `/api/file` 会先返回 302 重定向到带签名的媒体地址；客户端此前关闭了自动跟随重定向，导致图片请求被误判为失败。现在媒体请求使用独立客户端跟随重定向，Markdown 本地图片（含二维码、批次预览）可正常显示并点击放大。
+- 保留 `/api/file` 不可用时的 `workspaceFiles/readBytes` RPC 兜底。
+
+![Markdown 本地图片](docs/screenshots/chat-markdown-image.png)
+
 0.19.2 修复了：
 
 - 当 `/api/file` 被远端实例拒绝或无法访问时，Markdown 本地图片会改用 `workspaceFiles/readBytes` RPC 兜底读取，二维码等图片在转发/远端 DSH 上也能加载。
@@ -382,7 +389,7 @@ Harness Pocket 是一个**非官方的原生 Android 客户端**，用来远程�
 
 ### 直接安装 APK
 
-本地预构建的 APK 在 `dist/HarnessPocket-0.19.2-debug.apk`（二进制不提交到 Git 仓库）；从源码重新构建的产物在：
+本地预构建的 APK 在 `dist/HarnessPocket-0.19.3-debug.apk`（二进制不提交到 Git 仓库）；从源码重新构建的产物在：
 
 ```text
 app/build/outputs/apk/debug/app-debug.apk
@@ -514,6 +521,12 @@ app/src/main/java/dev/harness/pocket/
 - [ ] 可配置的 HTTPS / 证书校验
 
 ## 更新日志
+
+### 0.19.3
+
+- 修复真实 DSH 实例里 Markdown 本地图片仍显示“图片加载失败”的问题：`/api/file` 现在会先返回 302 重定向到签名媒体地址，客户端改用独立媒体客户端跟随重定向。
+- 本地绝对路径图片（如 `E:\...\sheet-1114.jpg`）、二维码和工具结果图片均可正常显示；点击图片可全屏查看、双指缩放。
+- 保留 `/api/file` 失败时的 `workspaceFiles/readBytes` RPC 兜底。
 
 ### 0.19.2
 
