@@ -1523,6 +1523,7 @@ class HarnessApi {
                     attachment.put("bytes", Base64.getEncoder().encodeToString(bytes))
                 }
             }
+            result.put("value", mergeRpcAttachments(result.opt("value"), attachments))
         }
         return envelope
     }
