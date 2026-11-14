@@ -117,6 +117,14 @@ Harness Pocket 是一个**非官方的原生 Android 客户端**，用来远程�
 
 0.10.1 移除了语音输入入口，设备没有语音服务时不再显示麦克风或相关弹窗；输入栏保留文字、附件、加号面板与全屏编辑。
 
+0.19.4 修复了：
+
+- **远程连接**下工具结果图片仍无法显示：现在优先读取 DSH 为图片保存的 `session/attachment` 字节，而不是让手机去访问宿主机的 `C:\` / `D:\` 路径。
+- 当 `/api/file` 返回 200 的登录页/代理 HTML 时，不再把 HTML 当图片；校验图片内容并回退到 `workspaceFiles/readBytes` RPC。
+- 远程 App 无需访问电脑本地文件系统，也能显示 `read_image`/二维码等图片并点击放大。
+
+![远程图片加载](docs/screenshots/chat-markdown-image.png)
+
 0.19.3 修复了：
 
 - DSH 的 `/api/file` 会先返回 302 重定向到带签名的媒体地址；客户端此前关闭了自动跟随重定向，导致图片请求被误判为失败。现在媒体请求使用独立客户端跟随重定向，Markdown 本地图片（含二维码、批次预览）可正常显示并点击放大。
@@ -389,7 +397,7 @@ Harness Pocket 是一个**非官方的原生 Android 客户端**，用来远程�
 
 ### 直接安装 APK
 
-本地预构建的 APK 在 `dist/HarnessPocket-0.19.3-debug.apk`（二进制不提交到 Git 仓库）；从源码重新构建的产物在：
+本地预构建的 APK 在 `dist/HarnessPocket-0.19.4-debug.apk`（二进制不提交到 Git 仓库）；从源码重新构建的产物在：
 
 ```text
 app/build/outputs/apk/debug/app-debug.apk
@@ -521,6 +529,12 @@ app/src/main/java/dev/harness/pocket/
 - [ ] 可配置的 HTTPS / 证书校验
 
 ## 更新日志
+
+### 0.19.4
+
+- 修复远程连接下工具结果图片（如 `read_image target2.png`）仍显示“图片加载失败”的问题：优先使用 DSH 的 `session/attachment` 返回的图片字节，不再依赖手机访问宿主机的本地路径。
+- `/api/file` 返回 200 但内容是登录页/代理 HTML 时识别为非图片，并回退到 `workspaceFiles/readBytes`。
+- 远程 App 不访问电脑本地文件系统也能显示图片；保留本地 `/api/file` 与重定向兼容。
 
 ### 0.19.3
 

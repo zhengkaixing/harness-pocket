@@ -377,9 +377,14 @@ fun ChatImageBox(
                     source.startsWith("\\") ||
                     source.matches(Regex("^[A-Za-z]:[\\\\/].*")) ||
                     source.matches(Regex("^[^:]+\\.[A-Za-z0-9]{2,5}$"))
+                val hasAttachment = image.attachmentId.startsWith("sha256:", ignoreCase = true)
                 val candidates = buildList {
+                    // Tool results have both an attachment (stored by DSH) and a
+                    // host path. Prefer the attachment because a remote App can
+                    // not read the host's C:\/D:\ paths.
+                    if (hasAttachment) add(image.attachmentId)
                     if (sourceIsMedia) add(source)
-                    add(image.attachmentId)
+                    if (!hasAttachment) add(image.attachmentId)
                     if (!sourceIsMedia && source.isNotBlank()) add(source)
                 }.filter { it.isNotBlank() }.distinct()
                 var loaded: ChatImage? = null
