@@ -605,7 +605,7 @@ fun AssistantRow(
             images.forEach { image ->
                 ChatImageBox(image = image, load = onLoadImage)
             }
-            if (text.isNotBlank()) MarkdownText(text)
+            if (text.isNotBlank()) MarkdownText(text, onLoadImage = onLoadImage)
         }
     }
 }
@@ -668,7 +668,11 @@ fun TypingRow() {
 }
 
 @Composable
-fun MarkdownText(text: String, modifier: Modifier = Modifier) {
+fun MarkdownText(
+    text: String,
+    modifier: Modifier = Modifier,
+    onLoadImage: suspend (String) -> ChatImage? = { null }
+) {
     val blocks = remember(text) { MarkdownParser.parse(text) }
     SelectionContainer {
         Column(
@@ -766,6 +770,14 @@ fun MarkdownText(text: String, modifier: Modifier = Modifier) {
                         modifier = Modifier.padding(vertical = 2.dp)
                     )
                 }
+
+                is MdBlock.Image -> ChatImageBox(
+                    image = ChatImage(
+                        attachmentId = block.source,
+                        name = block.alt.ifBlank { "图片" }
+                    ),
+                    load = onLoadImage
+                )
 
                 is MdBlock.Table -> MarkdownTable(block.header, block.rows)
 

@@ -702,6 +702,51 @@ class HarnessApi {
         )
     }
 
+    /**
+     * Load an image referenced by Markdown: a data URI, an HTTP(S) URL, or an
+     * absolute host path. Absolute paths use DSH's authenticated `/api/file`
+     * route, the same route the web client uses for local Markdown images.
+     */
+    suspend fun readMedia(source: String): ChatImage? = withContext(Dispatchers.IO) {
+        val conn = connection ?: throw ApiException("尚未连接 Harness")
+        if (source.startsWith("data:", ignoreCase = true)) {
+            return@withContext ChatImage(
+                attachmentId = source.take(200),
+                data = source
+            )
+        }
+        val remote = source.startsWith("http://", ignoreCase = true) ||
+            source.startsWith("https://", ignoreCase = true)
+        val url = if (remote) {
+            source
+        } else {
+            val encoded = URLEncoder.encode(source, "UTF-8").replace("+", "%20")
+            "${conn.baseUrl.trimEnd('/')}/api/file?path=$encoded"
+        }
+        val builder = Request.Builder()
+            .url(url)
+            .header("Accept", "image/*")
+            .get()
+        // Never leak the DSH session cookie to third-party hosts.
+        if (!remote || source.startsWith(conn.baseUrl)) {
+            builder.header("Cookie", conn.cookie)
+        }
+        client.newCall(builder.build()).execute().use { response ->
+            if (!response.isSuccessful) return@withContext null
+            val bytes = response.body?.bytes() ?: return@withContext null
+            val type = response.header("Content-Type")
+                ?.substringBefore(';')
+                ?.trim()
+                ?.takeIf { it.startsWith("image/") }
+                ?: "image/png"
+            ChatImage(
+                attachmentId = source.take(200),
+                mediaType = type,
+                data = Base64.getEncoder().encodeToString(bytes)
+            )
+        }
+    }
+
     suspend fun uploadFile(sessionId: String, bytes: ByteArray, name: String): UploadReceipt {
         val encoded = Base64.getEncoder().encodeToString(bytes)
         val request = JSONObject().put("data", encoded).put("name", name)

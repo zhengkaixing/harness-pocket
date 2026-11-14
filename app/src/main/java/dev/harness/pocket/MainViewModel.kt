@@ -960,8 +960,14 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     suspend fun loadImage(attachmentId: String): ChatImage? {
         imageCache[attachmentId]?.let { return it }
         val sessionId = _state.value.activeSession?.sessionId ?: return null
+        val direct = attachmentId.startsWith("data:", ignoreCase = true) ||
+            attachmentId.startsWith("http://", ignoreCase = true) ||
+            attachmentId.startsWith("https://", ignoreCase = true) ||
+            attachmentId.startsWith("/") ||
+            attachmentId.contains('\\') ||
+            Regex("^[A-Za-z]:").containsMatchIn(attachmentId)
         val image = try {
-            api.readAttachment(sessionId, attachmentId)
+            if (direct) api.readMedia(attachmentId) else api.readAttachment(sessionId, attachmentId)
         } catch (e: CancellationException) {
             throw e
         } catch (_: Exception) {

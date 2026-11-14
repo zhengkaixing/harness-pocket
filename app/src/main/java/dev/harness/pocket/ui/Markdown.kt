@@ -16,6 +16,7 @@ sealed interface MdBlock {
     data class Ordered(val number: String, val text: String, val depth: Int = 0) : MdBlock
     data class Quote(val text: String) : MdBlock
     data class Code(val code: String, val language: String?) : MdBlock
+    data class Image(val alt: String, val source: String) : MdBlock
     data class Table(val header: List<String>, val rows: List<List<String>>) : MdBlock
     object Divider : MdBlock
 }
@@ -23,6 +24,7 @@ sealed interface MdBlock {
 object MarkdownParser {
     private val orderedLine = Regex("^(\\s*)(\\d+)[.)]\\s+(.*)$")
     private val bulletLine = Regex("^(\\s*)[-*+]\\s+(.*)$")
+    private val imageLine = Regex("^!\\[([^\\]]*)]\\(([^)]+)\\)\\s*$")
     private val separatorCell = Regex("^:?-{2,}:?$")
 
     fun parse(source: String): List<MdBlock> {
@@ -57,6 +59,18 @@ object MarkdownParser {
 
                 trimmed.isEmpty() -> {
                     flushParagraph()
+                    index++
+                }
+
+                imageLine.matches(trimmed) -> {
+                    flushParagraph()
+                    val match = imageLine.matchEntire(trimmed)!!
+                    out.add(
+                        MdBlock.Image(
+                            alt = match.groupValues[1].trim(),
+                            source = match.groupValues[2].trim().trim('<', '>')
+                        )
+                    )
                     index++
                 }
 
