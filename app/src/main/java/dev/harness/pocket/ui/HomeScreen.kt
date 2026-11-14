@@ -76,167 +76,34 @@ import kotlinx.coroutines.delay
 @Composable
 fun HomeScreen(
     state: AppState,
-    onMenu: () -> Unit,
     onNewChat: () -> Unit,
+    onNewChatInWorkspace: (WorkspaceInfo) -> Unit,
     onOpenSession: (SessionSummary) -> Unit,
-    onRefresh: () -> Unit,
+    onWorkspace: () -> Unit,
+    onMoveWorkspace: (String, String?) -> Unit,
     onSettings: () -> Unit,
-    onOpenWorkspace: () -> Unit,
+    onResources: () -> Unit,
+    onAutomations: () -> Unit,
     onPinSession: (SessionSummary) -> Unit,
     onUnpinSession: (SessionSummary) -> Unit,
-    onArchiveSession: (SessionSummary) -> Unit,
-    onUnarchiveSession: (SessionSummary) -> Unit
+    onArchiveSession: (SessionSummary) -> Unit
 ) {
-    var archivedOpen by remember { mutableStateOf(false) }
-    val archivedIds = state.archivedSessionIds.toSet()
-    val visible = state.sessions.filterNot { it.sessionId in archivedIds }
-    val pinnedIds = state.pinnedSessionIds.toSet()
-    val pinned = state.pinnedSessionIds.mapNotNull { id -> visible.firstOrNull { it.sessionId == id } }
-    val others = visible.filterNot { it.sessionId in pinnedIds }
-    val ordered = pinned + others
-    val archived = state.sessions.filter { it.sessionId in archivedIds }
-
-    HarnessBackground {
-        Box(Modifier.fillMaxSize()) {
-            Column(
-                Modifier
-                    .fillMaxSize()
-                    .systemBarsPadding()
-            ) {
-                HomeTopBar(onMenu = onMenu, onSettings = onSettings)
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 4.dp, bottom = 120.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    item { Hero() }
-                    item {
-                        WorkspaceBar(
-                            selected = state.selectedWorkspace,
-                            loading = state.workspacesLoading,
-                            onClick = onOpenWorkspace
-                        )
-                    }
-                    item {
-                        Row(
-                            Modifier
-                                .fillMaxWidth()
-                                .padding(top = 12.dp, bottom = 4.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                "最近会话",
-                                color = Ink,
-                                fontSize = 15.sp,
-                                fontWeight = FontWeight.SemiBold
-                            )
-                            Spacer(Modifier.width(7.dp))
-                            if (visible.isNotEmpty()) {
-                                Text(
-                                    "${visible.size}",
-                                    color = Muted,
-                                    fontSize = 12.sp
-                                )
-                            }
-                            Spacer(Modifier.weight(1f))
-                            Box(
-                                Modifier
-                                    .size(32.dp)
-                                    .clickable(enabled = !state.sessionsLoading) { onRefresh() },
-                                contentAlignment = Alignment.Center
-                            ) {
-                                if (state.sessionsLoading) {
-                                    CircularProgressIndicator(
-                                        modifier = Modifier.size(14.dp),
-                                        color = Blue,
-                                        strokeWidth = 1.8.dp
-                                    )
-                                } else {
-                                    Icon(
-                                        Icons.Rounded.Refresh,
-                                        contentDescription = "刷新会话",
-                                        tint = Muted,
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                }
-                            }
-                        }
-                    }
-
-                    if (state.sessionsError != null && state.sessions.isNotEmpty()) {
-                        item {
-                            InlineError(text = state.sessionsError, onRetry = onRefresh)
-                        }
-                    }
-
-                    when {
-                        state.sessionsLoading && visible.isEmpty() -> {
-                            items(4) { SkeletonSessionCard() }
-                        }
-
-                        visible.isEmpty() && state.sessionsError != null -> {
-                            item {
-                                EmptySessions(
-                                    title = "同步失败",
-                                    subtitle = state.sessionsError,
-                                    isError = true,
-                                    onRetry = onRefresh
-                                )
-                            }
-                        }
-
-                        visible.isEmpty() -> {
-                            item { EmptySessions() }
-                        }
-
-                        else -> {
-                            items(ordered, key = { it.sessionId }) { session ->
-                                val isPinned = session.sessionId in pinnedIds
-                                SessionCard(
-                                    session = session,
-                                    lastPrompt = state.lastPrompts[session.sessionId],
-                                    pinned = isPinned,
-                                    onClick = { onOpenSession(session) },
-                                    onTogglePin = {
-                                        if (isPinned) onUnpinSession(session)
-                                        else onPinSession(session)
-                                    },
-                                    onArchive = { onArchiveSession(session) }
-                                )
-                            }
-                        }
-                    }
-
-                    if (archived.isNotEmpty()) {
-                        item {
-                            ArchivedBar(
-                                count = archived.size,
-                                onClick = { archivedOpen = true }
-                            )
-                        }
-                    }
-                }
-            }
-
-            HomeComposer(
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .navigationBarsPadding(),
-                creating = state.creating,
-                onClick = onNewChat
-            )
-        }
-    }
-
-    if (archivedOpen) {
-        ArchivedSessionsDialog(
-            sessions = archived,
-            onDismiss = { archivedOpen = false },
-            onRestore = { session ->
-                onUnarchiveSession(session)
-            }
-        )
-    }
+    HarnessNavigationContent(
+        state = state,
+        modifier = Modifier.fillMaxSize(),
+        onClose = {},
+        onNewChat = onNewChat,
+        onNewChatInWorkspace = onNewChatInWorkspace,
+        onWorkspace = onWorkspace,
+        onMoveWorkspace = onMoveWorkspace,
+        onOpenSession = onOpenSession,
+        onSettings = onSettings,
+        onResources = onResources,
+        onAutomations = onAutomations,
+        onPinSession = onPinSession,
+        onUnpinSession = onUnpinSession,
+        onArchiveSession = onArchiveSession
+    )
 }
 
 @Composable

@@ -85,6 +85,51 @@ fun HarnessDrawer(
     onUnpinSession: (SessionSummary) -> Unit,
     onArchiveSession: (SessionSummary) -> Unit
 ) {
+    ModalDrawerSheet(
+        modifier = Modifier
+            .width(312.dp)
+            .fillMaxHeight(),
+        drawerShape = RoundedCornerShape(topEnd = 26.dp, bottomEnd = 26.dp),
+        drawerContainerColor = DrawerBg,
+        drawerContentColor = Ink,
+        windowInsets = androidx.compose.foundation.layout.WindowInsets(0, 0, 0, 0)
+    ) {
+        HarnessNavigationContent(
+            state = state,
+            modifier = Modifier.fillMaxHeight(),
+            onClose = onClose,
+            onNewChat = onNewChat,
+            onNewChatInWorkspace = onNewChatInWorkspace,
+            onWorkspace = onWorkspace,
+            onMoveWorkspace = onMoveWorkspace,
+            onOpenSession = onOpenSession,
+            onSettings = onSettings,
+            onResources = onResources,
+            onAutomations = onAutomations,
+            onPinSession = onPinSession,
+            onUnpinSession = onUnpinSession,
+            onArchiveSession = onArchiveSession
+        )
+    }
+}
+
+@Composable
+internal fun HarnessNavigationContent(
+    state: AppState,
+    modifier: Modifier = Modifier,
+    onClose: () -> Unit,
+    onNewChat: () -> Unit,
+    onNewChatInWorkspace: (WorkspaceInfo) -> Unit,
+    onWorkspace: () -> Unit,
+    onMoveWorkspace: (String, String?) -> Unit,
+    onOpenSession: (SessionSummary) -> Unit,
+    onSettings: () -> Unit,
+    onResources: () -> Unit,
+    onAutomations: () -> Unit,
+    onPinSession: (SessionSummary) -> Unit,
+    onUnpinSession: (SessionSummary) -> Unit,
+    onArchiveSession: (SessionSummary) -> Unit
+) {
     var searchOpen by remember { mutableStateOf(false) }
     var query by rememberSaveable { mutableStateOf("") }
     val expanded = remember { mutableStateMapOf<String, Boolean>() }
@@ -105,22 +150,14 @@ fun HarnessDrawer(
         includeEmpty = query.isBlank()
     )
 
-    ModalDrawerSheet(
-        modifier = Modifier
-            .width(312.dp)
-            .fillMaxHeight(),
-        drawerShape = RoundedCornerShape(topEnd = 26.dp, bottomEnd = 26.dp),
-        drawerContainerColor = DrawerBg,
-        drawerContentColor = Ink,
-        windowInsets = androidx.compose.foundation.layout.WindowInsets(0, 0, 0, 0)
+    Column(
+        modifier = modifier
+            .fillMaxHeight()
+            .statusBarsPadding()
+            .navigationBarsPadding()
+            .verticalScroll(rememberScrollState())
+            .background(DrawerBg)
     ) {
-        Column(
-            Modifier
-                .fillMaxHeight()
-                .statusBarsPadding()
-                .navigationBarsPadding()
-                .verticalScroll(rememberScrollState())
-        ) {
             Row(
                 Modifier
                     .fillMaxWidth()
@@ -344,7 +381,6 @@ fun HarnessDrawer(
                     size = 34.dp
                 )
             }
-        }
     }
 }
 

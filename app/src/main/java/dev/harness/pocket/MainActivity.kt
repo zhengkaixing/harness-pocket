@@ -251,19 +251,20 @@ private fun AppRoot(
             } else {
                 HomeScreen(
                     state = state,
-                    onMenu = openDrawer,
                     onNewChat = vm::newSession,
+                    onNewChatInWorkspace = vm::newSessionInWorkspace,
                     onOpenSession = vm::openSession,
-                    onRefresh = vm::refreshSessions,
-                    onSettings = { showSettings = true },
-                    onOpenWorkspace = {
+                    onWorkspace = {
                         workspaceOpen = true
                         if (state.workspaces.isEmpty()) vm.refreshWorkspaces()
                     },
+                    onMoveWorkspace = vm::moveWorkspace,
+                    onSettings = { showSettings = true },
+                    onResources = vm::openResources,
+                    onAutomations = vm::openAutomations,
                     onPinSession = vm::togglePin,
                     onUnpinSession = vm::togglePin,
-                    onArchiveSession = vm::archiveSession,
-                    onUnarchiveSession = vm::unarchiveSession
+                    onArchiveSession = vm::archiveSession
                 )
             }
         }
