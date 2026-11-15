@@ -5,6 +5,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Shapes
 import androidx.compose.material3.Typography
 import androidx.compose.material3.lightColorScheme
+import androidx.compose.foundation.text.selection.LocalTextSelectionColors
+import androidx.compose.foundation.text.selection.TextSelectionColors
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
@@ -26,6 +29,11 @@ val Green = Color(0xFF2FBF71)
 val Amber = Color(0xFFE3A23C)
 val Red = Color(0xFFE35D6A)
 val CodeBg = Color(0xFF171A23)
+
+private val HarnessSelectionColors = TextSelectionColors(
+    handleColor = Color(0xFFE38A00),
+    backgroundColor = Color(0xFFFFC857).copy(alpha = 0.55f)
+)
 
 val HarnessTypography = Typography(
     displaySmall = TextStyle(
@@ -123,7 +131,10 @@ fun HarnessTheme(content: @Composable () -> Unit) {
     MaterialTheme(
         colorScheme = LightColors,
         typography = HarnessTypography,
-        shapes = HarnessShapes,
-        content = content
-    )
+        shapes = HarnessShapes
+    ) {
+        CompositionLocalProvider(LocalTextSelectionColors provides HarnessSelectionColors) {
+            content()
+        }
+    }
 }
