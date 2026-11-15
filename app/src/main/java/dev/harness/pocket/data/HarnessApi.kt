@@ -679,15 +679,22 @@ class HarnessApi {
     }
 
     suspend fun readAttachment(sessionId: String, attachmentId: String): ChatImage? {
-        val value = rpc(
-            "session/attachment",
-            JSONObject().put(
-                "request",
-                JSONObject()
-                    .put("sessionId", sessionId)
-                    .put("attachmentId", attachmentId)
-            )
-        )
+        val direct = JSONObject()
+            .put("sessionId", sessionId)
+            .put("attachmentId", attachmentId)
+        val wrapped = JSONObject().put("request", direct)
+        // DSH versions differ on whether the typert gateway expects the
+        // request object at top level or under "request". Try both rather
+        // than treating every attachment as permanently unavailable.
+        val value = try {
+            rpc("session/attachment", direct)
+        } catch (_: Exception) {
+            try {
+                rpc("session/attachment", wrapped)
+            } catch (_: Exception) {
+                return null
+            }
+        }
         val attachment = value.optJSONObject("attachment") ?: return null
         val data = when (val raw = value.opt("data")) {
             // The DSH API serializes image bytes as a JSON number array.
@@ -697,7 +704,7 @@ class HarnessApi {
             }
             is String -> raw
             else -> null
-        }?.takeIf { it.isNotBlank() } ?: return null
+        }?.let(::validatedImageData) ?: return null
         return ChatImage(
             attachmentId = attachmentId,
             mediaType = attachment.optString("mediaType").ifBlank { "image/png" },
@@ -794,6 +801,19 @@ class HarnessApi {
     }
 
     /**
+     * DSH sometimes returns a successful attachment/RPC payload that is not
+     * actually image data (a login page, an error document, or an unmerged
+     * multipart placeholder). Reject it here so the caller can try the next
+     * transport instead of caching an undecodable image.
+     */
+    private fun validatedImageData(raw: String?): String? {
+        val text = raw?.filterNot { it.isWhitespace() }.orEmpty()
+        if (text.isBlank()) return null
+        val bytes = runCatching { Base64.getDecoder().decode(text) }.getOrNull() ?: return null
+        return text.takeIf { looksLikeImage(bytes) }
+    }
+
+    /**
      * Reads a file through the workspace RPC. Unlike `/api/file`, this path is
      * scoped by the session and is available on remote/forwarded DSH instances
      * where the media route is not exposed.
@@ -805,8 +825,8 @@ class HarnessApi {
                 .put("path", source)
                 .put("options", JSONObject())
             val value = rpc("workspaceFiles/readBytes", args)
-            val data = value.optString("data")
-            if (data.isBlank()) null else ChatImage(
+            val data = validatedImageData(value.optString("data")) ?: return null
+            ChatImage(
                 attachmentId = source.take(200),
                 mediaType = imageMediaType(source),
                 data = data

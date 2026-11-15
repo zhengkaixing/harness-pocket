@@ -401,7 +401,7 @@ Harness Pocket 是一个**非官方的原生 Android 客户端**，用来远程�
 
 ### 直接安装 APK
 
-本地预构建的 APK 在 `dist/HarnessPocket-0.20.5-debug.apk`（二进制不提交到 Git 仓库）；从源码重新构建的产物在：
+本地预构建的 APK 在 `dist/HarnessPocket-0.20.6-debug.apk`（二进制不提交到 Git 仓库）；从源码重新构建的产物在：
 
 ```text
 app/build/outputs/apk/debug/app-debug.apk
@@ -533,6 +533,11 @@ app/src/main/java/dev/harness/pocket/
 - [ ] 可配置的 HTTPS / 证书校验
 
 ## 更新日志
+
+### 0.20.6
+
+- 图片加载增加传输回退与有效性校验：附件网关接受 `session/attachment` 的两种参数形状；工作区 RPC 返回的内容必须是真实图片字节，避免把登录页/错误页当成图片缓存。
+- 修复远程会话中工具结果图片偶发仍显示“图片加载失败”的问题。
 
 ### 0.20.5
 
