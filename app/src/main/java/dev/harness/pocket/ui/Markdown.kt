@@ -7,6 +7,7 @@ import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.graphics.Color
 
 sealed interface MdBlock {
@@ -227,8 +228,17 @@ fun inlineMarkdown(text: String): AnnotatedString = remember(text) {
                     val close = text.indexOf("](", i)
                     val end = if (close > i) text.indexOf(')', close + 2) else -1
                     if (close > i && end > close) {
-                        pushStyle(SpanStyle(color = Blue))
-                        append(text.substring(i + 1, close))
+                        val label = text.substring(i + 1, close)
+                        val url = text.substring(close + 2, end).trim()
+                        pushStringAnnotation("URL", url)
+                        pushStyle(
+                            SpanStyle(
+                                color = Blue,
+                                textDecoration = TextDecoration.Underline
+                            )
+                        )
+                        append(label)
+                        pop()
                         pop()
                         i = end + 1
                     } else {

@@ -313,7 +313,12 @@ object EventParser {
                 attachmentId = id,
                 mediaType = block.optString("mediaType").ifBlank { "application/octet-stream" },
                 bytes = block.optLong("bytes"),
-                name = block.optString("name").takeIf { it.isNotBlank() }
+                name = block.optString("name").takeIf { it.isNotBlank() },
+                source = sequenceOf(
+                    block.optString("url"),
+                    block.optString("path"),
+                    block.optString("file_path")
+                ).firstOrNull { it.isNotBlank() }
             )
         }
         val id = attachment.optString("attachmentId")
@@ -322,7 +327,15 @@ object EventParser {
             attachmentId = id,
             mediaType = attachment.optString("mediaType").ifBlank { "application/octet-stream" },
             bytes = attachment.optLong("bytes"),
-            name = attachment.optString("name").takeIf { it.isNotBlank() }
+            name = attachment.optString("name").takeIf { it.isNotBlank() },
+            source = sequenceOf(
+                attachment.optString("url"),
+                attachment.optString("path"),
+                attachment.optString("file_path"),
+                block.optString("url"),
+                block.optString("path"),
+                block.optString("file_path")
+            ).firstOrNull { it.isNotBlank() }
         )
     }
 

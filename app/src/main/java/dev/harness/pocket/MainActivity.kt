@@ -124,6 +124,25 @@ private fun AppRoot(
         }
     }
 
+    val openLink: (String) -> Unit = { raw ->
+        val link = raw.trim()
+        if (link.isNotBlank()) {
+            val normalized = when {
+                link.startsWith("www.", ignoreCase = true) -> "https://$link"
+                else -> link
+            }
+            try {
+                context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(normalized)))
+            } catch (e: Exception) {
+                Toast.makeText(
+                    context,
+                    "无法打开链接：${e.message ?: "没有可用的应用"}",
+                    Toast.LENGTH_LONG
+                ).show()
+            }
+        }
+    }
+
     val openFile: (ChatFile) -> Unit = { file ->
         scope.launch {
             val saved = vm.downloadFile(file)
@@ -281,6 +300,7 @@ private fun AppRoot(
                     onAnswer = vm::answerQuestions,
                     onLoadImage = vm::loadImage,
                     onOpenFile = openFile,
+                    onOpenLink = openLink,
                     onRefreshResources = vm::refreshResources,
                     onOpenResources = vm::openResources,
                     onLoadEarlier = vm::loadEarlier

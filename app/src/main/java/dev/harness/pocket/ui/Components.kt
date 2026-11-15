@@ -32,6 +32,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.ClickableText
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -361,7 +362,9 @@ fun TypingDots(color: Color = Muted) {
 fun ChatImageBox(
     image: ChatImage,
     load: suspend (String) -> ChatImage?,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    gallery: List<ChatImage> = listOf(image),
+    galleryIndex: Int = 0
 ) {
     var payload by remember(image.attachmentId) { mutableStateOf(image.data) }
     var failed by remember(image.attachmentId) { mutableStateOf(false) }
@@ -425,7 +428,10 @@ fun ChatImageBox(
         )
         if (viewerOpen) {
             ImageViewerDialog(
-                bitmap = bitmap,
+                images = gallery.ifEmpty { listOf(image) },
+                initialIndex = galleryIndex.coerceIn(0, (gallery.size - 1).coerceAtLeast(0)),
+                initialBitmap = bitmap,
+                load = load,
                 title = image.name ?: "图片",
                 onDismiss = { viewerOpen = false }
             )
@@ -479,15 +485,40 @@ private fun decodeImageBitmap(raw: String): android.graphics.Bitmap? {
 
 @Composable
 private fun ImageViewerDialog(
-    bitmap: android.graphics.Bitmap,
+    images: List<ChatImage>,
+    initialIndex: Int,
+    initialBitmap: android.graphics.Bitmap,
+    load: suspend (String) -> ChatImage?,
     title: String,
     onDismiss: () -> Unit
 ) {
+    var index by remember(images) { mutableStateOf(initialIndex.coerceIn(0, (images.size - 1).coerceAtLeast(0))) }
+    var current by remember(images) { mutableStateOf<android.graphics.Bitmap?>(initialBitmap) }
+    var loading by remember(images) { mutableStateOf(false) }
+    var failed by remember(images) { mutableStateOf(false) }
+    var loadedIndex by remember(images) { mutableStateOf(initialIndex) }
     var scale by remember { mutableStateOf(1f) }
     var offset by remember { mutableStateOf(Offset.Zero) }
     val transformState = rememberTransformableState { zoomChange, panChange, _ ->
         scale = (scale * zoomChange).coerceIn(1f, 5f)
         offset = if (scale <= 1f) Offset.Zero else offset + panChange
+    }
+
+    LaunchedEffect(index) {
+        scale = 1f
+        offset = Offset.Zero
+        if (index == loadedIndex) return@LaunchedEffect
+        loading = true
+        failed = false
+        val image = images.getOrNull(index)
+        val candidate = image?.let {
+            val source = it.source?.trim().takeIf { value -> !value.isNullOrBlank() }
+            load(source ?: it.attachmentId)
+        }
+        current = candidate?.data?.let { decodeImageBitmap(it) }
+        loadedIndex = index
+        failed = current == null
+        loading = false
     }
 
     Dialog(
@@ -500,19 +531,35 @@ private fun ImageViewerDialog(
                 .background(Color.Black)
                 .transformable(transformState)
         ) {
-            Image(
-                bitmap = bitmap.asImageBitmap(),
-                contentDescription = title,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .graphicsLayer {
-                        scaleX = scale
-                        scaleY = scale
-                        translationX = offset.x
-                        translationY = offset.y
-                    },
-                contentScale = ContentScale.Fit
-            )
+            val bitmap = current
+            if (bitmap != null) {
+                Image(
+                    bitmap = bitmap.asImageBitmap(),
+                    contentDescription = title,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .graphicsLayer {
+                            scaleX = scale
+                            scaleY = scale
+                            translationX = offset.x
+                            translationY = offset.y
+                        },
+                    contentScale = ContentScale.Fit
+                )
+            } else if (loading) {
+                CircularProgressIndicator(
+                    modifier = Modifier.align(Alignment.Center).size(26.dp),
+                    color = Color.White,
+                    strokeWidth = 2.dp
+                )
+            } else {
+                Text(
+                    text = "图片加载失败",
+                    color = Color.White,
+                    fontSize = 13.sp,
+                    modifier = Modifier.align(Alignment.Center)
+                )
+            }
             Row(
                 Modifier
                     .align(Alignment.TopEnd)
@@ -532,8 +579,38 @@ private fun ImageViewerDialog(
                 Spacer(Modifier.width(5.dp))
                 Text("关闭", color = Color.White, fontSize = 12.sp)
             }
+            if (images.size > 1) {
+                Text(
+                    text = "${index + 1} / ${images.size}",
+                    color = Color.White,
+                    fontSize = 12.sp,
+                    modifier = Modifier
+                        .align(Alignment.TopCenter)
+                        .systemBarsPadding()
+                        .padding(top = 18.dp)
+                        .background(Color(0x99000000), RoundedCornerShape(20.dp))
+                        .padding(horizontal = 12.dp, vertical = 6.dp)
+                )
+                Column(
+                    Modifier
+                        .align(Alignment.CenterEnd)
+                        .padding(end = 10.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp)
+                ) {
+                    ViewerPageButton(
+                        up = true,
+                        enabled = index > 0,
+                        onClick = { if (index > 0) index-- }
+                    )
+                    ViewerPageButton(
+                        up = false,
+                        enabled = index < images.lastIndex,
+                        onClick = { if (index < images.lastIndex) index++ }
+                    )
+                }
+            }
             Text(
-                text = "双指缩放",
+                text = if (failed) "点击箭头切换图片" else "双指缩放 · 上下切换",
                 color = Color(0x99FFFFFF),
                 fontSize = 11.sp,
                 modifier = Modifier
@@ -542,6 +619,28 @@ private fun ImageViewerDialog(
                     .padding(bottom = 22.dp)
             )
         }
+    }
+}
+
+@Composable
+private fun ViewerPageButton(
+    up: Boolean,
+    enabled: Boolean,
+    onClick: () -> Unit
+) {
+    Box(
+        Modifier
+            .size(42.dp)
+            .background(Color(0x99000000), CircleShape)
+            .clickable(enabled = enabled, onClick = onClick),
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(
+            if (up) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,
+            contentDescription = if (up) "上一张" else "下一张",
+            tint = if (enabled) Color.White else Color(0x55FFFFFF),
+            modifier = Modifier.size(26.dp)
+        )
     }
 }
 
@@ -640,7 +739,12 @@ fun UserBubble(
         ) {
             images.forEachIndexed { index, image ->
                 if (index > 0) Spacer(Modifier.height(6.dp))
-                ChatImageBox(image = image, load = onLoadImage)
+                ChatImageBox(
+                    image = image,
+                    load = onLoadImage,
+                    gallery = images,
+                    galleryIndex = index
+                )
             }
             if (images.isNotEmpty() && (text.isNotBlank() || attachments.isNotEmpty())) {
                 Spacer(Modifier.height(7.dp))
@@ -701,7 +805,8 @@ fun UserBubble(
 fun AssistantRow(
     text: String,
     images: List<ChatImage> = emptyList(),
-    onLoadImage: suspend (String) -> ChatImage? = { null }
+    onLoadImage: suspend (String) -> ChatImage? = { null },
+    onOpenLink: (String) -> Unit = {}
 ) {
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
         SparkLogo(26.dp)
@@ -710,10 +815,21 @@ fun AssistantRow(
             Modifier.weight(1f),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            images.forEach { image ->
-                ChatImageBox(image = image, load = onLoadImage)
+            images.forEachIndexed { index, image ->
+                ChatImageBox(
+                    image = image,
+                    load = onLoadImage,
+                    gallery = images,
+                    galleryIndex = index
+                )
             }
-            if (text.isNotBlank()) MarkdownText(text, onLoadImage = onLoadImage)
+            if (text.isNotBlank()) {
+                MarkdownText(
+                    text,
+                    onLoadImage = onLoadImage,
+                    onOpenLink = onOpenLink
+                )
+            }
         }
     }
 }
@@ -776,12 +892,49 @@ fun TypingRow() {
 }
 
 @Composable
+private fun MarkdownInline(
+    text: String,
+    color: Color,
+    fontSize: androidx.compose.ui.unit.TextUnit,
+    lineHeight: androidx.compose.ui.unit.TextUnit,
+    fontWeight: FontWeight = FontWeight.Normal,
+    onOpenLink: (String) -> Unit
+) {
+    val annotated = inlineMarkdown(text)
+    ClickableText(
+        text = annotated,
+        style = TextStyle(
+            color = color,
+            fontSize = fontSize,
+            lineHeight = lineHeight,
+            fontWeight = fontWeight
+        ),
+        onClick = { offset ->
+            annotated.getStringAnnotations("URL", offset, offset)
+                .firstOrNull()
+                ?.item
+                ?.takeIf { it.isNotBlank() }
+                ?.let(onOpenLink)
+        }
+    )
+}
+
+@Composable
 fun MarkdownText(
     text: String,
     modifier: Modifier = Modifier,
-    onLoadImage: suspend (String) -> ChatImage? = { null }
+    onLoadImage: suspend (String) -> ChatImage? = { null },
+    onOpenLink: (String) -> Unit = {}
 ) {
     val blocks = remember(text) { MarkdownParser.parse(text) }
+    val markdownImages = remember(blocks) {
+        blocks.filterIsInstance<MdBlock.Image>().map { block ->
+            ChatImage(
+                attachmentId = block.source,
+                name = block.alt.ifBlank { "图片" }
+            )
+        }
+    }
     SelectionContainer {
         Column(
             modifier.fillMaxWidth(),
@@ -789,25 +942,28 @@ fun MarkdownText(
         ) {
         blocks.forEach { block ->
             when (block) {
-                is MdBlock.Paragraph -> Text(
-                    text = inlineMarkdown(block.text),
+                is MdBlock.Paragraph -> MarkdownInline(
+                    text = block.text,
                     color = Ink,
                     fontSize = 15.5.sp,
-                    lineHeight = 25.sp
+                    lineHeight = 25.sp,
+                    onOpenLink = onOpenLink
                 )
 
-                is MdBlock.Heading -> Text(
-                    text = inlineMarkdown(block.text),
-                    color = Ink,
-                    fontSize = when (block.level) {
-                        1 -> 18.sp
-                        2 -> 17.sp
-                        else -> 16.sp
-                    },
-                    fontWeight = FontWeight.Bold,
-                    lineHeight = 24.sp,
-                    modifier = Modifier.padding(top = 2.dp)
-                )
+                is MdBlock.Heading -> Box(Modifier.padding(top = 2.dp)) {
+                    MarkdownInline(
+                        text = block.text,
+                        color = Ink,
+                        fontSize = when (block.level) {
+                            1 -> 18.sp
+                            2 -> 17.sp
+                            else -> 16.sp
+                        },
+                        fontWeight = FontWeight.Bold,
+                        lineHeight = 24.sp,
+                        onOpenLink = onOpenLink
+                    )
+                }
 
                 is MdBlock.Bullet -> Row(
                     Modifier.fillMaxWidth(),
@@ -823,11 +979,12 @@ fun MarkdownText(
                     )
                     Spacer(Modifier.width(8.dp))
                     Box(Modifier.weight(1f)) {
-                        Text(
-                            inlineMarkdown(block.text),
+                        MarkdownInline(
+                            text = block.text,
                             color = Ink,
                             fontSize = 15.sp,
-                            lineHeight = 24.sp
+                            lineHeight = 24.sp,
+                            onOpenLink = onOpenLink
                         )
                     }
                 }
@@ -848,11 +1005,12 @@ fun MarkdownText(
                     )
                     Spacer(Modifier.width(6.dp))
                     Box(Modifier.weight(1f)) {
-                        Text(
-                            inlineMarkdown(block.text),
+                        MarkdownInline(
+                            text = block.text,
                             color = Ink,
                             fontSize = 15.sp,
-                            lineHeight = 24.sp
+                            lineHeight = 24.sp,
+                            onOpenLink = onOpenLink
                         )
                     }
                 }
@@ -870,22 +1028,31 @@ fun MarkdownText(
                             .background(Blue.copy(alpha = 0.35f))
                     )
                     Spacer(Modifier.width(10.dp))
-                    Text(
-                        inlineMarkdown(block.text),
-                        color = InkSoft,
-                        fontSize = 14.5.sp,
-                        lineHeight = 23.sp,
-                        modifier = Modifier.padding(vertical = 2.dp)
-                    )
+                    Box(Modifier.padding(vertical = 2.dp)) {
+                        MarkdownInline(
+                            text = block.text,
+                            color = InkSoft,
+                            fontSize = 14.5.sp,
+                            lineHeight = 23.sp,
+                            onOpenLink = onOpenLink
+                        )
+                    }
                 }
 
-                is MdBlock.Image -> ChatImageBox(
-                    image = ChatImage(
+                is MdBlock.Image -> {
+                    val image = ChatImage(
                         attachmentId = block.source,
                         name = block.alt.ifBlank { "图片" }
-                    ),
-                    load = onLoadImage
-                )
+                    )
+                    ChatImageBox(
+                        image = image,
+                        load = onLoadImage,
+                        gallery = markdownImages,
+                        galleryIndex = markdownImages.indexOfFirst {
+                            it.attachmentId == image.attachmentId
+                        }.coerceAtLeast(0)
+                    )
+                }
 
                 is MdBlock.Table -> MarkdownTable(block.header, block.rows)
 
@@ -1142,8 +1309,13 @@ fun ToolCard(
                 )
                 if (item.images.isNotEmpty()) {
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        item.images.forEach { image ->
-                            ChatImageBox(image = image, load = onLoadImage)
+                        item.images.forEachIndexed { index, image ->
+                            ChatImageBox(
+                                image = image,
+                                load = onLoadImage,
+                                gallery = item.images,
+                                galleryIndex = index
+                            )
                         }
                     }
                 }

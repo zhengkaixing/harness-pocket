@@ -147,6 +147,7 @@ fun ChatScreen(
     onAnswer: (String, List<AskAnswer>) -> Unit,
     onLoadImage: suspend (String) -> ChatImage?,
     onOpenFile: (ChatFile) -> Unit = {},
+    onOpenLink: (String) -> Unit = {},
     onRefreshResources: () -> Unit,
     onOpenResources: () -> Unit,
     onLoadEarlier: () -> Unit
@@ -343,7 +344,7 @@ fun ChatScreen(
                                         }
                                     }
                                 } else {
-                                    ChatItemRow(row.items.first(), onLoadImage, onOpenFile)
+                                    ChatItemRow(row.items.first(), onLoadImage, onOpenFile, onOpenLink)
                                 }
                             }
                             items(chat.questions, key = { "question:${it.callId}" }) { batch ->
@@ -1091,7 +1092,8 @@ private fun chatRows(items: List<ChatItem>): List<ChatRow> {
 private fun ChatItemRow(
     item: ChatItem,
     onLoadImage: suspend (String) -> ChatImage?,
-    onOpenFile: (ChatFile) -> Unit
+    onOpenFile: (ChatFile) -> Unit,
+    onOpenLink: (String) -> Unit
 ) {
     when (item) {
         is UserMessage -> UserBubble(
@@ -1102,7 +1104,7 @@ private fun ChatItemRow(
             images = item.images,
             onLoadImage = onLoadImage
         )
-        is AssistantMessage -> AssistantBubble(item.text, item.images, item.files, onLoadImage, onOpenFile)
+        is AssistantMessage -> AssistantBubble(item.text, item.images, item.files, onLoadImage, onOpenFile, onOpenLink)
         is ToolItem -> Row(Modifier.fillMaxWidth()) {
             Spacer(Modifier.width(30.dp))
             Box(Modifier.weight(1f)) { ToolCard(item, onLoadImage, onOpenFile) }
@@ -1119,7 +1121,8 @@ private fun AssistantBubble(
     images: List<ChatImage> = emptyList(),
     files: List<ChatFile> = emptyList(),
     onLoadImage: suspend (String) -> ChatImage? = { null },
-    onOpenFile: (ChatFile) -> Unit = {}
+    onOpenFile: (ChatFile) -> Unit = {},
+    onOpenLink: (String) -> Unit = {}
 ) {
     Box(
         Modifier
@@ -1128,7 +1131,7 @@ private fun AssistantBubble(
     ) {
         if (text.isNotBlank() || images.isNotEmpty() || files.isNotEmpty()) {
             Column {
-                AssistantRow(text, images, onLoadImage)
+                AssistantRow(text, images, onLoadImage, onOpenLink)
                 files.forEach { file ->
                     FileAttachmentChip(file = file, onOpen = onOpenFile)
                 }
