@@ -56,21 +56,24 @@ object EventParser {
                     val content = message.optJSONArray("content") ?: continue
                     val textBuffer = StringBuilder()
                     val images = ArrayList<ChatImage>()
+                    val files = ArrayList<ChatFile>()
 
                     fun flushText() {
                         val text = textBuffer.toString().trim()
-                        if (text.isNotBlank() || images.isNotEmpty()) {
+                        if (text.isNotBlank() || images.isNotEmpty() || files.isNotEmpty()) {
                             out.add(
                                 AssistantMessage(
                                     key = "assistant:$seq:${out.size}",
                                     seq = seq,
                                     text = text,
-                                    images = images.toList()
+                                    images = images.toList(),
+                                    files = files.toList()
                                 )
                             )
                         }
                         textBuffer.setLength(0)
                         images.clear()
+                        files.clear()
                     }
 
                     for (j in 0 until content.length()) {
@@ -79,8 +82,13 @@ object EventParser {
                             "text" -> textBuffer.append(block.optString("text"))
                             "image" -> imageBlock(block)?.let { images.add(it) }
                             "file" -> {
-                                if (textBuffer.isNotEmpty()) textBuffer.append('\n')
-                                textBuffer.append("[文件]")
+                                val file = fileBlock(block)
+                                if (file != null) {
+                                    files.add(file)
+                                } else {
+                                    if (textBuffer.isNotEmpty()) textBuffer.append('\n')
+                                    textBuffer.append("[文件]")
+                                }
                             }
                             "tool-call" -> {
                                 flushText()
@@ -129,11 +137,16 @@ object EventParser {
                     val resultText = blocksText(content)
                     val mediaSource = extractMediaSource(resultText)
                         ?: extractMediaSource(old.input)
+                    val files = filesOf(content).map { it.copy(source = mediaSource) }.toMutableList()
+                    if (files.isEmpty() && mediaSource != null && !isImagePath(mediaSource)) {
+                        files.add(fileFromPath(mediaSource))
+                    }
                     out[index] = old.copy(
                         result = resultText,
                         isError = message.optBoolean("isError", false),
                         done = true,
-                        images = imagesOf(content).map { it.copy(source = mediaSource) }
+                        images = imagesOf(content).map { it.copy(source = mediaSource) },
+                        files = files
                     )
                 }
 
@@ -254,6 +267,63 @@ object EventParser {
             }
         }
         return result.distinctBy { it.attachmentId }
+    }
+
+    private fun isImagePath(path: String): Boolean =
+        Regex("\\.(png|jpe?g|webp|gif|bmp)$", RegexOption.IGNORE_CASE)
+            .containsMatchIn(path.substringBefore('?').trimEnd())
+
+    private fun fileFromPath(path: String): ChatFile {
+        val name = path.substringAfterLast('\\').substringAfterLast('/').ifBlank { "附件" }
+        val ext = name.substringAfterLast('.', "").lowercase()
+        val mediaType = when (ext) {
+            "apk" -> "application/vnd.android.package-archive"
+            "zip" -> "application/zip"
+            "pdf" -> "application/pdf"
+            "txt", "log", "md" -> "text/plain"
+            "json" -> "application/json"
+            else -> "application/octet-stream"
+        }
+        return ChatFile(
+            attachmentId = "path:$path",
+            mediaType = mediaType,
+            name = name,
+            source = path
+        )
+    }
+
+    private fun filesOf(blocks: JSONArray?): List<ChatFile> {
+        if (blocks == null) return emptyList()
+        val result = ArrayList<ChatFile>()
+        for (i in 0 until blocks.length()) {
+            val block = blocks.optJSONObject(i) ?: continue
+            if (block.optString("type") == "file") {
+                fileBlock(block)?.let { result.add(it) }
+            }
+        }
+        return result.distinctBy { it.attachmentId }
+    }
+
+    private fun fileBlock(block: JSONObject): ChatFile? {
+        val attachment = block.optJSONObject("attachment")
+        if (attachment == null) {
+            val id = block.optString("attachmentId")
+            if (id.isBlank()) return null
+            return ChatFile(
+                attachmentId = id,
+                mediaType = block.optString("mediaType").ifBlank { "application/octet-stream" },
+                bytes = block.optLong("bytes"),
+                name = block.optString("name").takeIf { it.isNotBlank() }
+            )
+        }
+        val id = attachment.optString("attachmentId")
+        if (id.isBlank()) return null
+        return ChatFile(
+            attachmentId = id,
+            mediaType = attachment.optString("mediaType").ifBlank { "application/octet-stream" },
+            bytes = attachment.optLong("bytes"),
+            name = attachment.optString("name").takeIf { it.isNotBlank() }
+        )
     }
 
     private fun imageBlock(block: JSONObject): ChatImage? {

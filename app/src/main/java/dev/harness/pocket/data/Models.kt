@@ -134,6 +134,14 @@ data class ChatImage(
     val source: String? = null
 )
 
+data class ChatFile(
+    val attachmentId: String,
+    val mediaType: String = "application/octet-stream",
+    val bytes: Long = 0,
+    val name: String? = null,
+    val source: String? = null
+)
+
 data class TokenUsage(
     val uncachedInputTokens: Long = 0,
     val outputTokens: Long = 0,
@@ -215,7 +223,8 @@ data class AssistantMessage(
     override val key: String,
     override val seq: Int,
     val text: String,
-    val images: List<ChatImage> = emptyList()
+    val images: List<ChatImage> = emptyList(),
+    val files: List<ChatFile> = emptyList()
 ) : ChatItem
 
 data class ToolItem(
@@ -226,7 +235,8 @@ data class ToolItem(
     val result: String?,
     val isError: Boolean,
     val done: Boolean,
-    val images: List<ChatImage> = emptyList()
+    val images: List<ChatImage> = emptyList(),
+    val files: List<ChatFile> = emptyList()
 ) : ChatItem
 
 data class NoticeItem(

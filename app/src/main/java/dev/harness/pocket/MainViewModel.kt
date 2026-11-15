@@ -2,6 +2,7 @@ package dev.harness.pocket
 
 import android.app.Application
 import android.net.Uri
+import android.os.Environment
 import android.provider.OpenableColumns
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -17,6 +18,7 @@ import dev.harness.pocket.data.AuthException
 import dev.harness.pocket.data.AutomationChange
 import dev.harness.pocket.data.AutomationTask
 import dev.harness.pocket.data.ChatDraft
+import dev.harness.pocket.data.ChatFile
 import dev.harness.pocket.data.ChatImage
 import dev.harness.pocket.data.ChatState
 import dev.harness.pocket.data.Connection
@@ -49,6 +51,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.io.File
 import java.util.Base64
 import java.util.LinkedHashMap
 import java.util.UUID
@@ -980,6 +983,45 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
         imageCache[attachmentId] = image
         return image
+    }
+
+    suspend fun downloadFile(file: ChatFile): File? {
+        val sessionId = _state.value.activeSession?.sessionId ?: return null
+        val media = try {
+            api.readAttachment(sessionId, file.attachmentId)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            null
+        } ?: file.source?.let { source ->
+            try {
+                api.readMedia(source, sessionId)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                null
+            }
+        } ?: return null
+        val encoded = media.data ?: return null
+        val bytes = try {
+            Base64.getDecoder().decode(encoded)
+        } catch (_: IllegalArgumentException) {
+            return null
+        }
+        val rawName = file.name
+            ?.substringAfterLast('/')
+            ?.substringAfterLast('\\')
+            ?.takeIf { it.isNotBlank() }
+            ?: "attachment-${file.attachmentId.take(12)}"
+        val name = rawName.replace(Regex("[\\\\/:*?\"<>|]"), "_")
+        val dir = File(
+            getApplication<Application>().getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS)
+                ?: getApplication<Application>().cacheDir,
+            "attachments"
+        ).apply { mkdirs() }
+        val out = File(dir, name)
+        out.writeBytes(bytes)
+        return out
     }
 
     fun answerQuestions(callId: String, answers: List<AskAnswer>) {

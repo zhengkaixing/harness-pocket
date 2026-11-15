@@ -42,6 +42,8 @@ import androidx.compose.material.icons.rounded.CheckBox
 import androidx.compose.material.icons.rounded.CheckBoxOutlineBlank
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.ContentCopy
+import androidx.compose.material.icons.rounded.Description
+import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.rounded.ErrorOutline
 import androidx.compose.material.icons.rounded.ExpandLess
 import androidx.compose.material.icons.rounded.ExpandMore
@@ -100,6 +102,7 @@ import androidx.compose.ui.window.DialogProperties
 import dev.harness.pocket.BuildConfig
 import dev.harness.pocket.data.AskAnswer
 import dev.harness.pocket.data.AskBatch
+import dev.harness.pocket.data.ChatFile
 import dev.harness.pocket.data.ChatImage
 import dev.harness.pocket.data.NoticeItem
 import dev.harness.pocket.data.ToolItem
@@ -543,6 +546,82 @@ private fun ImageViewerDialog(
 }
 
 @Composable
+fun FileAttachmentChip(
+    file: ChatFile,
+    onOpen: (ChatFile) -> Unit
+) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp)
+            .clip(RoundedCornerShape(14.dp))
+            .background(Color.White)
+            .border(1.dp, Color(0xFFE4E8F0), RoundedCornerShape(14.dp))
+            .clickable { onOpen(file) }
+            .padding(horizontal = 11.dp, vertical = 9.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            Modifier
+                .size(34.dp)
+                .clip(RoundedCornerShape(10.dp))
+                .background(Color(0xFFF0F4FF)),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                Icons.Rounded.Description,
+                contentDescription = null,
+                tint = Color(0xFF5B7FDB),
+                modifier = Modifier.size(19.dp)
+            )
+        }
+        Spacer(Modifier.width(9.dp))
+        Column(Modifier.weight(1f)) {
+            Text(
+                file.name?.substringAfterLast('/')?.substringAfterLast('\\')
+                    ?.takeIf { it.isNotBlank() } ?: "附件",
+                color = Ink,
+                fontSize = 12.5.sp,
+                fontWeight = FontWeight.Medium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Spacer(Modifier.height(2.dp))
+            Text(
+                buildString {
+                    if (file.bytes > 0) append(compactFileSize(file.bytes))
+                    if (file.mediaType.isNotBlank() && !file.mediaType.startsWith("application/octet")) {
+                        if (isNotEmpty()) append(" · ")
+                        append(file.mediaType.removePrefix("image/").uppercase())
+                    }
+                    if (isEmpty()) append("点击下载")
+                },
+                color = Muted,
+                fontSize = 10.5.sp
+            )
+        }
+        Spacer(Modifier.width(8.dp))
+        Icon(
+            Icons.Rounded.Download,
+            contentDescription = "下载",
+            tint = Color(0xFF4C7DFF),
+            modifier = Modifier.size(20.dp)
+        )
+    }
+}
+
+private fun compactFileSize(bytes: Long): String {
+    val units = listOf("B", "KB", "MB", "GB")
+    var value = bytes.toDouble()
+    var index = 0
+    while (value >= 1024 && index < units.lastIndex) {
+        value /= 1024
+        index++
+    }
+    return if (index == 0) "${value.toLong()} B" else String.format("%.1f %s", value, units[index])
+}
+
+@Composable
 fun UserBubble(
     text: String,
     pending: Boolean = false,
@@ -973,7 +1052,8 @@ fun CodeBlock(code: String, language: String?) {
 @Composable
 fun ToolCard(
     item: ToolItem,
-    onLoadImage: suspend (String) -> ChatImage? = { null }
+    onLoadImage: suspend (String) -> ChatImage? = { null },
+    onOpenFile: (ChatFile) -> Unit = {}
 ) {
     var expanded by remember(item.key) { mutableStateOf(false) }
     val statusColor = when {
@@ -1067,6 +1147,9 @@ fun ToolCard(
                         }
                     }
                 }
+                item.files.forEach { file ->
+                    FileAttachmentChip(file = file, onOpen = onOpenFile)
+                }
                 if (item.input.isNotBlank()) {
                     ToolCode(label = "参数", text = item.input)
                 }
@@ -1083,7 +1166,8 @@ fun ToolCard(
 @Composable
 fun ToolActivityGroupCard(
     items: List<ToolItem>,
-    onLoadImage: suspend (String) -> ChatImage? = { null }
+    onLoadImage: suspend (String) -> ChatImage? = { null },
+    onOpenFile: (ChatFile) -> Unit = {}
 ) {
     if (items.isEmpty()) return
     var expanded by remember(items.first().key) { mutableStateOf(false) }
@@ -1161,7 +1245,7 @@ fun ToolActivityGroupCard(
                 verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 items.forEach { tool ->
-                    ToolCard(tool, onLoadImage)
+                    ToolCard(tool, onLoadImage, onOpenFile)
                 }
             }
         }

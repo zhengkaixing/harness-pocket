@@ -101,6 +101,7 @@ import dev.harness.pocket.data.AppState
 import dev.harness.pocket.data.ApprovalRequest
 import dev.harness.pocket.data.AskAnswer
 import dev.harness.pocket.data.AssistantMessage
+import dev.harness.pocket.data.ChatFile
 import dev.harness.pocket.data.Attachment
 import dev.harness.pocket.data.ChatImage
 import dev.harness.pocket.data.ChatItem
@@ -145,6 +146,7 @@ fun ChatScreen(
     onRemoveAttachment: (String) -> Unit,
     onAnswer: (String, List<AskAnswer>) -> Unit,
     onLoadImage: suspend (String) -> ChatImage?,
+    onOpenFile: (ChatFile) -> Unit = {},
     onRefreshResources: () -> Unit,
     onOpenResources: () -> Unit,
     onLoadEarlier: () -> Unit
@@ -337,11 +339,11 @@ fun ChatScreen(
                                     Row(Modifier.fillMaxWidth()) {
                                         Spacer(Modifier.width(30.dp))
                                         Box(Modifier.weight(1f)) {
-                                            ToolActivityGroupCard(tools, onLoadImage)
+                                            ToolActivityGroupCard(tools, onLoadImage, onOpenFile)
                                         }
                                     }
                                 } else {
-                                    ChatItemRow(row.items.first(), onLoadImage)
+                                    ChatItemRow(row.items.first(), onLoadImage, onOpenFile)
                                 }
                             }
                             items(chat.questions, key = { "question:${it.callId}" }) { batch ->
@@ -1088,7 +1090,8 @@ private fun chatRows(items: List<ChatItem>): List<ChatRow> {
 @Composable
 private fun ChatItemRow(
     item: ChatItem,
-    onLoadImage: suspend (String) -> ChatImage?
+    onLoadImage: suspend (String) -> ChatImage?,
+    onOpenFile: (ChatFile) -> Unit
 ) {
     when (item) {
         is UserMessage -> UserBubble(
@@ -1099,10 +1102,10 @@ private fun ChatItemRow(
             images = item.images,
             onLoadImage = onLoadImage
         )
-        is AssistantMessage -> AssistantBubble(item.text, item.images, onLoadImage)
+        is AssistantMessage -> AssistantBubble(item.text, item.images, item.files, onLoadImage, onOpenFile)
         is ToolItem -> Row(Modifier.fillMaxWidth()) {
             Spacer(Modifier.width(30.dp))
-            Box(Modifier.weight(1f)) { ToolCard(item, onLoadImage) }
+            Box(Modifier.weight(1f)) { ToolCard(item, onLoadImage, onOpenFile) }
         }
         is NoticeItem -> NoticeCard(item)
         is dev.harness.pocket.data.TurnStart -> Unit
@@ -1114,15 +1117,22 @@ private fun ChatItemRow(
 private fun AssistantBubble(
     text: String,
     images: List<ChatImage> = emptyList(),
-    onLoadImage: suspend (String) -> ChatImage? = { null }
+    files: List<ChatFile> = emptyList(),
+    onLoadImage: suspend (String) -> ChatImage? = { null },
+    onOpenFile: (ChatFile) -> Unit = {}
 ) {
     Box(
         Modifier
             .fillMaxWidth()
             .padding(top = 10.dp, bottom = 2.dp)
     ) {
-        if (text.isNotBlank() || images.isNotEmpty()) {
-            AssistantRow(text, images, onLoadImage)
+        if (text.isNotBlank() || images.isNotEmpty() || files.isNotEmpty()) {
+            Column {
+                AssistantRow(text, images, onLoadImage)
+                files.forEach { file ->
+                    FileAttachmentChip(file = file, onOpen = onOpenFile)
+                }
+            }
         }
     }
 }

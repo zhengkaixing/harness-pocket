@@ -32,6 +32,7 @@ import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import androidx.core.view.WindowCompat
 import dev.harness.pocket.data.AppState
+import dev.harness.pocket.data.ChatFile
 import dev.harness.pocket.ui.AlbumPicker
 import dev.harness.pocket.ui.AutomationScreen
 import dev.harness.pocket.ui.ChatScreen
@@ -120,6 +121,40 @@ private fun AppRoot(
                 "无法打开相机：${e.message ?: "没有可用的相机应用"}",
                 Toast.LENGTH_LONG
             ).show()
+        }
+    }
+
+    val openFile: (ChatFile) -> Unit = { file ->
+        scope.launch {
+            val saved = vm.downloadFile(file)
+            if (saved == null) {
+                Toast.makeText(context, "附件下载失败，请重试", Toast.LENGTH_LONG).show()
+            } else {
+                val mime = when {
+                    saved.name.endsWith(".apk", ignoreCase = true) ->
+                        "application/vnd.android.package-archive"
+                    file.mediaType.isNotBlank() && !file.mediaType.startsWith("application/octet") ->
+                        file.mediaType
+                    else -> "application/octet-stream"
+                }
+                try {
+                    val uri = FileProvider.getUriForFile(
+                        context,
+                        "${context.packageName}.fileprovider",
+                        saved
+                    )
+                    val intent = Intent(Intent.ACTION_VIEW)
+                        .setDataAndType(uri, mime)
+                        .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                    context.startActivity(Intent.createChooser(intent, "打开附件"))
+                } catch (e: Exception) {
+                    Toast.makeText(
+                        context,
+                        "已保存到 ${saved.absolutePath}，但没有可打开的应用",
+                        Toast.LENGTH_LONG
+                    ).show()
+                }
+            }
         }
     }
 
@@ -244,6 +279,7 @@ private fun AppRoot(
                     onRemoveAttachment = vm::removeAttachment,
                     onAnswer = vm::answerQuestions,
                     onLoadImage = vm::loadImage,
+                    onOpenFile = openFile,
                     onRefreshResources = vm::refreshResources,
                     onOpenResources = vm::openResources,
                     onLoadEarlier = vm::loadEarlier
