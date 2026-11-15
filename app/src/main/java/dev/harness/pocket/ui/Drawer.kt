@@ -30,6 +30,7 @@ import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material.icons.rounded.KeyboardArrowUp
 import androidx.compose.material.icons.rounded.Memory
 import androidx.compose.material.icons.rounded.PushPin
+import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Schedule
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Settings
@@ -83,7 +84,8 @@ fun HarnessDrawer(
     onAutomations: () -> Unit,
     onPinSession: (SessionSummary) -> Unit,
     onUnpinSession: (SessionSummary) -> Unit,
-    onArchiveSession: (SessionSummary) -> Unit
+    onArchiveSession: (SessionSummary) -> Unit,
+    onRefresh: () -> Unit
 ) {
     ModalDrawerSheet(
         modifier = Modifier
@@ -108,7 +110,8 @@ fun HarnessDrawer(
             onAutomations = onAutomations,
             onPinSession = onPinSession,
             onUnpinSession = onUnpinSession,
-            onArchiveSession = onArchiveSession
+            onArchiveSession = onArchiveSession,
+            onRefresh = onRefresh
         )
     }
 }
@@ -128,7 +131,8 @@ internal fun HarnessNavigationContent(
     onAutomations: () -> Unit,
     onPinSession: (SessionSummary) -> Unit,
     onUnpinSession: (SessionSummary) -> Unit,
-    onArchiveSession: (SessionSummary) -> Unit
+    onArchiveSession: (SessionSummary) -> Unit,
+    onRefresh: () -> Unit
 ) {
     var searchOpen by remember { mutableStateOf(false) }
     var query by rememberSaveable { mutableStateOf("") }
@@ -172,6 +176,19 @@ internal fun HarnessNavigationContent(
                     letterSpacing = (-0.5).sp
                 )
                 Spacer(Modifier.weight(1f))
+                SoftIconButton(
+                    icon = Icons.Rounded.Refresh,
+                    onClick = onRefresh,
+                    contentDescription = "刷新会话和工作区",
+                    tint = if (state.sessionsLoading || state.workspacesLoading) {
+                        Muted.copy(alpha = 0.45f)
+                    } else {
+                        InkSoft
+                    },
+                    background = Color.Transparent,
+                    size = 38.dp
+                )
+                Spacer(Modifier.width(2.dp))
                 SoftIconButton(
                     icon = Icons.Rounded.Search,
                     onClick = {

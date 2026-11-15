@@ -171,6 +171,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     fun refreshSessions() = loadSessions()
 
+    fun refreshHome() {
+        refreshSessions()
+        refreshWorkspaces()
+    }
+
     private fun startApprovalObserver() {
         if (!approvalObserverStarted) {
             approvalObserverStarted = true

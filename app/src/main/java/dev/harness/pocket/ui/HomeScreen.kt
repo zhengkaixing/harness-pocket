@@ -86,7 +86,8 @@ fun HomeScreen(
     onAutomations: () -> Unit,
     onPinSession: (SessionSummary) -> Unit,
     onUnpinSession: (SessionSummary) -> Unit,
-    onArchiveSession: (SessionSummary) -> Unit
+    onArchiveSession: (SessionSummary) -> Unit,
+    onRefresh: () -> Unit
 ) {
     HarnessNavigationContent(
         state = state,
@@ -102,7 +103,8 @@ fun HomeScreen(
         onAutomations = onAutomations,
         onPinSession = onPinSession,
         onUnpinSession = onUnpinSession,
-        onArchiveSession = onArchiveSession
+        onArchiveSession = onArchiveSession,
+        onRefresh = onRefresh
     )
 }
 

@@ -234,7 +234,8 @@ private fun AppRoot(
                     onAutomations = vm::openAutomations,
                     onPinSession = vm::togglePin,
                     onUnpinSession = vm::togglePin,
-                    onArchiveSession = vm::archiveSession
+                    onArchiveSession = vm::archiveSession,
+                    onRefresh = vm::refreshHome
                 )
             }
         ) {
@@ -300,7 +301,8 @@ private fun AppRoot(
                     onAutomations = vm::openAutomations,
                     onPinSession = vm::togglePin,
                     onUnpinSession = vm::togglePin,
-                    onArchiveSession = vm::archiveSession
+                    onArchiveSession = vm::archiveSession,
+                    onRefresh = vm::refreshHome
                 )
             }
         }

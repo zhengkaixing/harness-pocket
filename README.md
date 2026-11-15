@@ -401,7 +401,7 @@ Harness Pocket 是一个**非官方的原生 Android 客户端**，用来远程�
 
 ### 直接安装 APK
 
-本地预构建的 APK 在 `dist/HarnessPocket-0.20.4-debug.apk`（二进制不提交到 Git 仓库）；从源码重新构建的产物在：
+本地预构建的 APK 在 `dist/HarnessPocket-0.20.5-debug.apk`（二进制不提交到 Git 仓库）；从源码重新构建的产物在：
 
 ```text
 app/build/outputs/apk/debug/app-debug.apk
@@ -533,6 +533,13 @@ app/src/main/java/dev/harness/pocket/
 - [ ] 可配置的 HTTPS / 证书校验
 
 ## 更新日志
+
+### 0.20.5
+
+- 首页与抽屉导航顶部新增刷新按钮，一次刷新会话列表和工作区列表；加载过程中按钮会变淡。
+- 自动化任务、资源与并发、对话页原有的刷新入口保持不变。
+
+![首页刷新按钮](docs/screenshots/home-navigation-refresh.png)
 
 ### 0.20.4
 
