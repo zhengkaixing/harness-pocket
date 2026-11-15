@@ -967,7 +967,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     suspend fun loadImage(attachmentId: String): ChatImage? {
         imageCache[attachmentId]?.let { return it }
-        val sessionId = _state.value.activeSession?.sessionId ?: return null
+        val session = _state.value.activeSession ?: return null
         val direct = attachmentId.startsWith("data:", ignoreCase = true) ||
             attachmentId.startsWith("http://", ignoreCase = true) ||
             attachmentId.startsWith("https://", ignoreCase = true) ||
@@ -977,7 +977,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             Regex("\\.(png|jpe?g|webp|gif)$", RegexOption.IGNORE_CASE)
                 .containsMatchIn(attachmentId.substringBefore('?'))
         val image = try {
-            if (direct) api.readMedia(attachmentId, sessionId) else api.readAttachment(sessionId, attachmentId)
+            if (direct) api.readMedia(attachmentId, session.sessionId, session.cwd)
+            else api.readAttachment(session.sessionId, attachmentId)
         } catch (e: CancellationException) {
             throw e
         } catch (_: Exception) {

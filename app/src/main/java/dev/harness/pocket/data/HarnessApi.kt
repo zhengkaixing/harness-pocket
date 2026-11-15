@@ -739,7 +739,7 @@ class HarnessApi {
      * absolute host path. Absolute paths use DSH's authenticated `/api/file`
      * route, the same route the web client uses for local Markdown images.
      */
-    suspend fun readMedia(source: String, sessionId: String? = null): ChatImage? = withContext(Dispatchers.IO) {
+    suspend fun readMedia(source: String, sessionId: String? = null, sessionCwd: String? = null): ChatImage? = withContext(Dispatchers.IO) {
         val conn = connection ?: throw ApiException("尚未连接 Harness")
         if (source.startsWith("data:", ignoreCase = true)) {
             return@withContext ChatImage(
@@ -751,11 +751,23 @@ class HarnessApi {
             source.startsWith("https://", ignoreCase = true)
         val base = conn.baseUrl.trimEnd('/')
         val sameOrigin = remote && source.startsWith("$base/", ignoreCase = true)
+        val relative = !remote &&
+            !source.startsWith("/") &&
+            !source.startsWith("\\\\") &&
+            !Regex("^[A-Za-z]:").containsMatchIn(source)
+        val resolved = if (relative && !sessionCwd.isNullOrBlank()) {
+            sessionCwd.trimEnd('\\', '/') + "/" + source
+        } else {
+            source
+        }
         // For a host path, ask the session-scoped workspace RPC first. It
         // works on forwarded/remote DSH instances where /api/file is not
         // reachable from the phone.
         if (!remote && sessionId != null) {
             readWorkspaceFile(sessionId, source)?.let { return@withContext it }
+            if (resolved != source) {
+                readWorkspaceFile(sessionId, resolved)?.let { return@withContext it }
+            }
         }
         val url = when {
             remote -> source
@@ -764,7 +776,7 @@ class HarnessApi {
             source.startsWith("/api/file?") -> base + source
             source.startsWith("api/file?") -> "$base/$source"
             else -> {
-                val encoded = URLEncoder.encode(source, "UTF-8").replace("+", "%20")
+                val encoded = URLEncoder.encode(resolved, "UTF-8").replace("+", "%20")
                 "$base/api/file?path=$encoded"
             }
         }
