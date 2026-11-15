@@ -692,27 +692,46 @@ class HarnessApi {
             try {
                 rpc("session/attachment", wrapped)
             } catch (_: Exception) {
-                return null
+                null
             }
         }
-        val attachment = value.optJSONObject("attachment") ?: return null
-        val data = when (val raw = value.opt("data")) {
-            // The DSH API serializes image bytes as a JSON number array.
-            is JSONArray -> {
-                val bytes = ByteArray(raw.length()) { index -> raw.optInt(index).toByte() }
-                Base64.getEncoder().encodeToString(bytes)
+        val attachment = value?.optJSONObject("attachment")
+        if (attachment != null) {
+            val data = when (val raw = value.opt("data")) {
+                // The DSH API serializes image bytes as a JSON number array.
+                is JSONArray -> {
+                    val bytes = ByteArray(raw.length()) { index -> raw.optInt(index).toByte() }
+                    Base64.getEncoder().encodeToString(bytes)
+                }
+                is String -> raw
+                else -> null
+            }?.let(::validatedImageData)
+            if (data != null) {
+                return ChatImage(
+                    attachmentId = attachmentId,
+                    mediaType = attachment.optString("mediaType").ifBlank { "image/png" },
+                    width = attachment.optInt("width"),
+                    height = attachment.optInt("height"),
+                    name = attachment.optString("name").takeIf { it.isNotBlank() },
+                    data = data
+                )
             }
-            is String -> raw
-            else -> null
-        }?.let(::validatedImageData) ?: return null
-        return ChatImage(
-            attachmentId = attachmentId,
-            mediaType = attachment.optString("mediaType").ifBlank { "image/png" },
-            width = attachment.optInt("width"),
-            height = attachment.optInt("height"),
-            name = attachment.optString("name").takeIf { it.isNotBlank() },
-            data = data
+        }
+        // Some DSH gateways reject session/attachment even for a valid id.
+        // The durable store is a normal host file; read it through the same
+        // file route as Markdown images, using the account's .dsh directory.
+        if (!attachmentId.startsWith("sha256:", ignoreCase = true)) return null
+        val hash = attachmentId.substringAfter(':')
+        if (hash.length < 4) return null
+        val suffix = ".dsh\\attachments\\v1\\objects\\${hash.take(2)}\\$hash"
+        val homes = listOf(
+            "C:\\Users\\Administrator",
+            "D:\\Users\\Administrator"
         )
+        for (home in homes) {
+            readMedia("$home\\$suffix", sessionId)?.let { return it }
+        }
+        return null
     }
 
     /**
