@@ -730,27 +730,37 @@ class HarnessApi {
         }
         val remote = source.startsWith("http://", ignoreCase = true) ||
             source.startsWith("https://", ignoreCase = true)
+        val base = conn.baseUrl.trimEnd('/')
+        val sameOrigin = remote && source.startsWith("$base/", ignoreCase = true)
         // For a host path, ask the session-scoped workspace RPC first. It
         // works on forwarded/remote DSH instances where /api/file is not
         // reachable from the phone.
         if (!remote && sessionId != null) {
             readWorkspaceFile(sessionId, source)?.let { return@withContext it }
         }
-        val url = if (remote) {
-            source
-        } else {
-            val encoded = URLEncoder.encode(source, "UTF-8").replace("+", "%20")
-            "${conn.baseUrl.trimEnd('/')}/api/file?path=$encoded"
+        val url = when {
+            remote -> source
+            // Markdown from DSH may carry a relative /api/file URL instead
+            // of the original host path.
+            source.startsWith("/api/file?") -> base + source
+            source.startsWith("api/file?") -> "$base/$source"
+            else -> {
+                val encoded = URLEncoder.encode(source, "UTF-8").replace("+", "%20")
+                "$base/api/file?path=$encoded"
+            }
         }
         val builder = Request.Builder()
             .url(url)
             .header("Accept", "image/*")
             .get()
         // Never leak the DSH session cookie to third-party hosts.
-        if (!remote || source.startsWith(conn.baseUrl)) {
+        if (!remote || sameOrigin) {
             builder.header("Cookie", conn.cookie)
         }
-        val http = if (remote) client else mediaClient
+        // DSH may redirect /api/file to a signed media URL. Same-origin
+        // redirects must be followed; third-party image URLs stay strict so
+        // our hand-built Cookie header cannot be replayed off-origin.
+        val http = if (remote && !sameOrigin) client else mediaClient
         try {
             http.newCall(builder.build()).execute().use { response ->
             if (!response.isSuccessful) {
