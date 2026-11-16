@@ -6,6 +6,8 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -130,6 +132,7 @@ fun ChatScreen(
     onNewChat: () -> Unit,
     onDraftChange: (String) -> Unit,
     onSend: (String) -> Unit,
+    onSteer: (String) -> Unit,
     onStop: () -> Unit,
     onRename: (String) -> Unit,
     onRefresh: () -> Unit,
@@ -221,7 +224,7 @@ fun ChatScreen(
         }
     }
 
-    fun submit(): Boolean {
+    fun submit(steer: Boolean = false): Boolean {
         val current = latestChat.value
         val clean = draft.trim()
         if (current.sending) return false
@@ -229,7 +232,7 @@ fun ChatScreen(
         if (current.attachments.any { it.uploading }) return false
         onDraftChange("")
         focusManager.clearFocus()
-        onSend(clean)
+        if (steer) onSteer(clean) else onSend(clean)
         return true
     }
 
@@ -413,6 +416,7 @@ fun ChatScreen(
             sending = chat.sending,
             running = chat.running,
             onSend = { submit() },
+            onSteer = { submit(steer = true) },
             onStop = onStop,
             onAttach = onAttach,
             onOpenGallery = onOpenGallery,
@@ -432,6 +436,9 @@ fun ChatScreen(
             running = chat.running,
             onSend = {
                 if (submit()) fullscreen = false
+            },
+            onSteer = {
+                if (submit(steer = true)) fullscreen = false
             },
             onStop = onStop,
             onAttach = onAttach,
@@ -1721,8 +1728,8 @@ private fun QueueStrip(queued: List<UserMessage>) {
     }
 }
 
+@OptIn(ExperimentalComposeUiApi::class, ExperimentalFoundationApi::class)
 @Composable
-@OptIn(ExperimentalComposeUiApi::class)
 private fun ChatComposer(
     draft: String,
     onDraftChange: (String) -> Unit,
@@ -1730,6 +1737,7 @@ private fun ChatComposer(
     sending: Boolean,
     running: Boolean,
     onSend: () -> Unit,
+    onSteer: () -> Unit,
     onStop: () -> Unit,
     onAttach: () -> Unit,
     onOpenGallery: () -> Unit,
@@ -1856,9 +1864,11 @@ private fun ChatComposer(
                                     else -> SolidColor(Color(0xFFECEFF5))
                                 }
                             )
-                            .clickable(enabled = !sending && (showStop || canSend)) {
-                                if (showStop) onStop() else onSend()
-                            },
+                            .combinedClickable(
+                                enabled = !sending && (showStop || canSend),
+                                onClick = { if (showStop) onStop() else onSend() },
+                                onLongClick = { if (running && canSend) onSteer() }
+                            ),
                         contentAlignment = Alignment.Center
                     ) {
                         when {
@@ -1988,7 +1998,7 @@ private fun PanelAction(
     }
 }
 
-@OptIn(ExperimentalComposeUiApi::class)
+@OptIn(ExperimentalComposeUiApi::class, ExperimentalFoundationApi::class)
 @Composable
 private fun FullScreenComposer(
     draft: String,
@@ -1997,6 +2007,7 @@ private fun FullScreenComposer(
     sending: Boolean,
     running: Boolean,
     onSend: () -> Unit,
+    onSteer: () -> Unit,
     onStop: () -> Unit,
     onAttach: () -> Unit,
     onOpenGallery: () -> Unit,
@@ -2124,9 +2135,11 @@ private fun FullScreenComposer(
                         modifier = Modifier
                             .height(42.dp)
                             .clip(RoundedCornerShape(21.dp))
-                            .clickable(enabled = !sending && (showStop || canSend)) {
-                                if (showStop) onStop() else onSend()
-                            },
+                            .combinedClickable(
+                                enabled = !sending && (showStop || canSend),
+                                onClick = { if (showStop) onStop() else onSend() },
+                                onLongClick = { if (running && canSend) onSteer() }
+                            ),
                         shape = RoundedCornerShape(21.dp),
                         color = when {
                             showStop -> Color(0xFF23262E)

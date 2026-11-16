@@ -499,7 +499,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    fun send(text: String) {
+    fun send(text: String, mode: String = "queue") {
         val clean = text.trim()
         val current = _state.value
         val session = current.activeSession ?: return
@@ -511,6 +511,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         val attachments = current.chat.attachments.filter { it.ready }
         if (clean.isEmpty() && attachments.isEmpty()) return
         val wasRunning = current.chat.running
+        val isQueued = wasRunning && mode == "queue"
         val sessionId = session.sessionId
 
         val requestId = UUID.randomUUID().toString()
@@ -534,7 +535,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             text = clean,
             rpcId = requestId,
             pending = true,
-            queued = wasRunning,
+            queued = isQueued,
             attachments = attachments.filterNot { it.isImage }.map { it.name },
             images = attachments.filter { it.isImage && it.bytes != null }.map { attachment ->
                 val bytes = attachment.bytes!!
@@ -553,7 +554,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 drafts = it.drafts + (sessionId to draft.copy(text = "")),
                 chat = it.chat.copy(
                     pending = if (wasRunning) it.chat.pending else pending,
-                    queued = if (wasRunning) it.chat.queued + pending else it.chat.queued,
+                    queued = if (isQueued) it.chat.queued + pending else it.chat.queued,
                     sending = true,
                     error = null
                 ),
@@ -567,7 +568,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
         viewModelScope.launch {
             try {
-                api.prompt(session.sessionId, clean, requestId, parts)
+                api.prompt(session.sessionId, clean, requestId, parts, mode)
                 if (!wasRunning) {
                     TaskMonitorService.start(
                         getApplication(),

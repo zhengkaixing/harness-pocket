@@ -576,7 +576,8 @@ class HarnessApi {
         sessionId: String,
         text: String,
         requestId: String,
-        parts: List<PromptPart> = emptyList()
+        parts: List<PromptPart> = emptyList(),
+        mode: String = "queue"
     ): String {
         val content = JSONArray()
         if (text.isNotBlank()) {
@@ -600,7 +601,7 @@ class HarnessApi {
         val request = JSONObject()
             .put("requestId", requestId)
             .put("sessionId", sessionId)
-            .put("mode", "queue")
+            .put("mode", mode)
             .put("content", content)
             .put("clientTimeZone", TimeZone.getDefault().id)
         rpc("session/prompt", JSONObject().put("request", request))

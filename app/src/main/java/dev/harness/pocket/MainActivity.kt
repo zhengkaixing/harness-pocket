@@ -416,6 +416,7 @@ private fun AppRoot(
                     onNewChat = vm::newSession,
                     onDraftChange = vm::setDraft,
                     onSend = vm::send,
+                    onSteer = { vm.send(it, "steer") },
                     onStop = vm::stop,
                     onRename = vm::rename,
                     onRefresh = vm::refreshChat,
