@@ -63,4 +63,21 @@
     <string name="chat_rename_title">Rename session</string>
     <string name="chat_enter_title">Enter a title</string>
     <string name="common_save">Save</string>
+    <string name="auto_delete_title">Delete automation</string>
+    <string name="common_delete">Delete</string>
+    <string name="auto_title">Automations</string>
+    <string name="auto_subtitle">Created by scheduled reminders in a session</string>
+    <string name="auto_delete_swipe">Delete</string>
+    <string name="auto_detail_title">Task details</string>
+    <string name="auto_detail_subtitle">Rules and related session</string>
+    <string name="auto_run_time">Run time</string>
+    <string name="auto_repeat">Repeat</string>
+    <string name="auto_timezone">Time zone</string>
+    <string name="auto_next_run">Next run</string>
+    <string name="auto_related">Related session</string>
+    <string name="auto_delete_task">Delete task</string>
+    <string name="auto_edit_repeat">Edit repeat</string>
+    <string name="auto_edit_tz">Edit time zone</string>
+    <string name="auto_empty">No automations yet</string>
+    <string name="auto_error">Failed to load automations</string>
 </resources>

@@ -55,6 +55,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -63,6 +64,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.harness.pocket.data.AppState
 import dev.harness.pocket.data.AutomationChange
+import dev.harness.pocket.R
 import dev.harness.pocket.data.AutomationTask
 import dev.harness.pocket.data.SessionSummary
 import java.time.Instant
@@ -122,7 +124,7 @@ fun AutomationScreen(
             onDismissRequest = { pendingDelete = null },
             containerColor = Color.White,
             shape = RoundedCornerShape(20.dp),
-            title = { Text("删除自动化任务", color = Ink, fontSize = 17.sp, fontWeight = FontWeight.SemiBold) },
+            title = { Text(stringResource(R.string.auto_delete_title), color = Ink, fontSize = 17.sp, fontWeight = FontWeight.SemiBold) },
             text = {
                 Text(
                     "删除后任务会停止，且无法恢复。关联会话和已发送的消息不会删除。",
@@ -139,12 +141,12 @@ fun AutomationScreen(
                     },
                     colors = ButtonDefaults.textButtonColors(contentColor = Red)
                 ) {
-                    Text("删除", fontWeight = FontWeight.SemiBold)
+                    Text(stringResource(R.string.common_delete), fontWeight = FontWeight.SemiBold)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { pendingDelete = null }) {
-                    Text("取消", color = Muted)
+                    Text(stringResource(R.string.common_cancel), color = Muted)
                 }
             }
         )
@@ -174,8 +176,8 @@ private fun AutomationList(
             SoftIconButton(Icons.Rounded.ArrowBack, onBack, "返回")
             Spacer(Modifier.width(10.dp))
             Column(Modifier.weight(1f)) {
-                Text("自动化任务", color = Ink, fontSize = 19.sp, fontWeight = FontWeight.Bold)
-                Text("由会话中的定时提醒创建", color = Muted, fontSize = 10.5.sp)
+                Text(stringResource(R.string.auto_title), color = Ink, fontSize = 19.sp, fontWeight = FontWeight.Bold)
+                Text(stringResource(R.string.auto_subtitle), color = Muted, fontSize = 10.5.sp)
             }
             if (state.automationsLoading) {
                 CircularProgressIndicator(
@@ -300,7 +302,7 @@ private fun SwipeableTaskCard(
                 modifier = Modifier.size(20.dp)
             )
             Spacer(Modifier.width(8.dp))
-            Text("删除", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+            Text(stringResource(R.string.auto_delete_swipe), color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
         }
         Box(
             Modifier
@@ -478,8 +480,8 @@ private fun AutomationDetail(
             SoftIconButton(Icons.Rounded.ArrowBack, onBack, "返回")
             Spacer(Modifier.width(10.dp))
             Column(Modifier.weight(1f)) {
-                Text("任务详情", color = Ink, fontSize = 19.sp, fontWeight = FontWeight.Bold)
-                Text("规则与关联会话", color = Muted, fontSize = 10.5.sp)
+                Text(stringResource(R.string.auto_detail_title), color = Ink, fontSize = 19.sp, fontWeight = FontWeight.Bold)
+                Text(stringResource(R.string.auto_detail_subtitle), color = Muted, fontSize = 10.5.sp)
             }
             if (busy) {
                 CircularProgressIndicator(
@@ -552,7 +554,7 @@ private fun AutomationDetail(
             }
 
             Spacer(Modifier.height(12.dp))
-            Text("运行时间", color = Muted, fontSize = 11.sp, modifier = Modifier.padding(start = 4.dp))
+            Text(stringResource(R.string.auto_run_time), color = Muted, fontSize = 11.sp, modifier = Modifier.padding(start = 4.dp))
             Spacer(Modifier.height(6.dp))
             Surface(
                 modifier = Modifier.fillMaxWidth(),
@@ -563,7 +565,7 @@ private fun AutomationDetail(
                 Column {
                     DetailRow(
                         icon = Icons.Rounded.Repeat,
-                        label = "重复",
+                        label = stringResource(R.string.auto_repeat),
                         value = ruleLabel(task),
                         enabled = editable,
                         onClick = { showRepeat = true }
@@ -572,7 +574,7 @@ private fun AutomationDetail(
                     if (task.kind in setOf("daily", "weekly", "cron")) {
                         DetailRow(
                             icon = Icons.Rounded.Public,
-                            label = "时区",
+                            label = stringResource(R.string.auto_timezone),
                             value = timeZoneLabel(task.timeZone ?: ZoneId.systemDefault().id),
                             enabled = editable,
                             onClick = { showZones = true }
@@ -581,7 +583,7 @@ private fun AutomationDetail(
                     }
                     DetailRow(
                         icon = Icons.Rounded.AccessTime,
-                        label = "下次运行",
+                        label = stringResource(R.string.auto_next_run),
                         value = nextRunLabel(task).removePrefix("下次 "),
                         enabled = false,
                         onClick = {}
@@ -624,7 +626,7 @@ private fun AutomationDetail(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Column(Modifier.weight(1f)) {
-                        Text("关联会话", color = Muted, fontSize = 10.sp)
+                        Text(stringResource(R.string.auto_related), color = Muted, fontSize = 10.sp)
                         Spacer(Modifier.height(3.dp))
                         Text(
                             session?.title?.takeIf { it.isNotBlank() } ?: "关联会话不可用",
@@ -668,7 +670,7 @@ private fun AutomationDetail(
                     modifier = Modifier.size(17.dp)
                 )
                 Spacer(Modifier.width(6.dp))
-                Text("删除任务", color = Red, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                Text(stringResource(R.string.auto_delete_task), color = Red, fontSize = 13.sp, fontWeight = FontWeight.Medium)
             }
         }
     }
@@ -678,7 +680,7 @@ private fun AutomationDetail(
             onDismissRequest = { showRepeat = false },
             containerColor = Color.White,
             shape = RoundedCornerShape(20.dp),
-            title = { Text("修改重复", color = Ink, fontSize = 17.sp, fontWeight = FontWeight.SemiBold) },
+            title = { Text(stringResource(R.string.auto_edit_repeat), color = Ink, fontSize = 17.sp, fontWeight = FontWeight.SemiBold) },
             text = {
                 Column {
                     repeatChoices(task).forEach { (label, change) ->
@@ -699,7 +701,7 @@ private fun AutomationDetail(
             },
             confirmButton = {
                 TextButton(onClick = { showRepeat = false }) {
-                    Text("取消", color = Muted)
+                    Text(stringResource(R.string.common_cancel), color = Muted)
                 }
             }
         )
@@ -710,7 +712,7 @@ private fun AutomationDetail(
             onDismissRequest = { showZones = false },
             containerColor = Color.White,
             shape = RoundedCornerShape(20.dp),
-            title = { Text("修改时区", color = Ink, fontSize = 17.sp, fontWeight = FontWeight.SemiBold) },
+            title = { Text(stringResource(R.string.auto_edit_tz), color = Ink, fontSize = 17.sp, fontWeight = FontWeight.SemiBold) },
             text = {
                 Column(
                     Modifier
@@ -737,7 +739,7 @@ private fun AutomationDetail(
             },
             confirmButton = {
                 TextButton(onClick = { showZones = false }) {
-                    Text("取消", color = Muted)
+                    Text(stringResource(R.string.common_cancel), color = Muted)
                 }
             }
         )
@@ -839,7 +841,7 @@ private fun EmptyCard() {
                 )
             }
             Spacer(Modifier.height(12.dp))
-            Text("还没有自动化任务", color = Ink, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+            Text(stringResource(R.string.auto_empty), color = Ink, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
             Spacer(Modifier.height(4.dp))
             Text(
                 "在会话中让 Harness 创建定时提醒后，任务会显示在这里。",
@@ -863,7 +865,7 @@ private fun ErrorCard(message: String, onRetry: () -> Unit) {
         border = BorderStroke(1.dp, Color(0xFFF6C9CE))
     ) {
         Column(Modifier.padding(14.dp)) {
-            Text("自动化任务读取失败", color = Red, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+            Text(stringResource(R.string.auto_error), color = Red, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
             Spacer(Modifier.height(4.dp))
             Text(message, color = InkSoft, fontSize = 12.sp, lineHeight = 18.sp)
             Spacer(Modifier.height(8.dp))
