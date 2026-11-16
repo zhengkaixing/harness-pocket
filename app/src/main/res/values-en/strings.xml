@@ -128,4 +128,25 @@
     <string name="duration_hour_min">%1$dh %2$dm</string>
     <string name="session_new">New chat</string>
     <string name="session_untitled">Untitled session</string>
+    <string name="tool_running_short">Running</string>
+    <string name="tool_verb_run">Run</string>
+    <string name="tool_verb_read">Read</string>
+    <string name="tool_verb_modify">Edit</string>
+    <string name="tool_verb_search">Search</string>
+    <string name="tool_verb_find">Find</string>
+    <string name="tool_verb_fetch">Fetch</string>
+    <string name="tool_verb_web_search">Web search</string>
+    <string name="tool_verb_present">Create file</string>
+    <string name="tool_verb_agent">Call agent</string>
+    <string name="tool_verb_todo">Update plan</string>
+    <string name="tool_calls_count">%1$d tool calls</string>
+    <string name="tool_group_failed">Failed</string>
+    <string name="tool_group_running">Running</string>
+    <string name="tool_group_done">Done</string>
+    <string name="tool_executing">Running</string>
+    <string name="tool_failed">Failed</string>
+    <string name="tool_expand_details">Show tool details</string>
+    <string name="tool_collapse_details">Hide tool details</string>
+    <string name="tool_expand_group">Show tool calls</string>
+    <string name="tool_collapse_group">Hide tool calls</string>
 </resources>

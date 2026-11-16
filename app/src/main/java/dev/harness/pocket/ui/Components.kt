@@ -1295,10 +1295,10 @@ fun ToolCard(
                     strokeWidth = 1.6.dp
                 )
                 Spacer(Modifier.width(5.dp))
-                Text("执行中", color = Blue, fontSize = 10.sp)
+                Text(stringResource(R.string.tool_executing), color = Blue, fontSize = 10.sp)
             } else if (item.isError) {
                 Spacer(Modifier.width(7.dp))
-                Text("失败", color = Red, fontSize = 10.sp, fontWeight = FontWeight.Medium)
+                Text(stringResource(R.string.tool_failed), color = Red, fontSize = 10.sp, fontWeight = FontWeight.Medium)
             } else {
                 Spacer(Modifier.width(7.dp))
                 Box(Modifier.size(5.dp).background(statusColor, CircleShape))
@@ -1306,7 +1306,7 @@ fun ToolCard(
             Spacer(Modifier.width(3.dp))
             Icon(
                 imageVector = if (expanded) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,
-                contentDescription = if (expanded) "收起工具详情" else "展开工具详情",
+                contentDescription = stringResource(if (expanded) R.string.tool_collapse_details else R.string.tool_expand_details),
                 tint = Muted,
                 modifier = Modifier.size(16.dp)
             )
@@ -1397,9 +1397,9 @@ fun ToolActivityGroupCard(
             Spacer(Modifier.width(7.dp))
             Text(
                 text = when {
-                    errors -> "有失败 · ${items.size} 次工具调用"
-                    running -> "正在执行 · ${items.size} 次工具调用"
-                    else -> "已完成 · ${items.size} 次工具调用"
+                    errors -> stringResource(R.string.tool_group_failed) + " · " + stringResource(R.string.tool_calls_count, items.size)
+                    running -> stringResource(R.string.tool_group_running) + " · " + stringResource(R.string.tool_calls_count, items.size)
+                    else -> stringResource(R.string.tool_group_done) + " · " + stringResource(R.string.tool_calls_count, items.size)
                 },
                 color = if (errors) Red else InkSoft,
                 fontSize = 12.sp,
@@ -1415,15 +1415,15 @@ fun ToolActivityGroupCard(
                     strokeWidth = 1.6.dp
                 )
                 Spacer(Modifier.width(5.dp))
-                Text("执行中", color = Blue, fontSize = 10.sp)
+                Text(stringResource(R.string.tool_executing), color = Blue, fontSize = 10.sp)
             } else if (errors) {
                 Spacer(Modifier.width(7.dp))
-                Text("有失败", color = Red, fontSize = 10.sp, fontWeight = FontWeight.Medium)
+                Text(stringResource(R.string.tool_group_failed), color = Red, fontSize = 10.sp, fontWeight = FontWeight.Medium)
             }
             Spacer(Modifier.width(3.dp))
             Icon(
                 imageVector = if (expanded) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,
-                contentDescription = if (expanded) "收起工具调用" else "展开工具调用",
+                contentDescription = stringResource(if (expanded) R.string.tool_collapse_group else R.string.tool_expand_group),
                 tint = Muted,
                 modifier = Modifier.size(16.dp)
             )
@@ -1824,19 +1824,21 @@ fun harnessFieldColors() = OutlinedTextFieldDefaults.colors(
     unfocusedTrailingIconColor = Muted
 )
 
+@Composable
 fun toolLabel(name: String): String = when {
-    name.contains("pwsh", true) || name.contains("bash", true) || name.contains("shell", true) -> "运行命令"
-    name.contains("read", true) -> "读取文件"
-    name.contains("write", true) || name.contains("edit", true) || name.contains("patch", true) -> "修改文件"
-    name.contains("grep", true) || name.contains("glob", true) || name.contains("search", true) -> "搜索代码"
-    name == "web_search" -> "联网搜索"
-    name == "web_fetch" -> "读取网页"
-    name == "present" -> "生成文件"
-    name.contains("agent", true) -> "调用子代理"
-    name == "todo_write" -> "更新计划"
+    name.contains("pwsh", true) || name.contains("bash", true) || name.contains("shell", true) -> stringResource(R.string.tool_verb_run) + " " + stringResource(R.string.tool_verb_run)
+    name.contains("read", true) -> stringResource(R.string.tool_verb_read)
+    name.contains("write", true) || name.contains("edit", true) || name.contains("patch", true) -> stringResource(R.string.tool_verb_modify)
+    name.contains("grep", true) || name.contains("glob", true) || name.contains("search", true) -> stringResource(R.string.tool_verb_search)
+    name == "web_search" -> stringResource(R.string.tool_verb_web_search)
+    name == "web_fetch" -> stringResource(R.string.tool_verb_fetch)
+    name == "present" -> stringResource(R.string.tool_verb_present)
+    name.contains("agent", true) -> stringResource(R.string.tool_verb_agent)
+    name == "todo_write" -> stringResource(R.string.tool_verb_todo)
     else -> name
 }
 
+@Composable
 private fun toolActivitySummary(item: ToolItem): String {
     val args = runCatching { JSONObject(item.input) }.getOrNull()
     fun arg(vararg names: String): String? {
@@ -1856,16 +1858,16 @@ private fun toolActivitySummary(item: ToolItem): String {
     val pattern = arg("pattern", "query")
     val url = arg("url")
     val verb = when {
-        item.name.contains("pwsh", true) || item.name.contains("bash", true) || item.name.contains("shell", true) -> "运行"
-        item.name.contains("read", true) -> "读取"
-        item.name.contains("write", true) || item.name.contains("edit", true) || item.name.contains("patch", true) -> "修改"
-        item.name.contains("grep", true) || item.name.contains("search", true) -> "搜索"
-        item.name.contains("glob", true) -> "查找"
-        item.name == "web_fetch" -> "读取网页"
-        item.name == "web_search" -> "联网搜索"
-        item.name == "present" -> "生成文件"
-        item.name.contains("agent", true) -> "调用子代理"
-        item.name == "todo_write" -> "更新计划"
+        item.name.contains("pwsh", true) || item.name.contains("bash", true) || item.name.contains("shell", true) -> stringResource(R.string.tool_verb_run)
+        item.name.contains("read", true) -> stringResource(R.string.tool_verb_read)
+        item.name.contains("write", true) || item.name.contains("edit", true) || item.name.contains("patch", true) -> stringResource(R.string.tool_verb_modify)
+        item.name.contains("grep", true) || item.name.contains("search", true) -> stringResource(R.string.tool_verb_search)
+        item.name.contains("glob", true) -> stringResource(R.string.tool_verb_find)
+        item.name == "web_fetch" -> stringResource(R.string.tool_verb_fetch)
+        item.name == "web_search" -> stringResource(R.string.tool_verb_web_search)
+        item.name == "present" -> stringResource(R.string.tool_verb_present)
+        item.name.contains("agent", true) -> stringResource(R.string.tool_verb_agent)
+        item.name == "todo_write" -> stringResource(R.string.tool_verb_todo)
         else -> toolLabel(item.name)
     }
     val detail = when {
@@ -1882,7 +1884,7 @@ private fun toolActivitySummary(item: ToolItem): String {
         else -> pattern ?: file
     }
     val suffix = detail?.take(90)?.let { " $it" }.orEmpty()
-    val running = if (item.done) "" else "正在"
+    val running = if (item.done) "" else stringResource(R.string.tool_running_short)
     return "$running$verb$suffix".trim()
 }
 
