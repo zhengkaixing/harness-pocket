@@ -214,7 +214,7 @@ object EventParser {
             .trim()
     }
 
-    private fun extractMediaSource(text: String): String? {
+    internal fun extractMediaSource(text: String): String? {
         if (text.isBlank()) return null
         val pathTag = Regex("<path>\\s*([^<]+?)\\s*</path>", RegexOption.IGNORE_CASE)
             .find(text)
