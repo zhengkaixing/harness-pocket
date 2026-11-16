@@ -28,19 +28,22 @@ fun cwdLabel(cwd: String?): String? {
     return value.substringAfterLast('/').substringAfterLast('\\').takeIf { it.isNotBlank() }
 }
 
+@Composable
 fun formatDuration(millis: Long): String {
     val seconds = (millis.coerceAtLeast(0L) / 1000L)
     return when {
-        seconds < 60 -> "${seconds} 秒"
+        seconds < 60 -> stringResource(R.string.duration_seconds, seconds.toInt())
         seconds < 3600 -> {
             val m = seconds / 60
             val s = seconds % 60
-            if (s == 0L) "$m 分钟" else "$m 分 $s 秒"
+            if (s == 0L) stringResource(R.string.duration_minutes, m.toInt())
+            else stringResource(R.string.duration_min_sec, m.toInt(), s.toInt())
         }
         else -> {
             val h = seconds / 3600
             val m = (seconds % 3600) / 60
-            if (m == 0L) "$h 小时" else "$h 小时 $m 分"
+            if (m == 0L) stringResource(R.string.duration_hours, h.toInt())
+            else stringResource(R.string.duration_hour_min, h.toInt(), m.toInt())
         }
     }
 }
@@ -51,8 +54,9 @@ fun formatTokens(count: Long): String = when {
     else -> String.format(Locale.US, "%.1fM", count / 1_000_000.0)
 }
 
+@Composable
 fun sessionTitle(title: String?, blank: Boolean): String = when {
     !title.isNullOrBlank() -> title
-    blank -> "新对话"
-    else -> "未命名会话"
+    blank -> stringResource(R.string.session_new)
+    else -> stringResource(R.string.session_untitled)
 }

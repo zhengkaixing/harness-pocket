@@ -121,4 +121,11 @@
     <string name="relative_minutes">%1$d min ago</string>
     <string name="relative_hours">%1$d hr ago</string>
     <string name="relative_days">%1$d days ago</string>
+    <string name="duration_seconds">%1$ds</string>
+    <string name="duration_minutes">%1$d min</string>
+    <string name="duration_min_sec">%1$dm %2$ds</string>
+    <string name="duration_hours">%1$d hr</string>
+    <string name="duration_hour_min">%1$dh %2$dm</string>
+    <string name="session_new">New chat</string>
+    <string name="session_untitled">Untitled session</string>
 </resources>
