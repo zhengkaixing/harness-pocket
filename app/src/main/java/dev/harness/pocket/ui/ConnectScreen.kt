@@ -54,11 +54,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.harness.pocket.data.AppState
 import dev.harness.pocket.data.Prefs
+import dev.harness.pocket.data.SavedHost
 
 @Composable
 fun ConnectScreen(
     state: AppState,
     onConnect: (String, String) -> Unit,
+    onSwitchHost: (SavedHost) -> Unit,
     onDismissError: () -> Unit
 ) {
     var server by rememberSaveable {
@@ -112,6 +114,41 @@ fun ConnectScreen(
                 fontSize = 13.sp,
                 lineHeight = 20.sp
             )
+            Spacer(Modifier.height(18.dp))
+
+            if (state.savedHosts.isNotEmpty()) {
+                Spacer(Modifier.height(16.dp))
+                Text(
+                    "已保存的主机",
+                    color = Muted,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Medium
+                )
+                Spacer(Modifier.height(6.dp))
+                state.savedHosts.forEach { host ->
+                    Surface(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 3.dp)
+                            .clickable(enabled = !state.connecting) {
+                                focusManager.clearFocus()
+                                onSwitchHost(host)
+                            },
+                        shape = RoundedCornerShape(14.dp),
+                        color = Color.White,
+                        border = BorderStroke(1.dp, Line)
+                    ) {
+                        Row(Modifier.padding(horizontal = 12.dp, vertical = 10.dp)) {
+                            Icon(Icons.Rounded.Dns, contentDescription = null, tint = Blue, modifier = Modifier.size(17.dp))
+                            Spacer(Modifier.width(9.dp))
+                            Column(Modifier.weight(1f)) {
+                                Text(host.label, color = Ink, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                                Text(host.baseUrl, color = Muted, fontSize = 10.5.sp, maxLines = 1)
+                            }
+                        }
+                    }
+                }
+            }
             Spacer(Modifier.height(18.dp))
 
             Surface(

@@ -8,6 +8,13 @@ data class Connection(
     val cookie: String
 )
 
+data class SavedHost(
+    val baseUrl: String,
+    val token: String,
+    val cookie: String,
+    val label: String = baseUrl.removePrefix("http://").removePrefix("https://").trimEnd('/')
+)
+
 data class ModelEffort(
     val id: String,
     val name: String,
@@ -347,7 +354,9 @@ data class ChatState(
     val loadingEarlier: Boolean = false,
     val usage: TokenUsage? = null,
     val context: ContextPressure? = null,
-    val lastPromptAt: Long? = null
+    val lastPromptAt: Long? = null,
+    val streamingText: String = "",
+    val streamingActive: Boolean = false
 ) {
     val allItems: List<ChatItem>
         get() = items + queued + listOfNotNull(pending)
@@ -403,6 +412,8 @@ data class AutomationTask(
 data class AppState(
     val restoring: Boolean = true,
     val savedBase: String = "http://8.130.48.9:18080",
+    val savedHosts: List<SavedHost> = emptyList(),
+    val ntfyTopic: String = "",
     val connection: Connection? = null,
     val connecting: Boolean = false,
     val connectError: String? = null,

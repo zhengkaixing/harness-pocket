@@ -124,6 +124,38 @@ private fun AppRoot(
         }
     }
 
+    val shareConversation: () -> Unit = {
+        val chat = state.chat
+        val title = state.activeSession?.title?.takeIf { it.isNotBlank() } ?: "Harness 对话"
+        val text = buildString {
+            appendLine("# $title")
+            appendLine()
+            chat.items.forEach { item ->
+                when (item) {
+                    is dev.harness.pocket.data.UserMessage -> {
+                        appendLine("## 你")
+                        appendLine(item.text)
+                        appendLine()
+                    }
+                    is dev.harness.pocket.data.AssistantMessage -> {
+                        if (item.text.isNotBlank()) {
+                            appendLine("## 助手")
+                            appendLine(item.text)
+                            appendLine()
+                        }
+                    }
+                    else -> Unit
+                }
+            }
+        }.take(90_000)
+        val intent = Intent(Intent.ACTION_SEND).apply {
+            type = "text/plain"
+            putExtra(Intent.EXTRA_SUBJECT, title)
+            putExtra(Intent.EXTRA_TEXT, text)
+        }
+        runCatching { context.startActivity(Intent.createChooser(intent, "导出对话")) }
+    }
+
     val openLink: (String) -> Unit = { raw ->
         val link = raw.trim()
         if (link.isNotBlank()) {
@@ -231,6 +263,7 @@ private fun AppRoot(
         state.connection == null -> ConnectScreen(
             state = state,
             onConnect = vm::connect,
+            onSwitchHost = vm::switchHost,
             onDismissError = vm::dismissConnectError
         )
 
@@ -301,6 +334,7 @@ private fun AppRoot(
                     onLoadImage = vm::loadImage,
                     onOpenFile = openFile,
                     onOpenLink = openLink,
+                    onExport = shareConversation,
                     onRefreshResources = vm::refreshResources,
                     onOpenResources = vm::openResources,
                     onLoadEarlier = vm::loadEarlier
@@ -331,6 +365,18 @@ private fun AppRoot(
     if (showSettings && state.connection != null) {
         SettingsDialog(
             baseUrl = state.connection.baseUrl,
+            hosts = state.savedHosts,
+            ntfyTopic = state.ntfyTopic,
+            onSaveNtfy = vm::saveNtfyTopic,
+            onSwitchHost = {
+                showSettings = false
+                vm.switchHost(it)
+            },
+            onRemoveHost = vm::removeHost,
+            onAddHost = {
+                showSettings = false
+                vm.disconnect()
+            },
             onDismiss = { showSettings = false },
             onDisconnect = {
                 showSettings = false

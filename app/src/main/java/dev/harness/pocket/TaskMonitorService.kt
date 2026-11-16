@@ -19,13 +19,18 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import okhttp3.OkHttpClient
+import okhttp3.Request
 import org.json.JSONArray
 import org.json.JSONObject
+import java.net.URLEncoder
+import java.util.concurrent.TimeUnit
 import kotlin.math.abs
 
 class TaskMonitorService : Service() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var monitorJob: Job? = null
+    private var ntfyJob: Job? = null
 
     override fun onCreate() {
         super.onCreate()
@@ -41,6 +46,10 @@ class TaskMonitorService : Service() {
         val baseline = intent.getIntExtra(EXTRA_BASELINE_SEQ, -1)
 
         startForeground(ONGOING_ID, ongoingNotification(sessionId, title))
+        val topic = Prefs(this).ntfyTopic()
+        if (topic.isNotBlank() && ntfyJob == null) {
+            ntfyJob = scope.launch { subscribeNtfy(topic) }
+        }
         monitorJob?.cancel()
         monitorJob = scope.launch {
             monitor(sessionId, title, baseline)
@@ -52,6 +61,7 @@ class TaskMonitorService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onDestroy() {
+        ntfyJob?.cancel()
         monitorJob?.cancel()
         scope.coroutineContext[Job]?.cancel()
         super.onDestroy()
@@ -96,6 +106,50 @@ class TaskMonitorService : Service() {
             delay(POLL_MS)
             elapsed += POLL_MS
         }
+    }
+
+
+    private suspend fun subscribeNtfy(topic: String) {
+        val server = Prefs(this).ntfyServer().trimEnd('/')
+        val url = "$server/${URLEncoder.encode(topic, "UTF-8")}/json"
+        val client = OkHttpClient.Builder()
+            .readTimeout(0, TimeUnit.MILLISECONDS)
+            .build()
+        val request = Request.Builder().url(url).header("Accept", "application/x-ndjson").build()
+        val call = client.newCall(request)
+        try {
+            call.execute().use { response ->
+                val source = response.body?.source() ?: return
+                while (scope.isActive && !source.exhausted()) {
+                    val line = source.readUtf8Line() ?: break
+                    val objectValue = runCatching { JSONObject(line) }.getOrNull() ?: continue
+                    if (objectValue.optString("event") != "message") continue
+                    val title = objectValue.optString("title").ifBlank { "Harness" }
+                    val body = objectValue.optString("message").ifBlank { "收到一条远程任务通知" }
+                    val click = objectValue.optString("click")
+                    val sessionId = runCatching {
+                        android.net.Uri.parse(click).getQueryParameter("sessionId")
+                    }.getOrNull()
+                    notifyRemote(title, body, sessionId)
+                }
+            }
+        } catch (_: Exception) {
+            // ntfy is best-effort; keep the foreground polling fallback alive.
+        }
+    }
+
+    private fun notifyRemote(title: String, body: String, sessionId: String?) {
+        val manager = getSystemService(NotificationManager::class.java)
+        val notification = NotificationCompat.Builder(this, CHANNEL_DONE)
+            .setSmallIcon(R.drawable.ic_notification)
+            .setContentTitle(title)
+            .setContentText(body)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(body))
+            .setAutoCancel(true)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setContentIntent(openIntent(sessionId.orEmpty()))
+            .build()
+        manager.notify(COMPLETION_ID + 900 + abs(body.hashCode() % 100), notification)
     }
 
     private fun findTurnEnd(records: JSONArray, baseline: Int): Completion? {

@@ -20,6 +20,7 @@ import dev.harness.pocket.data.AutomationTask
 import dev.harness.pocket.data.ChatDraft
 import dev.harness.pocket.data.ChatFile
 import dev.harness.pocket.data.ChatImage
+import dev.harness.pocket.data.ChatItem
 import dev.harness.pocket.data.ChatState
 import dev.harness.pocket.data.Connection
 import dev.harness.pocket.data.ComputerUseState
@@ -31,6 +32,7 @@ import dev.harness.pocket.data.ModelChoice
 import dev.harness.pocket.data.Prefs
 import dev.harness.pocket.data.PromptPart
 import dev.harness.pocket.data.QuestionUpdate
+import dev.harness.pocket.data.SavedHost
 import dev.harness.pocket.data.SessionLiveState
 import dev.harness.pocket.data.SessionSummary
 import dev.harness.pocket.data.ToolItem
@@ -38,6 +40,9 @@ import dev.harness.pocket.data.UserMessage
 import dev.harness.pocket.data.WorkspaceInfo
 import dev.harness.pocket.data.WorkspaceSnapshot
 import dev.harness.pocket.data.friendlyError
+import okhttp3.WebSocket
+import org.json.JSONArray
+import org.json.JSONObject
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -67,6 +72,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     private var pollJob: Job? = null
     private var previewJob: Job? = null
+    private var followSocket: WebSocket? = null
+    private var followGeneration = 0
+    private var followSessionId: String? = null
+    private val followRecords = ArrayList<JSONObject>()
     private var pageSeq = -1
     private var lastModelChoice: ModelChoice? = null
     private var approvalObserverStarted = false
@@ -74,10 +83,14 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     init {
         val saved = prefs.loadConnection()
         if (saved != null) {
+            // Migrate credentials written by older builds as plaintext.
+            prefs.saveConnection(saved)
             api.setConnection(saved)
             _state.value = AppState(
                 restoring = false,
                 savedBase = saved.baseUrl,
+                savedHosts = prefs.loadHosts(),
+                ntfyTopic = prefs.ntfyTopic(),
                 connection = saved,
                 workspaces = prefs.loadWorkspaces()
             )
@@ -88,7 +101,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         } else {
             _state.value = AppState(
                 restoring = false,
-                savedBase = prefs.lastBase()
+                savedBase = prefs.lastBase(),
+                savedHosts = prefs.loadHosts(),
+                ntfyTopic = prefs.ntfyTopic()
             )
         }
     }
@@ -126,6 +141,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     it.copy(
                         connection = connection,
                         savedBase = connection.baseUrl,
+                        savedHosts = prefs.loadHosts(),
                         connecting = false,
                         connectError = null,
                         sessions = emptyList(),
@@ -373,6 +389,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 )
             )
         }
+        startFollow(session.sessionId, session.subagentParentId)
         startPolling(session.sessionId, reset = true)
         refreshComputerUse()
         viewModelScope.launch {
@@ -1426,7 +1443,46 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+
+    fun switchHost(host: SavedHost) {
+        if (_state.value.connecting) return
+        stopFollow()
+        pollJob?.cancel()
+        pollJob = null
+        pageSeq = -1
+        val connection = Connection(host.baseUrl, host.token, host.cookie)
+        api.setConnection(connection)
+        prefs.saveConnection(connection)
+        _state.update {
+            it.copy(
+                connection = connection,
+                savedBase = connection.baseUrl,
+                savedHosts = prefs.loadHosts(),
+                connectError = null,
+                sessions = emptyList(),
+                activeSession = null,
+                chat = ChatState(loading = false),
+                workspaces = prefs.loadWorkspaces()
+            )
+        }
+        startApprovalObserver()
+        refreshSavedConnection(connection)
+        loadSessions()
+        loadCatalogs()
+    }
+
+    fun saveNtfyTopic(topic: String) {
+        prefs.saveNtfyTopic(topic)
+        _state.update { it.copy(ntfyTopic = prefs.ntfyTopic()) }
+    }
+
+    fun removeHost(baseUrl: String) {
+        prefs.removeHost(baseUrl)
+        _state.update { it.copy(savedHosts = prefs.loadHosts()) }
+    }
+
     fun closeSession() {
+        stopFollow()
         pollJob?.cancel()
         pollJob = null
         pageSeq = -1
@@ -1437,6 +1493,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun disconnect() {
+        stopFollow()
         pollJob?.cancel()
         pollJob = null
         pageSeq = -1
@@ -1444,7 +1501,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         api.setConnection(null)
         _state.value = AppState(
             restoring = false,
-            savedBase = _state.value.savedBase
+            savedBase = _state.value.savedBase,
+            savedHosts = prefs.loadHosts()
         )
     }
 
@@ -1453,6 +1511,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private fun handleAuthFailure(message: String) {
+        stopFollow()
         pollJob?.cancel()
         pollJob = null
         prefs.clearConnection()
@@ -1461,6 +1520,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             AppState(
                 restoring = false,
                 savedBase = it.savedBase,
+                savedHosts = prefs.loadHosts(),
                 connectError = message
             )
         }
@@ -1485,6 +1545,170 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 (item.rpcId == null || item.rpcId !in serverRpcIds)
         }
         return server + localOnly
+    }
+
+    private fun stopFollow() {
+        followGeneration++
+        followSocket?.cancel()
+        followSocket = null
+        followSessionId = null
+        followRecords.clear()
+    }
+
+    private fun startFollow(sessionId: String, parentSessionId: String?, attempt: Int = 0) {
+        if (_state.value.activeSession?.sessionId != sessionId) return
+        followGeneration++
+        val generation = followGeneration
+        followSocket?.cancel()
+        if (followSessionId != sessionId) followRecords.clear()
+        followSessionId = sessionId
+        followSocket = api.followSession(
+            sessionId = sessionId,
+            parentSessionId = parentSessionId,
+            onFrame = { frame ->
+                if (generation == followGeneration &&
+                    _state.value.activeSession?.sessionId == sessionId
+                ) {
+                    handleFollowFrame(sessionId, frame)
+                }
+            },
+            onDisconnected = {
+                if (generation == followGeneration &&
+                    _state.value.activeSession?.sessionId == sessionId
+                ) {
+                    followSocket = null
+                    viewModelScope.launch {
+                        delay((1200L * (attempt + 1)).coerceAtMost(8000L))
+                        if (generation == followGeneration &&
+                            _state.value.activeSession?.sessionId == sessionId
+                        ) {
+                            startFollow(sessionId, parentSessionId, attempt + 1)
+                        }
+                    }
+                }
+            }
+        )
+    }
+
+    private fun handleFollowFrame(sessionId: String, frame: JSONObject) {
+        when (frame.optString("type")) {
+            "snapshot" -> {
+                followRecords.clear()
+                val records = frame.optJSONArray("records")
+                if (records != null) {
+                    for (i in 0 until records.length()) {
+                        records.optJSONObject(i)?.let(followRecords::add)
+                    }
+                }
+                frame.optInt("cursor", -1).takeIf { it >= 0 }?.let { pageSeq = it }
+                applyFollowRecords(sessionId, clearStreaming = true)
+            }
+
+            "event" -> {
+                val event = frame.optJSONObject("event")
+                    ?: frame.optJSONObject("entry")?.optJSONObject("event")
+                    ?: return
+                followRecords.add(JSONObject().put("type", "event").put("event", event))
+                while (followRecords.size > 500) followRecords.removeAt(0)
+                applyFollowRecords(
+                    sessionId,
+                    clearStreaming = event.optString("type") == "assistant/message"
+                )
+                if (event.optString("type") == "turn/end") {
+                    _state.update { st ->
+                        if (st.activeSession?.sessionId != sessionId) st
+                        else st.copy(chat = st.chat.copy(streamingActive = false))
+                    }
+                }
+            }
+
+            "assistant-stream" -> {
+                frame.optJSONObject("frame")?.let { onAssistantStream(sessionId, it) }
+            }
+
+            "error" -> {
+                val message = frame.optJSONObject("error")?.optString("message")
+                if (!message.isNullOrBlank()) {
+                    _state.update { st ->
+                        if (st.activeSession?.sessionId != sessionId) st
+                        else st.copy(chat = st.chat.copy(error = friendlyError(Exception(message))))
+                    }
+                }
+            }
+        }
+    }
+
+    private fun applyFollowRecords(sessionId: String, clearStreaming: Boolean) {
+        if (followRecords.isEmpty()) return
+        val array = JSONArray()
+        followRecords.forEach(array::put)
+        val parsed = EventParser.parse(array)
+        if (parsed.isEmpty()) return
+        _state.update { st ->
+            if (st.activeSession?.sessionId != sessionId) return@update st
+            val map = LinkedHashMap<String, ChatItem>()
+            st.chat.items.forEach { map[it.key] = it }
+            parsed.forEach { map[it.key] = it }
+            val merged = map.values.sortedBy { it.seq }
+            st.copy(
+                chat = st.chat.copy(
+                    items = merged,
+                    streamingText = if (clearStreaming) "" else st.chat.streamingText,
+                    streamingActive = if (clearStreaming) false else st.chat.streamingActive
+                )
+            )
+        }
+    }
+
+    private fun onAssistantStream(sessionId: String, frame: JSONObject) {
+        when (frame.optString("type")) {
+            "start" -> {
+                _state.update { st ->
+                    if (st.activeSession?.sessionId != sessionId) st
+                    else st.copy(chat = st.chat.copy(streamingText = "", streamingActive = true))
+                }
+            }
+
+            "chunk" -> {
+                val delta = extractStreamText(frame)
+                if (delta.isEmpty()) return
+                _state.update { st ->
+                    if (st.activeSession?.sessionId != sessionId) st
+                    else st.copy(
+                        chat = st.chat.copy(
+                            streamingText = st.chat.streamingText + delta,
+                            streamingActive = true
+                        )
+                    )
+                }
+            }
+
+            "end" -> {
+                _state.update { st ->
+                    if (st.activeSession?.sessionId != sessionId) st
+                    else st.copy(chat = st.chat.copy(streamingActive = false))
+                }
+            }
+        }
+    }
+
+    private fun extractStreamText(frame: JSONObject): String {
+        val chunk = frame.optJSONObject("chunk") ?: frame
+        val type = chunk.optString("type")
+        if (type == "text" || type == "content" || type == "delta" || type.isBlank()) {
+            chunk.optString("text").takeIf { it.isNotEmpty() }?.let { return it }
+            chunk.optString("delta").takeIf { it.isNotEmpty() }?.let { return it }
+        }
+        if (type == "reasoning" || type == "reasoning-delta") return ""
+        for (key in listOf("text", "delta", "content")) {
+            val value = chunk.opt(key)
+            if (value is String && value.isNotEmpty()) return value
+            if (value is JSONObject) {
+                val nested = extractStreamText(value)
+                if (nested.isNotEmpty()) return nested
+            }
+        }
+        return ""
     }
 
     private fun startPolling(sessionId: String, reset: Boolean) {

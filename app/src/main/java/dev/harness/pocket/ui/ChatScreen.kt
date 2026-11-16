@@ -53,6 +53,7 @@ import androidx.compose.material.icons.rounded.PhotoCamera
 import androidx.compose.material.icons.rounded.PhotoLibrary
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Settings
+import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material.icons.rounded.Stop
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
@@ -148,6 +149,7 @@ fun ChatScreen(
     onLoadImage: suspend (String) -> ChatImage?,
     onOpenFile: (ChatFile) -> Unit = {},
     onOpenLink: (String) -> Unit = {},
+    onExport: () -> Unit = {},
     onRefreshResources: () -> Unit,
     onOpenResources: () -> Unit,
     onLoadEarlier: () -> Unit
@@ -177,7 +179,9 @@ fun ChatScreen(
     }
 
     val lastAssistant = chat.visibleItems.lastOrNull() as? AssistantMessage
-    val showTyping = chat.sending || (chat.running && lastAssistant?.text.isNullOrBlank())
+    val streaming = chat.streamingText.isNotBlank()
+    val showTyping = !streaming &&
+        (chat.sending || (chat.running && lastAssistant?.text.isNullOrBlank()))
     val runningSince = chat.items.filterIsInstance<TurnStart>().lastOrNull()?.startedAt
         ?: chat.lastPromptAt
     var didInitialScroll by remember(state.activeSession?.sessionId) { mutableStateOf(false) }
@@ -191,6 +195,7 @@ fun ChatScreen(
         chat.loading,
         chat.visibleItems.size,
         chat.questions.size,
+        streaming,
         showTyping,
         chat.error,
         chat.hasMoreHistory
@@ -199,6 +204,7 @@ fun ChatScreen(
         if (chat.visibleItems.isEmpty() && chat.questions.isEmpty()) return@LaunchedEffect
         val target = chat.visibleItems.size +
             chat.questions.size +
+            (if (streaming) 1 else 0) +
             (if (showTyping) 1 else 0) +
             (if (chat.error != null) 1 else 0) +
             (if (chat.hasMoreHistory) 1 else 0)
@@ -248,6 +254,10 @@ fun ChatScreen(
             onRename = {
                 menuOpen = false
                 renameOpen = true
+            },
+            onExport = {
+                menuOpen = false
+                onExport()
             },
             onSettings = {
                 menuOpen = false
@@ -345,6 +355,16 @@ fun ChatScreen(
                                     }
                                 } else {
                                     ChatItemRow(row.items.first(), onLoadImage, onOpenFile, onOpenLink)
+                                }
+                            }
+                            if (streaming) {
+                                item(key = "streaming") {
+                                    AssistantBubble(
+                                        text = chat.streamingText,
+                                        onLoadImage = onLoadImage,
+                                        onOpenFile = onOpenFile,
+                                        onOpenLink = onOpenLink
+                                    )
                                 }
                             }
                             items(chat.questions, key = { "question:${it.callId}" }) { batch ->
@@ -950,6 +970,7 @@ private fun ChatTopBar(
     onNewChat: () -> Unit,
     onRefresh: () -> Unit,
     onRename: () -> Unit,
+    onExport: () -> Unit,
     onSettings: () -> Unit,
     runningSince: Long? = null,
     usage: TokenUsage? = null
@@ -1047,6 +1068,13 @@ private fun ChatTopBar(
                         Icon(Icons.Rounded.Edit, null, tint = InkSoft, modifier = Modifier.size(17.dp))
                     },
                     onClick = onRename
+                )
+                DropdownMenuItem(
+                    text = { Text("导出对话", color = Ink, fontSize = 13.sp) },
+                    leadingIcon = {
+                        Icon(Icons.Rounded.Share, null, tint = InkSoft, modifier = Modifier.size(17.dp))
+                    },
+                    onClick = onExport
                 )
                 DropdownMenuItem(
                     text = { Text("连接设置", color = Ink, fontSize = 13.sp) },

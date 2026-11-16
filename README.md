@@ -403,7 +403,7 @@ Harness Pocket 是一个**非官方的原生 Android 客户端**，用来远程�
 
 ### 直接安装 APK
 
-本地预构建的 APK 在 `dist/HarnessPocket-0.21.1-debug.apk`（二进制不提交到 Git 仓库）；从源码重新构建的产物在：
+本地预构建的 APK 在 `dist/HarnessPocket-0.22.0-debug.apk`（二进制不提交到 Git 仓库）；从源码重新构建的产物在：
 
 ```text
 app/build/outputs/apk/debug/app-debug.apk
@@ -535,6 +535,15 @@ app/src/main/java/dev/harness/pocket/
 - [ ] 可配置的 HTTPS / 证书校验
 
 ## 更新日志
+
+### 0.22.0
+
+- 远程流式：会话打开时通过 `session/follow` 接收快照、增量和 assistant-stream，边生成边显示，断线指数退避重连。
+- 连接安全：访问令牌与 Cookie 改用 Android Keystore AES-GCM 加密存储，旧明文自动迁移。
+- 多主机：保存多个 DSH 主机，在设置或连接页一键切换、删除；每台主机独立保存凭据。
+- 后台推送：设置 ntfy 主题后，任务监控期间订阅 `${server}/${topic}/json`，远程消息可触发高优先级通知并深链到会话。
+- 对话导出：聊天页更多菜单新增“导出对话”，通过系统分享发送 Markdown 文本。
+- 设置弹窗新增 ntfy 主题与已保存主机，截图见 `docs/screenshots/settings-ntfy.png`。
 
 ### 0.21.1
 

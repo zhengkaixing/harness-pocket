@@ -9,24 +9,82 @@ class Prefs(context: Context) {
 
     fun loadConnection(): Connection? {
         val base = sp.getString("base_url", null) ?: return null
-        val token = sp.getString("token", null) ?: return null
-        val cookie = sp.getString("cookie", null) ?: return null
+        val token = sp.getString("token", null)?.let(TokenVault::decrypt) ?: return null
+        val cookie = sp.getString("cookie", null)?.let(TokenVault::decrypt) ?: return null
         return Connection(base, token, cookie)
+            .takeIf { it.token.isNotBlank() && it.cookie.isNotBlank() }
     }
 
     fun saveConnection(connection: Connection) {
+        val hosts = loadHosts().toMutableList()
+        val index = hosts.indexOfFirst { it.baseUrl == connection.baseUrl }
+        val host = SavedHost(connection.baseUrl, connection.token, connection.cookie)
+        if (index >= 0) hosts[index] = host else hosts.add(0, host)
+        saveHosts(hosts)
         sp.edit()
             .putString("base_url", connection.baseUrl)
-            .putString("token", connection.token)
-            .putString("cookie", connection.cookie)
+            .putString("token", TokenVault.encrypt(connection.token))
+            .putString("cookie", TokenVault.encrypt(connection.cookie))
             .apply()
     }
 
+    fun loadHosts(): List<SavedHost> {
+        val raw = sp.getString("hosts", null) ?: return emptyList()
+        return runCatching {
+            val array = JSONArray(raw)
+            buildList {
+                for (i in 0 until array.length()) {
+                    val item = array.optJSONObject(i) ?: continue
+                    val base = item.optString("baseUrl")
+                    if (base.isBlank()) continue
+                    add(
+                        SavedHost(
+                            baseUrl = base,
+                            token = TokenVault.decrypt(item.optString("token")),
+                            cookie = TokenVault.decrypt(item.optString("cookie")),
+                            label = item.optString("label").ifBlank {
+                                base.removePrefix("http://").removePrefix("https://").trimEnd('/')
+                            }
+                        )
+                    )
+                }
+            }
+        }.getOrDefault(emptyList())
+    }
+
+    fun saveHosts(hosts: List<SavedHost>) {
+        val array = JSONArray()
+        hosts.forEach { host ->
+            array.put(
+                JSONObject()
+                    .put("baseUrl", host.baseUrl)
+                    .put("token", TokenVault.encrypt(host.token))
+                    .put("cookie", TokenVault.encrypt(host.cookie))
+                    .put("label", host.label)
+            )
+        }
+        sp.edit().putString("hosts", array.toString()).apply()
+    }
+
+    fun removeHost(baseUrl: String) {
+        saveHosts(loadHosts().filterNot { it.baseUrl == baseUrl })
+    }
+
     fun saveCookie(cookie: String) {
-        sp.edit().putString("cookie", cookie).apply()
+        sp.edit().putString("cookie", TokenVault.encrypt(cookie)).apply()
     }
 
     fun lastBase(): String = sp.getString("base_url", null) ?: DEFAULT_BASE
+
+    fun ntfyTopic(): String = sp.getString("ntfy_topic", null).orEmpty()
+
+    fun saveNtfyTopic(topic: String) {
+        sp.edit().putString("ntfy_topic", topic.trim()).apply()
+    }
+
+    fun ntfyServer(): String = sp.getString("ntfy_server", null)
+        ?.takeIf { it.isNotBlank() }
+        ?: "https://ntfy.sh"
 
     fun clearConnection() {
         sp.edit().remove("base_url").remove("token").remove("cookie").apply()

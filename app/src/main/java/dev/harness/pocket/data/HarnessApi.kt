@@ -453,6 +453,69 @@ class HarnessApi {
         }
     }
 
+    /**
+     * Opens a durable `session/follow` stream. The callback receives the
+     * snapshot frame followed by incremental event and assistant-stream frames.
+     * Returns the socket so the caller can cancel it when leaving the chat.
+     */
+    fun followSession(
+        sessionId: String,
+        parentSessionId: String? = null,
+        onFrame: (JSONObject) -> Unit,
+        onDisconnected: (String?) -> Unit = {}
+    ): WebSocket? {
+        val conn = connection ?: return null
+        val wsBase = conn.baseUrl
+            .replaceFirst("https://", "wss://")
+            .replaceFirst("http://", "ws://")
+        val request = Request.Builder()
+            .url("$wsBase/api/remote.mux")
+            .header("Cookie", conn.cookie)
+            .header("Origin", conn.baseUrl)
+            .build()
+        val streamId = "follow-${UUID.randomUUID()}"
+        val address = if (!parentSessionId.isNullOrBlank()) {
+            JSONObject()
+                .put("kind", "subagent")
+                .put("parentSessionId", parentSessionId)
+                .put("childSessionId", sessionId)
+                .put("mode", "unknown")
+        } else {
+            JSONObject().put("kind", "session").put("sessionId", sessionId)
+        }
+        val followRequest = JSONObject()
+            .put("address", address)
+            .put("assistantStream", true)
+            .put("maxMessages", 80)
+            .put("turnWindow", JSONObject().put("minMessages", 24).put("minTurns", 4))
+        return client.newWebSocket(request, object : WebSocketListener() {
+            override fun onOpen(webSocket: WebSocket, response: Response) {
+                val open = JSONObject()
+                    .put("type", "open")
+                    .put("streamId", streamId)
+                    .put("endpoint", "session/follow")
+                    .put("payload", JSONObject().put("args", JSONObject().put("request", followRequest)))
+                webSocket.send(open.toString())
+            }
+
+            override fun onMessage(webSocket: WebSocket, text: String) {
+                val message = runCatching { JSONObject(text) }.getOrNull() ?: return
+                if (message.optString("type") != "item") return
+                val value = message.optJSONObject("value") ?: return
+                if (message.optString("streamId") != streamId) return
+                onFrame(value)
+            }
+
+            override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
+                onDisconnected(t.message)
+            }
+
+            override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
+                onDisconnected(reason.ifBlank { null })
+            }
+        })
+    }
+
     suspend fun page(
         sessionId: String,
         throughSeq: Int,

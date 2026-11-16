@@ -44,6 +44,7 @@ import androidx.compose.material.icons.rounded.CheckBoxOutlineBlank
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.ContentCopy
 import androidx.compose.material.icons.rounded.Description
+import androidx.compose.material.icons.rounded.DeleteOutline
 import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.rounded.ErrorOutline
 import androidx.compose.material.icons.rounded.ExpandLess
@@ -59,6 +60,8 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -1664,6 +1667,12 @@ fun QuestionCard(
 @Composable
 fun SettingsDialog(
     baseUrl: String?,
+    hosts: List<dev.harness.pocket.data.SavedHost>,
+    ntfyTopic: String,
+    onSaveNtfy: (String) -> Unit,
+    onSwitchHost: (dev.harness.pocket.data.SavedHost) -> Unit,
+    onRemoveHost: (String) -> Unit,
+    onAddHost: () -> Unit,
     onDismiss: () -> Unit,
     onDisconnect: () -> Unit
 ) {
@@ -1680,10 +1689,56 @@ fun SettingsDialog(
                 Spacer(Modifier.height(4.dp))
                 Text(baseUrl ?: "-", color = Ink, fontSize = 14.sp)
                 Spacer(Modifier.height(16.dp))
+                Text("已保存的主机", color = Muted, fontSize = 11.sp, fontWeight = FontWeight.Medium)
+                Spacer(Modifier.height(6.dp))
+                hosts.forEach { host ->
+                    Row(
+                        Modifier.fillMaxWidth().padding(vertical = 5.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(Modifier.weight(1f)) {
+                            Text(host.label, color = Ink, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                            Text(host.baseUrl, color = Muted, fontSize = 10.5.sp, maxLines = 1)
+                        }
+                        if (host.baseUrl == baseUrl) {
+                            Text("当前", color = Blue, fontSize = 10.5.sp)
+                        } else {
+                            TextButton(onClick = { onSwitchHost(host) }) {
+                                Text("切换", color = Blue, fontSize = 11.5.sp)
+                            }
+                            IconButton(onClick = { onRemoveHost(host.baseUrl) }) {
+                                Icon(Icons.Rounded.DeleteOutline, contentDescription = "删除主机", tint = Muted, modifier = Modifier.size(18.dp))
+                            }
+                        }
+                    }
+                }
+                TextButton(onClick = onAddHost) {
+                    Text("添加新主机", color = Blue, fontSize = 12.sp)
+                }
+                Spacer(Modifier.height(12.dp))
                 Text("访问令牌", color = Muted, fontSize = 11.sp, fontWeight = FontWeight.Medium)
                 Spacer(Modifier.height(4.dp))
                 Text("已保存 · 仅本机可见", color = Ink, fontSize = 14.sp)
-                Spacer(Modifier.height(18.dp))
+                Spacer(Modifier.height(14.dp))
+                Text("后台推送（ntfy 主题，可选）", color = Muted, fontSize = 11.sp, fontWeight = FontWeight.Medium)
+                Spacer(Modifier.height(4.dp))
+                var topic by remember(ntfyTopic) { mutableStateOf(ntfyTopic) }
+                OutlinedTextField(
+                    value = topic,
+                    onValueChange = { topic = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    placeholder = { Text("例如 harness-pocket-abc123") },
+                    singleLine = true,
+                    textStyle = androidx.compose.ui.text.TextStyle(fontSize = 12.sp),
+                    colors = harnessFieldColors()
+                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("任务运行时订阅该主题", color = Muted, fontSize = 10.sp, modifier = Modifier.weight(1f))
+                    TextButton(onClick = { onSaveNtfy(topic) }) {
+                        Text("保存", color = Blue, fontSize = 11.5.sp)
+                    }
+                }
+                Spacer(Modifier.height(8.dp))
                 Box(
                     Modifier
                         .fillMaxWidth()
