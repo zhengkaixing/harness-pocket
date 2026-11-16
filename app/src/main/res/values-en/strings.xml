@@ -150,4 +150,13 @@
     <string name="tool_expand_group">Show tool calls</string>
     <string name="tool_collapse_group">Hide tool calls</string>
     <string name="tool_verb_run_command">Run command</string>
+    <string name="archive_session">Archive session</string>
+    <string name="common_close">Close</string>
+    <string name="common_copied">Copied</string>
+    <string name="common_retry">Retry</string>
+    <string name="thinking_hint">Harness is thinking</string>
+    <string name="app_tagline">A coding agent in your pocket</string>
+    <string name="question_needs_confirm">Needs your confirmation</string>
+    <string name="question_answer_continues">The task will continue after you answer</string>
+    <string name="image_default">Image</string>
 </resources>

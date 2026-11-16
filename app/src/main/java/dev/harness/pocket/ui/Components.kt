@@ -299,7 +299,7 @@ fun SessionMoreButton(
                 }
             )
             DropdownMenuItem(
-                text = { Text("归档会话", fontSize = 13.sp) },
+                text = { Text(stringResource(R.string.archive_session), fontSize = 13.sp) },
                 leadingIcon = {
                     Icon(
                         Icons.Rounded.Archive,
@@ -587,7 +587,7 @@ private fun ImageViewerDialog(
                     modifier = Modifier.size(18.dp)
                 )
                 Spacer(Modifier.width(5.dp))
-                Text("关闭", color = Color.White, fontSize = 12.sp)
+                Text(stringResource(R.string.common_close), color = Color.White, fontSize = 12.sp)
             }
             if (images.size > 1) {
                 Text(
@@ -901,7 +901,7 @@ fun TypingRow() {
             ) {
                 TypingDots()
                 Spacer(Modifier.width(9.dp))
-                Text("Harness 正在思考", color = Muted, fontSize = 12.sp)
+                Text(stringResource(R.string.thinking_hint), color = Muted, fontSize = 12.sp)
             }
         }
     }
@@ -943,11 +943,12 @@ fun MarkdownText(
     onOpenLink: (String) -> Unit = {}
 ) {
     val blocks = remember(text) { MarkdownParser.parse(text) }
-    val markdownImages = remember(blocks) {
+    val defaultImageName = stringResource(R.string.image_default)
+    val markdownImages = remember(blocks, defaultImageName) {
         blocks.filterIsInstance<MdBlock.Image>().map { block ->
             ChatImage(
                 attachmentId = block.source,
-                name = block.alt.ifBlank { "图片" }
+                name = block.alt.ifBlank { defaultImageName }
             )
         }
     }
@@ -1058,7 +1059,7 @@ fun MarkdownText(
                 is MdBlock.Image -> {
                     val image = ChatImage(
                         attachmentId = block.source,
-                        name = block.alt.ifBlank { "图片" }
+                        name = block.alt.ifBlank { stringResource(R.string.image_default) }
                     )
                     ChatImageBox(
                         image = image,
@@ -1209,7 +1210,7 @@ fun CodeBlock(code: String, language: String?) {
                 )
                 Spacer(Modifier.width(4.dp))
                 Text(
-                    text = if (copied) "已复制" else "复制",
+                    text = stringResource(if (copied) R.string.common_copied else R.string.common_retry),
                     color = if (copied) Green else Color(0xFF9AA6BC),
                     fontSize = 10.sp
                 )
@@ -1557,13 +1558,13 @@ fun QuestionCard(
                 Spacer(Modifier.width(8.dp))
                 Column(Modifier.weight(1f)) {
                     Text(
-                        text = batch.questions.firstOrNull()?.header ?: "需要你确认",
+                        text = batch.questions.firstOrNull()?.header ?: stringResource(R.string.question_needs_confirm),
                         color = Ink,
                         fontSize = 13.sp,
                         fontWeight = FontWeight.SemiBold
                     )
                     Text(
-                        text = "回答后会继续当前任务",
+                        text = stringResource(R.string.question_answer_continues),
                         color = Muted,
                         fontSize = 10.5.sp
                     )
@@ -1796,7 +1797,7 @@ fun SplashScreen() {
             Spacer(Modifier.height(20.dp))
             Text("Harness", color = Ink, fontSize = 30.sp, fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(4.dp))
-            Text("口袋里的 coding agent", color = Muted, fontSize = 13.sp)
+            Text(stringResource(R.string.app_tagline), color = Muted, fontSize = 13.sp)
             Spacer(Modifier.height(30.dp))
             CircularProgressIndicator(
                 modifier = Modifier.size(20.dp),
