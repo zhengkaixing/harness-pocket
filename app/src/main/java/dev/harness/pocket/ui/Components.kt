@@ -1238,6 +1238,12 @@ fun ToolCard(
     onLoadImage: suspend (String) -> ChatImage? = { null },
     onOpenFile: (ChatFile) -> Unit = {}
 ) {
+    if (item.name == "plugin/card" || item.name == "plugin.card") {
+        parsePluginCard(item.input)?.let { card ->
+            PluginCardView(card)
+            return
+        }
+    }
     var expanded by remember(item.key) { mutableStateOf(false) }
     val statusColor = when {
         !item.done -> Blue
