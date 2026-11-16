@@ -1,4 +1,26 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Harness</string>
+    <string name="nav_new_chat">新对话</string>
+    <string name="nav_resources">资源与并发</string>
+    <string name="nav_automations">自动化任务</string>
+    <string name="nav_settings">连接设置</string>
+    <string name="nav_pinned">置顶</string>
+    <string name="nav_workspace">工作区</string>
+    <string name="nav_syncing">同步中</string>
+    <string name="nav_no_sessions">还没有会话</string>
+    <string name="nav_no_matches">没有匹配的会话</string>
+    <string name="nav_search_hint">搜索会话</string>
+    <string name="nav_searching">正在搜索会话内容…</string>
+    <string name="nav_no_content_matches">没有匹配的会话内容</string>
+    <string name="nav_content_matches">内容匹配</string>
+    <string name="nav_refresh">刷新会话和工作区</string>
+    <string name="nav_manage_workspaces">管理工作区</string>
+    <string name="nav_new_chat_workspace">在此工作区新建对话</string>
+    <string name="nav_move_up">上移</string>
+    <string name="nav_move_down">下移</string>
+    <string name="nav_running">%1$d 运行中</string>
+    <string name="nav_connected">已连接 · %1$d 个会话</string>
+    <string name="nav_disconnected">未连接</string>
+    <string name="nav_unnamed_session">未命名会话</string>
 </resources>

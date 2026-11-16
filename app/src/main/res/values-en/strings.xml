@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Harness</string>
+    <string name="nav_new_chat">New chat</string>
+    <string name="nav_resources">Resources &amp; concurrency</string>
+    <string name="nav_automations">Automations</string>
+    <string name="nav_settings">Connection settings</string>
+    <string name="nav_pinned">Pinned</string>
+    <string name="nav_workspace">Workspaces</string>
+    <string name="nav_syncing">Syncing</string>
+    <string name="nav_no_sessions">No sessions yet</string>
+    <string name="nav_no_matches">No matching sessions</string>
+    <string name="nav_search_hint">Search sessions</string>
+    <string name="nav_searching">Searching session content…</string>
+    <string name="nav_no_content_matches">No matching session content</string>
+    <string name="nav_content_matches">Content matches</string>
+    <string name="nav_refresh">Refresh sessions and workspaces</string>
+    <string name="nav_manage_workspaces">Manage workspaces</string>
+    <string name="nav_new_chat_workspace">New chat in this workspace</string>
+    <string name="nav_move_up">Move up</string>
+    <string name="nav_move_down">Move down</string>
+    <string name="nav_running">%1$d running</string>
+    <string name="nav_connected">Connected · %1$d sessions</string>
+    <string name="nav_disconnected">Disconnected</string>
+    <string name="nav_unnamed_session">Untitled session</string>
+</resources>

@@ -58,9 +58,11 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import dev.harness.pocket.R
 import dev.harness.pocket.data.AppState
 import dev.harness.pocket.data.SessionSummary
 import dev.harness.pocket.data.WorkspaceInfo
@@ -181,7 +183,7 @@ internal fun HarnessNavigationContent(
                 SoftIconButton(
                     icon = Icons.Rounded.Refresh,
                     onClick = onRefresh,
-                    contentDescription = "刷新会话和工作区",
+                    contentDescription = stringResource(R.string.nav_refresh),
                     tint = if (state.sessionsLoading || state.workspacesLoading) {
                         Muted.copy(alpha = 0.45f)
                     } else {
@@ -197,7 +199,7 @@ internal fun HarnessNavigationContent(
                         searchOpen = !searchOpen
                         if (!searchOpen) query = ""
                     },
-                    contentDescription = "搜索会话",
+                    contentDescription = stringResource(R.string.nav_search_hint),
                     background = Color.Transparent,
                     size = 38.dp
                 )
@@ -214,7 +216,7 @@ internal fun HarnessNavigationContent(
                 ) {
                     Box(Modifier.padding(horizontal = 12.dp, vertical = 10.dp)) {
                         if (query.isEmpty()) {
-                            Text("搜索会话", color = Muted, fontSize = 13.sp)
+                            Text(stringResource(R.string.nav_search_hint), color = Muted, fontSize = 13.sp)
                         }
                         BasicTextField(
                             value = query,
@@ -235,7 +237,7 @@ internal fun HarnessNavigationContent(
             if (searchOpen && query.isNotBlank()) {
                 when {
                     state.searchLoading -> Text(
-                        "正在搜索会话内容…",
+                        stringResource(R.string.nav_searching),
                         color = Muted,
                         fontSize = 12.sp,
                         modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp)
@@ -247,14 +249,14 @@ internal fun HarnessNavigationContent(
                         modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp)
                     )
                     state.searchResults.isEmpty() -> Text(
-                        "没有匹配的会话内容",
+                        stringResource(R.string.nav_no_content_matches),
                         color = Muted,
                         fontSize = 12.sp,
                         modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp)
                     )
                     else -> {
                         Text(
-                            "内容匹配",
+                            stringResource(R.string.nav_content_matches),
                             color = Muted,
                             fontSize = 11.sp,
                             fontWeight = FontWeight.SemiBold,
@@ -277,7 +279,7 @@ internal fun HarnessNavigationContent(
                                 ) {
                                     Column(Modifier.padding(horizontal = 12.dp, vertical = 9.dp)) {
                                         Text(
-                                            session.title ?: "未命名会话",
+                                            session.title ?: stringResource(R.string.nav_unnamed_session),
                                             color = Ink,
                                             fontSize = 13.sp,
                                             fontWeight = FontWeight.Medium,
@@ -300,19 +302,19 @@ internal fun HarnessNavigationContent(
                 Spacer(Modifier.height(6.dp))
             }
 
-            DrawerAction(Icons.Rounded.Add, "新对话") {
+            DrawerAction(Icons.Rounded.Add, stringResource(R.string.nav_new_chat)) {
                 onClose()
                 onNewChat()
             }
-            DrawerAction(Icons.Rounded.Memory, "资源与并发") {
+            DrawerAction(Icons.Rounded.Memory, stringResource(R.string.nav_resources)) {
                 onClose()
                 onResources()
             }
-            DrawerAction(Icons.Rounded.Schedule, "自动化任务") {
+            DrawerAction(Icons.Rounded.Schedule, stringResource(R.string.nav_automations)) {
                 onClose()
                 onAutomations()
             }
-            DrawerAction(Icons.Rounded.Settings, "连接设置") {
+            DrawerAction(Icons.Rounded.Settings, stringResource(R.string.nav_settings)) {
                 onClose()
                 onSettings()
             }
@@ -323,7 +325,7 @@ internal fun HarnessNavigationContent(
             )
 
             if (pinnedSessions.isNotEmpty()) {
-                SectionLabel("置顶")
+                SectionLabel(stringResource(R.string.nav_pinned))
                 pinnedSessions.take(4).forEach { session ->
                     DrawerSessionRow(
                         session = session,
@@ -345,10 +347,10 @@ internal fun HarnessNavigationContent(
                     .padding(start = 20.dp, end = 12.dp, top = 12.dp, bottom = 2.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                SectionLabel("工作区", modifier = Modifier.padding(0.dp))
+                SectionLabel(stringResource(R.string.nav_workspace), modifier = Modifier.padding(0.dp))
                 Spacer(Modifier.weight(1f))
                 if (state.sessionsLoading || state.workspacesLoading) {
-                    Text("同步中", color = Muted, fontSize = 10.sp)
+                    Text(stringResource(R.string.nav_syncing), color = Muted, fontSize = 10.sp)
                 }
                 Spacer(Modifier.width(4.dp))
                 SoftIconButton(
@@ -357,7 +359,7 @@ internal fun HarnessNavigationContent(
                         onClose()
                         onWorkspace()
                     },
-                    contentDescription = "管理工作区",
+                    contentDescription = stringResource(R.string.nav_manage_workspaces),
                     background = Color.Transparent,
                     size = 28.dp
                 )
@@ -365,7 +367,7 @@ internal fun HarnessNavigationContent(
 
             if (groups.isEmpty()) {
                 Text(
-                    if (query.isBlank()) "还没有会话" else "没有匹配的会话",
+                    if (query.isBlank()) stringResource(R.string.nav_no_sessions) else stringResource(R.string.nav_no_matches),
                     color = Muted,
                     fontSize = 12.sp,
                     modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)
@@ -453,7 +455,7 @@ internal fun HarnessNavigationContent(
                         fontWeight = FontWeight.SemiBold
                     )
                     Text(
-                        if (state.connection != null) "已连接 · ${visible.size} 个会话" else "未连接",
+                        if (state.connection != null) stringResource(R.string.nav_connected, visible.size) else stringResource(R.string.nav_disconnected),
                         color = Muted,
                         fontSize = 10.sp,
                         maxLines = 1,
@@ -541,7 +543,7 @@ private fun DrawerWorkspaceHeader(
         Column(Modifier.weight(1f)) {
             Text(
                 group.workspace.title.ifBlank {
-                    cwdLabel(group.workspace.path) ?: "工作区"
+                    cwdLabel(group.workspace.path) ?: stringResource(R.string.nav_workspace)
                 },
                 color = Ink,
                 fontSize = 12.5.sp,
@@ -562,7 +564,7 @@ private fun DrawerWorkspaceHeader(
         SoftIconButton(
             icon = Icons.Rounded.Add,
             onClick = onNewChat,
-            contentDescription = "在此工作区新建对话",
+            contentDescription = stringResource(R.string.nav_new_chat_workspace),
             background = Color.Transparent,
             size = 24.dp
         )
@@ -582,7 +584,7 @@ private fun DrawerWorkspaceHeader(
                     )
                     Spacer(Modifier.width(3.dp))
                     Text(
-                        "${group.runningCount} 运行中",
+                        stringResource(R.string.nav_running, group.runningCount),
                         color = Green,
                         fontSize = 9.sp,
                         fontWeight = FontWeight.Medium
@@ -611,7 +613,7 @@ private fun DrawerWorkspaceHeader(
                     onDismissRequest = { moveMenu = false }
                 ) {
                     DropdownMenuItem(
-                        text = { Text("上移", fontSize = 13.sp) },
+                        text = { Text(stringResource(R.string.nav_move_up), fontSize = 13.sp) },
                         enabled = canMoveUp,
                         onClick = {
                             moveMenu = false
@@ -619,7 +621,7 @@ private fun DrawerWorkspaceHeader(
                         }
                     )
                     DropdownMenuItem(
-                        text = { Text("下移", fontSize = 13.sp) },
+                        text = { Text(stringResource(R.string.nav_move_down), fontSize = 13.sp) },
                         enabled = canMoveDown,
                         onClick = {
                             moveMenu = false
