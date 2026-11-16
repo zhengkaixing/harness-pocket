@@ -11,8 +11,8 @@ android {
         applicationId = "dev.harness.pocket"
         minSdk = 26
         targetSdk = 33
-        versionCode = 67
-        versionName = "0.39.0"
+        versionCode = 68
+        versionName = "0.39.1"
     }
 
     buildTypes {

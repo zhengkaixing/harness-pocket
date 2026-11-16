@@ -149,4 +149,5 @@
     <string name="tool_collapse_details">Hide tool details</string>
     <string name="tool_expand_group">Show tool calls</string>
     <string name="tool_collapse_group">Hide tool calls</string>
+    <string name="tool_verb_run_command">Run command</string>
 </resources>

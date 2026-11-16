@@ -1826,7 +1826,7 @@ fun harnessFieldColors() = OutlinedTextFieldDefaults.colors(
 
 @Composable
 fun toolLabel(name: String): String = when {
-    name.contains("pwsh", true) || name.contains("bash", true) || name.contains("shell", true) -> stringResource(R.string.tool_verb_run) + " " + stringResource(R.string.tool_verb_run)
+    name.contains("pwsh", true) || name.contains("bash", true) || name.contains("shell", true) -> stringResource(R.string.tool_verb_run_command)
     name.contains("read", true) -> stringResource(R.string.tool_verb_read)
     name.contains("write", true) || name.contains("edit", true) || name.contains("patch", true) -> stringResource(R.string.tool_verb_modify)
     name.contains("grep", true) || name.contains("glob", true) || name.contains("search", true) -> stringResource(R.string.tool_verb_search)
