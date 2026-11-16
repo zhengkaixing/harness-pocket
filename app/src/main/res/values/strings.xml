@@ -104,4 +104,17 @@
     <string name="resource_read">读取资源状态</string>
     <string name="resource_disk">磁盘</string>
     <string name="resource_no_disk">插件没有返回磁盘信息。</string>
+    <string name="image_load_failed">图片加载失败</string>
+    <string name="image_tap_retry">轻触重试</string>
+    <string name="image_prev">上一张</string>
+    <string name="image_next">下一张</string>
+    <string name="tool_params">参数</string>
+    <string name="tool_error">错误</string>
+    <string name="tool_result">结果</string>
+    <string name="tool_no_output">没有输出</string>
+    <string name="tool_waiting">等待结果…</string>
+    <string name="question_other">其他答案（可选）</string>
+    <string name="question_skip">跳过</string>
+    <string name="question_submit">提交</string>
+    <string name="question_submitting">提交中…</string>
 </resources>

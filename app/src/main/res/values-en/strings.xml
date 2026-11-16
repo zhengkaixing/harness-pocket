@@ -104,4 +104,17 @@
     <string name="resource_read">Read resources</string>
     <string name="resource_disk">Disks</string>
     <string name="resource_no_disk">The plugin returned no disk information.</string>
+    <string name="image_load_failed">Image failed to load</string>
+    <string name="image_tap_retry">Tap to retry</string>
+    <string name="image_prev">Previous image</string>
+    <string name="image_next">Next image</string>
+    <string name="tool_params">Arguments</string>
+    <string name="tool_error">Error</string>
+    <string name="tool_result">Result</string>
+    <string name="tool_no_output">No output</string>
+    <string name="tool_waiting">Waiting for result…</string>
+    <string name="question_other">Other answer (optional)</string>
+    <string name="question_skip">Skip</string>
+    <string name="question_submit">Submit</string>
+    <string name="question_submitting">Submitting…</string>
 </resources>

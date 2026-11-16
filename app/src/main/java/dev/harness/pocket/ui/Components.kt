@@ -462,9 +462,9 @@ fun ChatImageBox(
         ) {
             if (cannotShow) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("图片加载失败", color = Muted, fontSize = 11.5.sp)
+                    Text(stringResource(R.string.image_load_failed), color = Muted, fontSize = 11.5.sp)
                     Spacer(Modifier.height(5.dp))
-                    Text("轻触重试", color = Blue, fontSize = 11.sp)
+                    Text(stringResource(R.string.image_tap_retry), color = Blue, fontSize = 11.sp)
                 }
             } else {
                 CircularProgressIndicator(
@@ -564,7 +564,7 @@ private fun ImageViewerDialog(
                 )
             } else {
                 Text(
-                    text = "图片加载失败",
+                    text = stringResource(R.string.image_load_failed),
                     color = Color.White,
                     fontSize = 13.sp,
                     modifier = Modifier.align(Alignment.Center)
@@ -647,7 +647,7 @@ private fun ViewerPageButton(
     ) {
         Icon(
             if (up) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,
-            contentDescription = if (up) "上一张" else "下一张",
+            contentDescription = stringResource(if (up) R.string.image_prev else R.string.image_next),
             tint = if (enabled) Color.White else Color(0x55FFFFFF),
             modifier = Modifier.size(26.dp)
         )
@@ -1345,11 +1345,11 @@ fun ToolCard(
                     FileAttachmentChip(file = file, onOpen = onOpenFile)
                 }
                 if (item.input.isNotBlank()) {
-                    ToolCode(label = "参数", text = item.input)
+                    ToolCode(label = stringResource(R.string.tool_params), text = item.input)
                 }
                 ToolCode(
-                    label = if (item.isError) "错误" else "结果",
-                    text = item.result?.ifBlank { "没有输出" } ?: "等待结果…",
+                    label = stringResource(if (item.isError) R.string.tool_error else R.string.tool_result),
+                    text = item.result?.ifBlank { stringResource(R.string.tool_no_output) } ?: stringResource(R.string.tool_waiting),
                     isError = item.isError
                 )
             }
@@ -1634,7 +1634,7 @@ fun QuestionCard(
                         .padding(horizontal = 10.dp, vertical = 7.dp)
                 ) {
                     if (customs[question.id].isNullOrEmpty()) {
-                        Text("其他答案（可选）", color = Muted.copy(alpha = 0.8f), fontSize = 12.sp)
+                        Text(stringResource(R.string.question_other), color = Muted.copy(alpha = 0.8f), fontSize = 12.sp)
                     }
                     BasicTextField(
                         value = customs[question.id].orEmpty(),
@@ -1660,7 +1660,7 @@ fun QuestionCard(
                     onClick = { onSubmit(answers(skip = true)) },
                     enabled = !busy
                 ) {
-                    Text("跳过", color = Muted, fontSize = 12.5.sp)
+                    Text(stringResource(R.string.question_skip), color = Muted, fontSize = 12.5.sp)
                 }
                 Spacer(Modifier.width(4.dp))
                 Box(
@@ -1673,7 +1673,7 @@ fun QuestionCard(
                         .padding(horizontal = 20.dp, vertical = 8.dp)
                 ) {
                     Text(
-                        text = if (busy) "提交中…" else "提交",
+                        text = stringResource(if (busy) R.string.question_submitting else R.string.question_submit),
                         color = Color.White,
                         fontSize = 12.5.sp,
                         fontWeight = FontWeight.SemiBold
