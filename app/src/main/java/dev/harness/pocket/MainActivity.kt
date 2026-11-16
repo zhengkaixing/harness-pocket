@@ -9,6 +9,7 @@ import android.graphics.Paint
 import android.graphics.Canvas
 import android.graphics.Bitmap
 import android.net.Uri
+import android.text.TextUtils
 import android.os.Build
 import android.os.Bundle
 import android.widget.Toast
@@ -244,6 +245,41 @@ private fun AppRoot(
         }
     }
 
+    val shareReplay: () -> Unit = {
+        val chat = state.chat
+        val title = state.activeSession?.title?.takeIf { it.isNotBlank() } ?: "Harness 对话"
+        val body = buildString {
+            append("<!doctype html><html lang=\"zh\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">")
+            append("<title>").append(TextUtils.htmlEncode(title)).append("</title><style>")
+            append("body{margin:0;background:#f7f8fc;color:#202534;font:15px/1.7 -apple-system,BlinkMacSystemFont,Segoe UI,sans-serif}")
+            append(".wrap{max-width:760px;margin:0 auto;padding:32px 18px 64px}h1{font-size:22px;margin:0 0 24px}")
+            append(".m{margin:0 0 18px;padding:14px 16px;border-radius:14px;white-space:pre-wrap;word-break:break-word}")
+            append(".u{background:#e9eeff;border:1px solid #dce4ff}.a{background:#fff;border:1px solid #e7e9f2}")
+            append(".t{font-size:12px;color:#8b92a5;margin:0 0 4px}.tool{font-size:12px;color:#5b6274;background:#fff;border:1px dashed #e7e9f2;border-radius:10px;padding:8px 10px;margin:6px 0}")
+            append("</style></head><body><div class=\"wrap\"><h1>").append(TextUtils.htmlEncode(title)).append("</h1>")
+            chat.items.forEach { item ->
+                when (item) {
+                    is dev.harness.pocket.data.UserMessage -> append("<div class=\"m u\"><div class=\"t\">你</div>").append(TextUtils.htmlEncode(item.text)).append("</div>")
+                    is dev.harness.pocket.data.AssistantMessage -> if (item.text.isNotBlank()) append("<div class=\"m a\"><div class=\"t\">助手</div>").append(TextUtils.htmlEncode(item.text)).append("</div>")
+                    is dev.harness.pocket.data.ToolItem -> append("<div class=\"tool\">").append(TextUtils.htmlEncode(item.name)).append(" · ").append(if (item.isError) "失败" else if (item.done) "完成" else "执行中").append("</div>")
+                    is dev.harness.pocket.data.NoticeItem -> append("<div class=\"m a\"><div class=\"t\">提示</div>").append(TextUtils.htmlEncode(item.text)).append("</div>")
+                    else -> Unit
+                }
+            }
+            append("</div></body></html>")
+        }
+        val file = File(context.cacheDir, "attachments").apply { mkdirs() }.resolve("replay.html")
+        file.writeText(body, Charsets.UTF_8)
+        val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+        val intent = Intent(Intent.ACTION_SEND).apply {
+            type = "text/html"
+            putExtra(Intent.EXTRA_STREAM, uri)
+            putExtra(Intent.EXTRA_SUBJECT, title)
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+        runCatching { context.startActivity(Intent.createChooser(intent, "分享回放网页")) }
+    }
+
     val openLink: (String) -> Unit = { raw ->
         val link = raw.trim()
         if (link.isNotBlank()) {
@@ -438,6 +474,7 @@ private fun AppRoot(
                     onOpenLink = openLink,
                     onExport = shareConversation,
                     onShareCard = shareReplyCard,
+                    onShareReplay = shareReplay,
                     onRefreshResources = vm::refreshResources,
                     onOpenResources = vm::openResources,
                     onLoadEarlier = vm::loadEarlier
