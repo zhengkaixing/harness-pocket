@@ -91,6 +91,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -100,6 +101,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import dev.harness.pocket.data.AiModel
+import dev.harness.pocket.R
 import dev.harness.pocket.data.AppState
 import dev.harness.pocket.data.ApprovalRequest
 import dev.harness.pocket.data.AskAnswer
@@ -318,7 +320,7 @@ fun ChatScreen(
                             strokeWidth = 2.2.dp
                         )
                         Spacer(Modifier.height(12.dp))
-                        Text("正在同步对话…", color = Muted, fontSize = 12.sp)
+                        Text(stringResource(R.string.chat_syncing), color = Muted, fontSize = 12.sp)
                     }
                 }
 
@@ -739,7 +741,7 @@ private fun ModelPill(
         ) {
             if (catalog == null || catalog.groups.isEmpty()) {
                 DropdownMenuItem(
-                    text = { Text("模型目录加载中…", color = Muted, fontSize = 12.sp) },
+                    text = { Text(stringResource(R.string.chat_models_loading), color = Muted, fontSize = 12.sp) },
                     onClick = { open = false }
                 )
             } else {
@@ -872,7 +874,7 @@ private fun ModelPill(
                 },
                 confirmButton = {
                     TextButton(onClick = { effortTarget = null }) {
-                        Text("取消", color = Muted)
+                        Text(stringResource(R.string.common_cancel), color = Muted)
                     }
                 },
                 containerColor = Color.White,
@@ -1024,7 +1026,7 @@ private fun ChatTopBar(
         SoftIconButton(
             icon = Icons.Rounded.Menu,
             onClick = onMenu,
-            contentDescription = "打开菜单",
+            contentDescription = stringResource(R.string.chat_open_menu),
             background = Color.Transparent,
             size = 38.dp
         )
@@ -1068,14 +1070,14 @@ private fun ChatTopBar(
         SoftIconButton(
             icon = Icons.Rounded.Edit,
             onClick = onNewChat,
-            contentDescription = "新建对话",
+            contentDescription = stringResource(R.string.chat_new),
             background = Color.Transparent,
             size = 34.dp
         )
         SoftIconButton(
             icon = Icons.Rounded.Refresh,
             onClick = onRefresh,
-            contentDescription = "刷新对话",
+            contentDescription = stringResource(R.string.chat_refresh),
             background = Color.Transparent,
             size = 34.dp
         )
@@ -1083,7 +1085,7 @@ private fun ChatTopBar(
             SoftIconButton(
                 icon = Icons.Rounded.MoreHoriz,
                 onClick = { onMenuOpenChange(true) },
-                contentDescription = "更多",
+                contentDescription = stringResource(R.string.chat_more),
                 background = Color.Transparent,
                 size = 36.dp
             )
@@ -1092,35 +1094,35 @@ private fun ChatTopBar(
                 onDismissRequest = { onMenuOpenChange(false) }
             ) {
                 DropdownMenuItem(
-                    text = { Text("重命名会话", color = Ink, fontSize = 13.sp) },
+                    text = { Text(stringResource(R.string.chat_rename), color = Ink, fontSize = 13.sp) },
                     leadingIcon = {
                         Icon(Icons.Rounded.Edit, null, tint = InkSoft, modifier = Modifier.size(17.dp))
                     },
                     onClick = onRename
                 )
                 DropdownMenuItem(
-                    text = { Text("导出对话", color = Ink, fontSize = 13.sp) },
+                    text = { Text(stringResource(R.string.chat_export), color = Ink, fontSize = 13.sp) },
                     leadingIcon = {
                         Icon(Icons.Rounded.Share, null, tint = InkSoft, modifier = Modifier.size(17.dp))
                     },
                     onClick = onExport
                 )
                 DropdownMenuItem(
-                    text = { Text("分享回复卡片", color = Ink, fontSize = 13.sp) },
+                    text = { Text(stringResource(R.string.chat_share_reply), color = Ink, fontSize = 13.sp) },
                     leadingIcon = {
                         Icon(Icons.Rounded.Share, null, tint = InkSoft, modifier = Modifier.size(17.dp))
                     },
                     onClick = onShareCard
                 )
                 DropdownMenuItem(
-                    text = { Text("分享回放网页", color = Ink, fontSize = 13.sp) },
+                    text = { Text(stringResource(R.string.chat_share_replay), color = Ink, fontSize = 13.sp) },
                     leadingIcon = {
                         Icon(Icons.Rounded.Share, null, tint = InkSoft, modifier = Modifier.size(17.dp))
                     },
                     onClick = onShareReplay
                 )
                 DropdownMenuItem(
-                    text = { Text("连接设置", color = Ink, fontSize = 13.sp) },
+                    text = { Text(stringResource(R.string.chat_settings), color = Ink, fontSize = 13.sp) },
                     leadingIcon = {
                         Icon(Icons.Rounded.Settings, null, tint = InkSoft, modifier = Modifier.size(17.dp))
                     },
@@ -1447,7 +1449,7 @@ private fun AttachmentThumb(
         ) {
             Icon(
                 Icons.Rounded.Close,
-                contentDescription = "移除图片",
+                contentDescription = stringResource(R.string.chat_remove_image),
                 tint = Color.White,
                 modifier = Modifier.size(12.dp)
             )
@@ -1461,7 +1463,7 @@ private fun AttachmentThumb(
                     .padding(vertical = 2.dp),
                 contentAlignment = Alignment.Center
             ) {
-                Text("上传失败", color = Color.White, fontSize = 8.sp)
+                Text(stringResource(R.string.chat_upload_failed), color = Color.White, fontSize = 8.sp)
             }
         }
     }
@@ -1527,7 +1529,7 @@ private fun AttachmentChip(attachment: Attachment, onRemove: () -> Unit) {
             ) {
                 Icon(
                     Icons.Rounded.Close,
-                    contentDescription = "移除附件",
+                    contentDescription = stringResource(R.string.chat_remove_image),
                     tint = Muted,
                     modifier = Modifier.size(13.dp)
                 )
@@ -1553,9 +1555,9 @@ private fun EarlierHistoryButton(loading: Boolean, onClick: () -> Unit) {
                 strokeWidth = 1.5.dp
             )
             Spacer(Modifier.width(7.dp))
-            Text("正在加载更早消息…", color = Muted, fontSize = 11.sp)
+            Text(stringResource(R.string.chat_loading_earlier), color = Muted, fontSize = 11.sp)
         } else {
-            Text("↑ 加载更早消息", color = Blue, fontSize = 11.sp, fontWeight = FontWeight.Medium)
+            Text(stringResource(R.string.chat_load_earlier), color = Blue, fontSize = 11.sp, fontWeight = FontWeight.Medium)
         }
     }
 }
@@ -1647,7 +1649,7 @@ private fun ApprovalCard(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 TextButton(onClick = { onDecision(false) }, enabled = !busy) {
-                    Text("拒绝", fontSize = 12.sp, color = Muted)
+                    Text(stringResource(R.string.chat_reject), fontSize = 12.sp, color = Muted)
                 }
                 Spacer(Modifier.width(4.dp))
                 TextButton(
@@ -1687,7 +1689,7 @@ private fun QueueStrip(queued: List<UserMessage>) {
                     fontWeight = FontWeight.Medium
                 )
                 Spacer(Modifier.weight(1f))
-                Text("发送完成后自动清空", color = Color(0xFFB08A50), fontSize = 9.sp)
+                Text(stringResource(R.string.chat_auto_clear), color = Color(0xFFB08A50), fontSize = 9.sp)
             }
             queued.take(3).forEachIndexed { index, item ->
                 val imageCount = item.images.size
@@ -1857,7 +1859,7 @@ private fun ChatComposer(
                         ) {
                             Icon(
                                 Icons.Rounded.Fullscreen,
-                                contentDescription = "全屏编辑",
+                                contentDescription = stringResource(R.string.chat_fullscreen),
                                 tint = InkSoft,
                                 modifier = Modifier.size(18.dp)
                             )
@@ -1892,13 +1894,13 @@ private fun ChatComposer(
                             )
                             showStop -> Icon(
                                 Icons.Rounded.Stop,
-                                contentDescription = "停止生成",
+                                contentDescription = stringResource(R.string.chat_stop),
                                 tint = Color.White,
                                 modifier = Modifier.size(17.dp)
                             )
                             else -> Icon(
                                 Icons.Rounded.ArrowUpward,
-                                contentDescription = "发送",
+                                contentDescription = stringResource(R.string.chat_send),
                                 tint = if (canSend) Color.White else Color(0xFFB7BCC8),
                                 modifier = Modifier.size(19.dp)
                             )
@@ -2071,7 +2073,7 @@ private fun FullScreenComposer(
                     ) {
                         Icon(
                             Icons.Rounded.Close,
-                            contentDescription = "关闭全屏编辑",
+                            contentDescription = stringResource(R.string.chat_close_fullscreen),
                             tint = Ink,
                             modifier = Modifier.size(22.dp)
                         )
@@ -2172,7 +2174,7 @@ private fun FullScreenComposer(
                                 )
                                 showStop -> Icon(
                                     Icons.Rounded.Stop,
-                                    contentDescription = "停止生成",
+                                    contentDescription = stringResource(R.string.chat_stop),
                                     tint = Color.White,
                                     modifier = Modifier.size(18.dp)
                                 )
@@ -2221,14 +2223,14 @@ private fun RenameDialog(
         containerColor = Color.White,
         shape = RoundedCornerShape(24.dp),
         title = {
-            Text("重命名会话", color = Ink, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+            Text(stringResource(R.string.chat_rename_title), color = Ink, fontSize = 18.sp, fontWeight = FontWeight.Bold)
         },
         text = {
             OutlinedTextField(
                 value = value,
                 onValueChange = { if (it.length <= 80) value = it },
                 singleLine = true,
-                placeholder = { Text("输入一个标题", color = Muted, fontSize = 13.sp) },
+                placeholder = { Text(stringResource(R.string.chat_enter_title), color = Muted, fontSize = 13.sp) },
                 colors = harnessFieldColors(),
                 shape = RoundedCornerShape(13.dp),
                 modifier = Modifier.fillMaxWidth()
@@ -2239,12 +2241,12 @@ private fun RenameDialog(
                 onClick = { onConfirm(value) },
                 enabled = value.isNotBlank()
             ) {
-                Text("保存", color = if (value.isNotBlank()) Blue else Muted, fontWeight = FontWeight.SemiBold)
+                Text(stringResource(R.string.common_save), color = if (value.isNotBlank()) Blue else Muted, fontWeight = FontWeight.SemiBold)
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("取消", color = Muted)
+                Text(stringResource(R.string.common_cancel), color = Muted)
             }
         }
     )
