@@ -403,7 +403,7 @@ Harness Pocket 是一个**非官方的原生 Android 客户端**，用来远程�
 
 ### 直接安装 APK
 
-本地预构建的 APK 在 `dist/HarnessPocket-0.29.0-debug.apk`（二进制不提交到 Git 仓库）；从源码重新构建的产物在：
+本地预构建的 APK 在 `dist/HarnessPocket-0.30.0-debug.apk`（二进制不提交到 Git 仓库）；从源码重新构建的产物在：
 
 ```text
 app/build/outputs/apk/debug/app-debug.apk
@@ -535,6 +535,11 @@ app/src/main/java/dev/harness/pocket/
 - [ ] 可配置的 HTTPS / 证书校验
 
 ## 更新日志
+
+### 0.30.0
+
+- 分享回放新增局域网链接：App 内置轻量 HTTP 服务（端口 8787），把当前对话 HTML 提供给同一 Wi-Fi 下的设备浏览；分享面板会同时附带回放链接，App 退出时服务停止。
+- 单元测试覆盖回放服务的 HTTP 响应。
 
 ### 0.29.0
 

@@ -45,6 +45,7 @@ import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import androidx.core.view.WindowCompat
 import dev.harness.pocket.data.AppState
+import dev.harness.pocket.data.ReplayServer
 import dev.harness.pocket.data.AssistantMessage
 import dev.harness.pocket.data.ChatFile
 import dev.harness.pocket.ui.AlbumPicker
@@ -271,13 +272,16 @@ private fun AppRoot(
         val file = File(context.cacheDir, "attachments").apply { mkdirs() }.resolve("replay.html")
         file.writeText(body, Charsets.UTF_8)
         val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+        val url = ReplayServer.start(body)
         val intent = Intent(Intent.ACTION_SEND).apply {
             type = "text/html"
             putExtra(Intent.EXTRA_STREAM, uri)
             putExtra(Intent.EXTRA_SUBJECT, title)
+            if (url != null) putExtra(Intent.EXTRA_TEXT, "对话回放（同一局域网可打开）：$url")
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }
         runCatching { context.startActivity(Intent.createChooser(intent, "分享回放网页")) }
+        if (url != null) Toast.makeText(context, "局域网回放：$url", Toast.LENGTH_LONG).show()
     }
 
     val openLink: (String) -> Unit = { raw ->
