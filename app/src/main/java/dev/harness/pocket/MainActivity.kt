@@ -4,6 +4,10 @@ import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Color
+import android.graphics.Typeface
+import android.graphics.Paint
+import android.graphics.Canvas
+import android.graphics.Bitmap
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -40,6 +44,7 @@ import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import androidx.core.view.WindowCompat
 import dev.harness.pocket.data.AppState
+import dev.harness.pocket.data.AssistantMessage
 import dev.harness.pocket.data.ChatFile
 import dev.harness.pocket.ui.AlbumPicker
 import dev.harness.pocket.ui.AutomationScreen
@@ -53,6 +58,7 @@ import dev.harness.pocket.ui.SettingsDialog
 import dev.harness.pocket.ui.SplashScreen
 import dev.harness.pocket.ui.WorkspaceDialog
 import java.io.File
+import java.io.FileOutputStream
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
@@ -162,6 +168,80 @@ private fun AppRoot(
             putExtra(Intent.EXTRA_TEXT, text)
         }
         runCatching { context.startActivity(Intent.createChooser(intent, "导出对话")) }
+    }
+
+    val shareReplyCard: () -> Unit = {
+        val reply = state.chat.items
+            .filterIsInstance<AssistantMessage>()
+            .lastOrNull()?.text?.trim()
+        if (reply.isNullOrBlank()) {
+            Toast.makeText(context, "没有可分享的回复", Toast.LENGTH_SHORT).show()
+        } else {
+            val title = state.activeSession?.title?.takeIf { it.isNotBlank() } ?: "Harness 对话"
+            val cardTitle = title.take(30)
+            val width = 1080
+            val pad = 64
+            val contentWidth = width - pad * 2
+            val bodyPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = Color.rgb(32, 37, 52)
+                textSize = 34f
+                typeface = Typeface.DEFAULT
+            }
+            val headPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = Color.rgb(83, 109, 254)
+                textSize = 28f
+                typeface = Typeface.DEFAULT_BOLD
+            }
+            val titlePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = Color.rgb(32, 37, 52)
+                textSize = 44f
+                typeface = Typeface.DEFAULT_BOLD
+            }
+            val footPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = Color.rgb(139, 146, 165)
+                textSize = 24f
+            }
+            val lines = ArrayList<String>()
+            reply.lines().forEach { paragraph ->
+                if (paragraph.isBlank()) {
+                    lines.add("")
+                } else {
+                    var rest = paragraph.trim()
+                    while (rest.isNotEmpty()) {
+                        val count = bodyPaint.breakText(rest, true, contentWidth.toFloat(), null).coerceAtLeast(1)
+                        lines.add(rest.take(count))
+                        rest = rest.drop(count)
+                    }
+                }
+            }
+            val visible = lines.take(62)
+            val height = pad + 56 + 18 + 58 + 26 + visible.size * 50 + 58
+            val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+            val canvas = Canvas(bitmap)
+            canvas.drawColor(Color.WHITE)
+            canvas.drawText("HARNESS POCKET", pad.toFloat(), (pad + 28).toFloat(), headPaint)
+            canvas.drawText(cardTitle, pad.toFloat(), (pad + 56 + 18 + 42).toFloat(), titlePaint)
+            var y = pad + 56 + 18 + 58 + 26 + 30
+            visible.forEach { line ->
+                if (line.isNotEmpty()) canvas.drawText(line, pad.toFloat(), y.toFloat(), bodyPaint)
+                y += 50
+            }
+            canvas.drawText("来自 Harness Pocket", pad.toFloat(), (height - pad + 4).toFloat(), footPaint)
+            val card = File(context.cacheDir, "attachments").apply { mkdirs() }
+                .resolve("reply-card.png")
+            FileOutputStream(card).use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
+            val uri = FileProvider.getUriForFile(
+                context,
+                "${context.packageName}.fileprovider",
+                card
+            )
+            val intent = Intent(Intent.ACTION_SEND).apply {
+                type = "image/png"
+                putExtra(Intent.EXTRA_STREAM, uri)
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+            runCatching { context.startActivity(Intent.createChooser(intent, "分享回复卡片")) }
+        }
     }
 
     val openLink: (String) -> Unit = { raw ->
@@ -356,6 +436,7 @@ private fun AppRoot(
                     onOpenFile = openFile,
                     onOpenLink = openLink,
                     onExport = shareConversation,
+                    onShareCard = shareReplyCard,
                     onRefreshResources = vm::refreshResources,
                     onOpenResources = vm::openResources,
                     onLoadEarlier = vm::loadEarlier

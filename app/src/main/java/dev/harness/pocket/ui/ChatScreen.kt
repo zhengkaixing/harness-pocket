@@ -150,6 +150,7 @@ fun ChatScreen(
     onOpenFile: (ChatFile) -> Unit = {},
     onOpenLink: (String) -> Unit = {},
     onExport: () -> Unit = {},
+    onShareCard: () -> Unit = {},
     onRefreshResources: () -> Unit,
     onOpenResources: () -> Unit,
     onLoadEarlier: () -> Unit
@@ -258,6 +259,10 @@ fun ChatScreen(
             onExport = {
                 menuOpen = false
                 onExport()
+            },
+            onShareCard = {
+                menuOpen = false
+                onShareCard()
             },
             onSettings = {
                 menuOpen = false
@@ -971,6 +976,7 @@ private fun ChatTopBar(
     onRefresh: () -> Unit,
     onRename: () -> Unit,
     onExport: () -> Unit,
+    onShareCard: () -> Unit = {},
     onSettings: () -> Unit,
     runningSince: Long? = null,
     usage: TokenUsage? = null
@@ -1085,6 +1091,13 @@ private fun ChatTopBar(
                         Icon(Icons.Rounded.Share, null, tint = InkSoft, modifier = Modifier.size(17.dp))
                     },
                     onClick = onExport
+                )
+                DropdownMenuItem(
+                    text = { Text("分享回复卡片", color = Ink, fontSize = 13.sp) },
+                    leadingIcon = {
+                        Icon(Icons.Rounded.Share, null, tint = InkSoft, modifier = Modifier.size(17.dp))
+                    },
+                    onClick = onShareCard
                 )
                 DropdownMenuItem(
                     text = { Text("连接设置", color = Ink, fontSize = 13.sp) },
