@@ -1,19 +1,24 @@
 package dev.harness.pocket.ui
 
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.res.stringResource
+import dev.harness.pocket.R
+import java.text.DateFormat
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
+@Composable
 fun relativeTime(timestamp: Long): String {
     if (timestamp <= 0L) return ""
     val millis = if (timestamp < 10_000_000_000L) timestamp * 1000L else timestamp
-    val diff = System.currentTimeMillis() - millis
+    val diff = (System.currentTimeMillis() - millis).coerceAtLeast(0L)
     return when {
-        diff < 60_000L -> "刚刚"
-        diff < 3_600_000L -> "${diff / 60_000L} 分钟前"
-        diff < 86_400_000L -> "${diff / 3_600_000L} 小时前"
-        diff < 7 * 86_400_000L -> "${diff / 86_400_000L} 天前"
-        else -> SimpleDateFormat("M月d日", Locale.CHINA).format(Date(millis))
+        diff < 60_000L -> stringResource(R.string.relative_now)
+        diff < 3_600_000L -> stringResource(R.string.relative_minutes, (diff / 60_000L).toInt())
+        diff < 86_400_000L -> stringResource(R.string.relative_hours, (diff / 3_600_000L).toInt())
+        diff < 7 * 86_400_000L -> stringResource(R.string.relative_days, (diff / 86_400_000L).toInt())
+        else -> DateFormat.getDateInstance(DateFormat.MEDIUM, Locale.getDefault()).format(Date(millis))
     }
 }
 

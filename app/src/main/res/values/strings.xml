@@ -117,4 +117,8 @@
     <string name="question_skip">跳过</string>
     <string name="question_submit">提交</string>
     <string name="question_submitting">提交中…</string>
+    <string name="relative_now">刚刚</string>
+    <string name="relative_minutes">%1$d 分钟前</string>
+    <string name="relative_hours">%1$d 小时前</string>
+    <string name="relative_days">%1$d 天前</string>
 </resources>

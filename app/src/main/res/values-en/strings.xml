@@ -117,4 +117,8 @@
     <string name="question_skip">Skip</string>
     <string name="question_submit">Submit</string>
     <string name="question_submitting">Submitting…</string>
+    <string name="relative_now">Just now</string>
+    <string name="relative_minutes">%1$d min ago</string>
+    <string name="relative_hours">%1$d hr ago</string>
+    <string name="relative_days">%1$d days ago</string>
 </resources>
