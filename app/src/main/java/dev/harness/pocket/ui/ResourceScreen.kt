@@ -35,6 +35,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
@@ -42,6 +43,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.harness.pocket.data.AppState
 import dev.harness.pocket.data.ResourceDisk
+import dev.harness.pocket.R
 import dev.harness.pocket.data.ResourceStatus
 
 @Composable
@@ -64,12 +66,12 @@ fun ResourceScreen(
                     .padding(horizontal = 16.dp, vertical = 10.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                SoftIconButton(Icons.Rounded.ArrowBack, onBack, "返回")
+                SoftIconButton(Icons.Rounded.ArrowBack, onBack, stringResource(R.string.common_back))
                 Spacer(Modifier.width(10.dp))
                 Column(Modifier.weight(1f)) {
-                    Text("资源与并发", color = Ink, fontSize = 19.sp, fontWeight = FontWeight.Bold)
+                    Text(stringResource(R.string.resource_title), color = Ink, fontSize = 19.sp, fontWeight = FontWeight.Bold)
                     Text(
-                        "来自 dsh-conversation-queue 插件",
+                        stringResource(R.string.resource_subtitle),
                         color = Muted,
                         fontSize = 10.5.sp
                     )
@@ -81,7 +83,7 @@ fun ResourceScreen(
                         strokeWidth = 2.dp
                     )
                 } else {
-                    SoftIconButton(Icons.Rounded.Refresh, onRefresh, "刷新资源状态")
+                    SoftIconButton(Icons.Rounded.Refresh, onRefresh, stringResource(R.string.resource_refresh))
                 }
             }
 
@@ -101,7 +103,7 @@ fun ResourceScreen(
                     ) {
                         Column(Modifier.padding(14.dp)) {
                             Text(
-                                "资源状态读取失败",
+                                stringResource(R.string.resource_load_failed),
                                 color = Red,
                                 fontSize = 13.sp,
                                 fontWeight = FontWeight.SemiBold
@@ -110,7 +112,7 @@ fun ResourceScreen(
                             Text(error, color = InkSoft, fontSize = 12.sp, lineHeight = 18.sp)
                             Spacer(Modifier.height(8.dp))
                             Text(
-                                "请确认当前 Harness 已安装 dsh-conversation-queue 插件。",
+                                stringResource(R.string.resource_plugin_hint),
                                 color = Muted,
                                 fontSize = 11.sp
                             )
@@ -143,8 +145,8 @@ private fun MemoryCard(status: ResourceStatus) {
     val fraction = (memory.usedPercent?.div(100.0) ?: 0.0).coerceIn(0.0, 1.0).toFloat()
     ResourceCard(
         icon = Icons.Rounded.Memory,
-        title = "内存",
-        subtitle = status.platform ?: "本机"
+        title = stringResource(R.string.resource_memory),
+        subtitle = status.platform ?: stringResource(R.string.resource_local)
     ) {
         Row(verticalAlignment = Alignment.Bottom) {
             Text(
@@ -179,14 +181,14 @@ private fun MemoryCard(status: ResourceStatus) {
         )
         Spacer(Modifier.height(8.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-            MiniStat("可用", formatBytes(memory.availBytes))
+            MiniStat(stringResource(R.string.resource_available), formatBytes(memory.availBytes))
             if (memory.commitUsedBytes != null && memory.commitLimitBytes != null) {
                 MiniStat(
-                    "提交",
+                    "${stringResource(R.string.resource_commit)}",
                     "${formatBytes(memory.commitUsedBytes)} / ${formatBytes(memory.commitLimitBytes)}"
                 )
             }
-            MiniStat("采样", memory.sampler ?: "process")
+            MiniStat(stringResource(R.string.resource_sampler), memory.sampler ?: "process")
         }
     }
 }
@@ -196,19 +198,19 @@ private fun GateCard(status: ResourceStatus, busy: Boolean, onLimit: (Int) -> Un
     val gate = status.gate
     ResourceCard(
         icon = Icons.Rounded.Speed,
-        title = "并发闸门",
-        subtitle = if (gate.enabled) "已启用" else "未启用"
+        title = stringResource(R.string.resource_gate),
+        subtitle = if (gate.enabled) stringResource(R.string.resource_enabled) else stringResource(R.string.resource_disabled)
     ) {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Pill("运行中 ${gate.running}", if (gate.running > 0) Green else Muted)
-            Pill("等待 ${gate.waiting}", if (gate.waiting > 0) Amber else Muted)
+            Pill("${stringResource(R.string.resource_running)} ${gate.running}", if (gate.running > 0) Green else Muted)
+            Pill("${stringResource(R.string.resource_waiting)} ${gate.waiting}", if (gate.waiting > 0) Amber else Muted)
         }
         Spacer(Modifier.height(13.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
-                Text("最大并发", color = Ink, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                Text(stringResource(R.string.resource_max_concurrent), color = Ink, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
                 Text(
-                    "限制同时运行的任务数，范围 1–8",
+                    stringResource(R.string.resource_limit_hint),
                     color = Muted,
                     fontSize = 10.5.sp
                 )
@@ -250,7 +252,7 @@ private fun DiskCard(disk: ResourceDisk) {
     ResourceCard(
         icon = Icons.Rounded.Storage,
         title = disk.label?.takeIf { it.isNotBlank() } ?: disk.name,
-        subtitle = listOfNotNull(disk.name, disk.fileSystem, if (disk.system) "系统盘" else null)
+        subtitle = listOfNotNull(disk.name, disk.fileSystem, if (disk.system) stringResource(R.string.resource_system_disk) else null)
             .joinToString(" · ")
     ) {
         Row(verticalAlignment = Alignment.Bottom) {
@@ -284,7 +286,7 @@ private fun DiskCard(disk: ResourceDisk) {
             trackColor = Color(0xFFEFF3F0)
         )
         Spacer(Modifier.height(7.dp))
-        MiniStat("可用", formatBytes(disk.freeBytes))
+        MiniStat(stringResource(R.string.resource_available), formatBytes(disk.freeBytes))
     }
 }
 
@@ -333,15 +335,15 @@ private fun EmptyResourceCard(onRefresh: () -> Unit) {
         border = androidx.compose.foundation.BorderStroke(1.dp, Line)
     ) {
         Column(Modifier.padding(22.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-            Text("暂无资源数据", color = Ink, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+            Text(stringResource(R.string.resource_empty), color = Ink, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
             Spacer(Modifier.height(6.dp))
             Text(
-                "点击下方按钮从插件读取内存、磁盘和并发状态。",
+                stringResource(R.string.resource_empty_hint),
                 color = Muted,
                 fontSize = 12.sp
             )
             Spacer(Modifier.height(12.dp))
-            PrimaryButton("读取资源状态", onRefresh)
+            PrimaryButton(stringResource(R.string.resource_read), onRefresh)
         }
     }
 }
@@ -355,9 +357,9 @@ private fun EmptyDiskCard() {
         border = androidx.compose.foundation.BorderStroke(1.dp, Line)
     ) {
         Column(Modifier.padding(18.dp)) {
-            Text("磁盘", color = Ink, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+            Text(stringResource(R.string.resource_disk), color = Ink, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
             Spacer(Modifier.height(4.dp))
-            Text("插件没有返回磁盘信息。", color = Muted, fontSize = 12.sp)
+            Text(stringResource(R.string.resource_no_disk), color = Muted, fontSize = 12.sp)
         }
     }
 }
