@@ -66,8 +66,8 @@ import dev.harness.pocket.data.SessionSummary
 import dev.harness.pocket.data.WorkspaceInfo
 import androidx.compose.material3.MaterialTheme
 
-private val DrawerBg = Color(0xFFFDFDFB)
-private val DrawerDivider = Color(0x0F171A21)
+private val DrawerBg = Color(0xFFF7F8FC)
+private val DrawerDivider = Color(0xFFE7E9F2)
 private val TreeLine = Color(0x24171A21)
 
 @Composable
@@ -171,7 +171,7 @@ internal fun HarnessNavigationContent(
                 Text(
                     "Harness",
                     color = Ink,
-                    fontSize = 27.sp,
+                    fontSize = 24.sp,
                     fontWeight = FontWeight.Bold,
                     letterSpacing = (-0.5).sp
                 )

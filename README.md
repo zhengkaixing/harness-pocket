@@ -403,7 +403,7 @@ Harness Pocket 是一个**非官方的原生 Android 客户端**，用来远程�
 
 ### 直接安装 APK
 
-本地预构建的 APK 在 `dist/HarnessPocket-0.22.0-debug.apk`（二进制不提交到 Git 仓库）；从源码重新构建的产物在：
+本地预构建的 APK 在 `dist/HarnessPocket-0.23.0-debug.apk`（二进制不提交到 Git 仓库）；从源码重新构建的产物在：
 
 ```text
 app/build/outputs/apk/debug/app-debug.apk
@@ -535,6 +535,12 @@ app/src/main/java/dev/harness/pocket/
 - [ ] 可配置的 HTTPS / 证书校验
 
 ## 更新日志
+
+### 0.23.0
+
+- 界面视觉参考 dsh-go：冷调浅灰背景、毛玻璃白卡片、胶囊式会话标题、低饱和用户消息气泡。
+- 工具调用收起后改为单行状态（已完成/执行中/有失败），展开后才显示详情。
+- 输入框将附件按钮收进输入卡片，发送按钮更紧凑，整体更接近原生移动端聊天界面。
 
 ### 0.22.0
 

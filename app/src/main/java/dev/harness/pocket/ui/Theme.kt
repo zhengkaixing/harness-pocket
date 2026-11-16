@@ -16,19 +16,19 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
-val Blue = Color(0xFF4C7DFF)
-val BlueDeep = Color(0xFF3D63E8)
-val Violet = Color(0xFF7B61FF)
-val Ink = Color(0xFF171A21)
-val InkSoft = Color(0xFF4B5263)
-val Muted = Color(0xFF8D93A3)
-val Line = Color(0xFFE9EBF1)
-val WarmWhite = Color(0xFFFDFDFB)
-val Mist = Color(0xFFF5F8FF)
-val Green = Color(0xFF2FBF71)
-val Amber = Color(0xFFE3A23C)
-val Red = Color(0xFFE35D6A)
-val CodeBg = Color(0xFF171A23)
+val Blue = Color(0xFF536DFE)
+val BlueDeep = Color(0xFF4058D8)
+val Violet = Color(0xFF7E6BFF)
+val Ink = Color(0xFF202534)
+val InkSoft = Color(0xFF5B6274)
+val Muted = Color(0xFF8B92A5)
+val Line = Color(0xFFE7E9F2)
+val WarmWhite = Color(0xFFF7F8FC)
+val Mist = Color(0xFFEEF2FF)
+val Green = Color(0xFF35B979)
+val Amber = Color(0xFFE2A23F)
+val Red = Color(0xFFDD6371)
+val CodeBg = Color(0xFF1C2130)
 
 private val HarnessSelectionColors = TextSelectionColors(
     handleColor = Color(0xFFE38A00),
@@ -117,9 +117,9 @@ private val LightColors = lightColorScheme(
     onSecondary = Color.White,
     background = WarmWhite,
     onBackground = Ink,
-    surface = Color.White,
+    surface = Color(0xFFFFFFFF),
     onSurface = Ink,
-    surfaceVariant = Color(0xFFF3F5F9),
+    surfaceVariant = Color(0xFFF1F3FA),
     onSurfaceVariant = InkSoft,
     outline = Line,
     error = Red,

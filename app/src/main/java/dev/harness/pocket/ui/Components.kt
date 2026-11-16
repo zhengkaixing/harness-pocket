@@ -39,6 +39,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Archive
 import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.CheckBox
 import androidx.compose.material.icons.rounded.CheckBoxOutlineBlank
 import androidx.compose.material.icons.rounded.Close
@@ -124,7 +125,11 @@ fun HarnessBackground(
     Box(
         modifier
             .fillMaxSize()
-            .background(Brush.verticalGradient(listOf(WarmWhite, Color(0xFFF6F8FF))))
+            .background(
+                Brush.verticalGradient(
+                    listOf(Color(0xFFF8F9FD), Color(0xFFF3F6FF), Color(0xFFF7F8FC))
+                )
+            )
     ) {
         Box(
             Modifier
@@ -132,7 +137,7 @@ fun HarnessBackground(
                 .offset(x = 90.dp, y = (-100).dp)
                 .size(320.dp)
                 .background(
-                    Brush.radialGradient(listOf(Color(0x335B8CFF), Color.Transparent)),
+                    Brush.radialGradient(listOf(Color(0x22566FFF), Color.Transparent)),
                     CircleShape
                 )
         )
@@ -763,9 +768,15 @@ fun UserBubble(
                                 bottomStart = 20.dp
                             )
                         )
-                        .background(
-                            Brush.linearGradient(
-                                listOf(Color(0xFF6C9BFF), Color(0xFF4C7DFF))
+                        .background(Color(0xFFE9EEFF))
+                        .border(
+                            1.dp,
+                            Color(0xFFDCE4FF),
+                            RoundedCornerShape(
+                                topStart = 20.dp,
+                                topEnd = 20.dp,
+                                bottomEnd = 6.dp,
+                                bottomStart = 20.dp
                             )
                         )
                         .padding(horizontal = 15.dp, vertical = 11.dp)
@@ -773,7 +784,7 @@ fun UserBubble(
                     attachments.forEach { name ->
                         Text(
                             text = "📎 $name",
-                            color = Color.White.copy(alpha = 0.92f),
+                            color = InkSoft,
                             fontSize = 11.sp,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
@@ -784,7 +795,7 @@ fun UserBubble(
                         SelectionContainer {
                             Text(
                                 text = text,
-                                color = Color.White,
+                                color = Ink,
                                 fontSize = 15.5.sp,
                                 lineHeight = 24.sp
                             )
@@ -794,7 +805,7 @@ fun UserBubble(
                         Spacer(Modifier.height(3.dp))
                         Text(
                             text = if (queued) "排队中…" else "发送中…",
-                            color = Color.White.copy(alpha = 0.7f),
+                            color = Muted,
                             fontSize = 10.sp
                         )
                     }
@@ -1237,7 +1248,7 @@ fun ToolCard(
         Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
-            .background(if (expanded) Color.White else Color(0xFFF7F8FB))
+            .background(if (expanded) Color.White else Color.Transparent)
             .then(
                 if (expanded) {
                     Modifier.border(BorderStroke(1.dp, Line), RoundedCornerShape(12.dp))
@@ -1250,7 +1261,7 @@ fun ToolCard(
             Modifier
                 .fillMaxWidth()
                 .clickable { expanded = !expanded }
-                .padding(horizontal = 10.dp, vertical = 7.dp),
+                .padding(horizontal = 2.dp, vertical = 6.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Icon(
@@ -1370,14 +1381,18 @@ fun ToolActivityGroupCard(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Icon(
-                Icons.Rounded.Terminal,
+                if (running) Icons.Rounded.Terminal else Icons.Rounded.CheckCircle,
                 contentDescription = null,
-                tint = if (errors) Red else if (running) Blue else Muted,
-                modifier = Modifier.size(14.dp)
+                tint = if (errors) Red else if (running) Blue else Green,
+                modifier = Modifier.size(15.dp)
             )
             Spacer(Modifier.width(7.dp))
             Text(
-                text = "${items.size} 个工具调用",
+                text = when {
+                    errors -> "有失败 · ${items.size} 次工具调用"
+                    running -> "正在执行 · ${items.size} 次工具调用"
+                    else -> "已完成 · ${items.size} 次工具调用"
+                },
                 color = if (errors) Red else InkSoft,
                 fontSize = 12.sp,
                 maxLines = 1,
@@ -1396,9 +1411,6 @@ fun ToolActivityGroupCard(
             } else if (errors) {
                 Spacer(Modifier.width(7.dp))
                 Text("有失败", color = Red, fontSize = 10.sp, fontWeight = FontWeight.Medium)
-            } else {
-                Spacer(Modifier.width(7.dp))
-                Box(Modifier.size(5.dp).background(Green, CircleShape))
             }
             Spacer(Modifier.width(3.dp))
             Icon(

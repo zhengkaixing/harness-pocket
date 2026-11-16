@@ -237,7 +237,7 @@ fun ChatScreen(
             .fillMaxSize()
             .background(
                 Brush.verticalGradient(
-                    listOf(Color(0xFFFDFDFB), Color(0xFFF8FAFF), Color(0xFFF7F9FD))
+                    listOf(Color(0xFFF8F9FD), Color(0xFFF4F6FE), Color(0xFFF7F8FC))
                 )
             )
             .systemBarsPadding()
@@ -999,7 +999,7 @@ private fun ChatTopBar(
     Row(
         Modifier
             .fillMaxWidth()
-            .padding(horizontal = 8.dp, vertical = 8.dp),
+            .padding(horizontal = 10.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         SoftIconButton(
@@ -1009,40 +1009,50 @@ private fun ChatTopBar(
             background = Color.Transparent,
             size = 38.dp
         )
+        Surface(
+            modifier = Modifier
+                .weight(1f)
+                .padding(horizontal = 8.dp),
+            shape = RoundedCornerShape(16.dp),
+            color = Color.White.copy(alpha = 0.92f),
+            border = BorderStroke(1.dp, Line),
+            shadowElevation = 1.dp
+        ) {
+            Column(
+                Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
+                verticalArrangement = Arrangement.Center
+            ) {
+                Text(
+                    text = title,
+                    color = Ink,
+                    fontSize = 13.5.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Spacer(Modifier.height(2.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (running) {
+                        Box(Modifier.size(5.dp).background(Green, CircleShape))
+                        Spacer(Modifier.width(5.dp))
+                    }
+                    Text(
+                        text = subtitle + meta,
+                        color = if (running) Color(0xFF208A52) else Muted,
+                        fontSize = 9.5.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+        }
         SoftIconButton(
             icon = Icons.Rounded.Edit,
             onClick = onNewChat,
             contentDescription = "新建对话",
             background = Color.Transparent,
-            size = 36.dp
+            size = 34.dp
         )
-        Column(
-            Modifier.weight(1f),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Text(
-                text = title,
-                color = Ink,
-                fontSize = 14.sp,
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-            Spacer(Modifier.height(2.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                if (running) {
-                    Box(Modifier.size(5.dp).background(Green, CircleShape))
-                    Spacer(Modifier.width(5.dp))
-                }
-                Text(
-                    text = subtitle + meta,
-                    color = if (running) Color(0xFF208A52) else Muted,
-                    fontSize = 9.5.sp,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
-        }
         SoftIconButton(
             icon = Icons.Rounded.Refresh,
             onClick = onRefresh,
@@ -1748,9 +1758,33 @@ private fun ChatComposer(
                 border = BorderStroke(1.dp, Line)
             ) {
                 Row(
-                    Modifier.padding(start = 15.dp, end = 5.dp, top = 4.dp, bottom = 4.dp),
+                    Modifier.padding(start = 7.dp, end = 5.dp, top = 4.dp, bottom = 4.dp),
                     verticalAlignment = Alignment.Bottom
                 ) {
+                    Box(
+                        Modifier
+                            .size(30.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFFF1F4FB))
+                            .clickable(enabled = !sending) {
+                                panelOpen = !panelOpen
+                                if (panelOpen) {
+                                    focusManager.clearFocus()
+                                    keyboard?.hide()
+                                }
+                            },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            Icons.Rounded.Add,
+                            contentDescription = if (panelOpen) "关闭面板" else "更多功能",
+                            tint = InkSoft,
+                            modifier = Modifier
+                                .size(18.dp)
+                                .rotate(if (panelOpen) 45f else 0f)
+                        )
+                    }
+                    Spacer(Modifier.width(7.dp))
                     Box(Modifier.weight(1f).padding(vertical = 8.dp)) {
                         if (draft.isEmpty()) {
                             Text(
@@ -1834,33 +1868,6 @@ private fun ChatComposer(
                             )
                         }
                     }
-                }
-            }
-            Spacer(Modifier.width(7.dp))
-            Surface(
-                modifier = Modifier
-                    .size(40.dp)
-                    .clickable(enabled = !sending) {
-                        panelOpen = !panelOpen
-                        if (panelOpen) {
-                            focusManager.clearFocus()
-                            keyboard?.hide()
-                        }
-                    },
-                shape = CircleShape,
-                color = if (panelOpen) Blue else Color.White,
-                border = BorderStroke(1.dp, if (panelOpen) Blue else Line),
-                shadowElevation = if (panelOpen) 0.dp else 1.dp
-            ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Icon(
-                        Icons.Rounded.Add,
-                        contentDescription = if (panelOpen) "关闭面板" else "更多功能",
-                        tint = if (panelOpen) Color.White else Ink,
-                        modifier = Modifier
-                            .size(22.dp)
-                            .rotate(if (panelOpen) 45f else 0f)
-                    )
                 }
             }
         }
