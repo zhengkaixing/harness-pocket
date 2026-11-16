@@ -159,4 +159,8 @@
     <string name="question_needs_confirm">需要你确认</string>
     <string name="question_answer_continues">回答后会继续当前任务</string>
     <string name="image_default">图片</string>
+    <string name="settings_short">设置</string>
+    <string name="workspace_collapse">收起工作区</string>
+    <string name="workspace_expand">展开工作区</string>
+    <string name="workspace_reorder">调整工作区顺序</string>
 </resources>

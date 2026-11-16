@@ -159,4 +159,8 @@
     <string name="question_needs_confirm">Needs your confirmation</string>
     <string name="question_answer_continues">The task will continue after you answer</string>
     <string name="image_default">Image</string>
+    <string name="settings_short">Settings</string>
+    <string name="workspace_collapse">Collapse workspace</string>
+    <string name="workspace_expand">Expand workspace</string>
+    <string name="workspace_reorder">Reorder workspaces</string>
 </resources>

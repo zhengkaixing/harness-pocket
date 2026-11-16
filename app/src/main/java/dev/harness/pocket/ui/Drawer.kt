@@ -468,7 +468,7 @@ internal fun HarnessNavigationContent(
                         onClose()
                         onSettings()
                     },
-                    contentDescription = "设置",
+                    contentDescription = stringResource(R.string.settings_short),
                     background = Color.Transparent,
                     size = 34.dp
                 )
@@ -604,7 +604,7 @@ private fun DrawerWorkspaceHeader(
                 SoftIconButton(
                     icon = Icons.Rounded.DragHandle,
                     onClick = { moveMenu = true },
-                    contentDescription = "调整工作区顺序",
+                    contentDescription = stringResource(R.string.workspace_reorder),
                     background = Color.Transparent,
                     size = 26.dp
                 )
@@ -633,7 +633,7 @@ private fun DrawerWorkspaceHeader(
         }
         Icon(
             if (open) Icons.Rounded.KeyboardArrowUp else Icons.Rounded.KeyboardArrowDown,
-            contentDescription = if (open) "收起工作区" else "展开工作区",
+            contentDescription = stringResource(if (open) R.string.workspace_collapse else R.string.workspace_expand),
             tint = Muted,
             modifier = Modifier.size(17.dp)
         )
