@@ -66,7 +66,6 @@ import dev.harness.pocket.data.SessionSummary
 import dev.harness.pocket.data.WorkspaceInfo
 import androidx.compose.material3.MaterialTheme
 
-private val DrawerBg = Color(0xFFF7F8FC)
 private val DrawerDivider = Color(0xFFE7E9F2)
 private val TreeLine = Color(0x24171A21)
 
