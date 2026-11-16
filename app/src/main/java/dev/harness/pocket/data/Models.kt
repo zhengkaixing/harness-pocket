@@ -409,6 +409,11 @@ data class AutomationTask(
     val active: Boolean get() = status == "active"
 }
 
+data class SessionSearchHit(
+    val sessionId: String,
+    val snippet: String
+)
+
 data class AppState(
     val restoring: Boolean = true,
     val savedBase: String = "http://8.130.48.9:18080",
@@ -422,6 +427,9 @@ data class AppState(
     val drafts: Map<String, ChatDraft> = emptyMap(),
     val sessionsLoading: Boolean = false,
     val sessionsError: String? = null,
+    val searchResults: List<SessionSearchHit> = emptyList(),
+    val searchLoading: Boolean = false,
+    val searchError: String? = null,
     val creating: Boolean = false,
     val activeSession: SessionSummary? = null,
     val chat: ChatState = ChatState(),

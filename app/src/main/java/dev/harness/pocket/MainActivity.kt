@@ -14,6 +14,14 @@ import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.Box
+import dev.harness.pocket.ui.WarmWhite
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.rememberDrawerState
@@ -287,10 +295,23 @@ private fun AppRoot(
                     onPinSession = vm::togglePin,
                     onUnpinSession = vm::togglePin,
                     onArchiveSession = vm::archiveSession,
-                    onRefresh = vm::refreshHome
+                    onRefresh = vm::refreshHome,
+                    onSearch = vm::searchSessions
                 )
             }
         ) {
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .background(WarmWhite),
+                contentAlignment = Alignment.TopCenter
+            ) {
+                Box(
+                    Modifier
+                        .fillMaxHeight()
+                        .widthIn(max = if (state.activeSession != null) 900.dp else 680.dp)
+                        .fillMaxWidth()
+                ) {
             if (state.automationsVisible) {
                 AutomationScreen(
                     state = state,
@@ -356,8 +377,11 @@ private fun AppRoot(
                     onPinSession = vm::togglePin,
                     onUnpinSession = vm::togglePin,
                     onArchiveSession = vm::archiveSession,
-                    onRefresh = vm::refreshHome
+                    onRefresh = vm::refreshHome,
+                    onSearch = vm::searchSessions
                 )
+            }
+                }
             }
         }
     }

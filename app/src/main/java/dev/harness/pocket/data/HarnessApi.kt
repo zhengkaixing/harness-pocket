@@ -384,6 +384,22 @@ class HarnessApi {
         return result.filter { it.sessionId.isNotBlank() }
     }
 
+    suspend fun searchSessions(query: String): List<SessionSearchHit> {
+        val request = JSONObject().put("query", query)
+        val value = rpc("session/search", JSONObject().put("request", request))
+        val items = value.optJSONArray("items") ?: JSONArray()
+        val result = ArrayList<SessionSearchHit>(items.length())
+        for (i in 0 until items.length()) {
+            val row = items.optJSONObject(i) ?: continue
+            val sessionId = row.optString("sessionId")
+            val snippet = row.optString("snippet")
+            if (sessionId.isNotBlank() && snippet.isNotBlank()) {
+                result.add(SessionSearchHit(sessionId, snippet))
+            }
+        }
+        return result
+    }
+
     /**
      * The desktop-control switch comes from the optional `dsh-windows-mcp`
      * client plugin. Its state route lives on the Host's web server, not the

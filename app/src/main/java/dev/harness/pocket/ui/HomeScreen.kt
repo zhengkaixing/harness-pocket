@@ -87,7 +87,8 @@ fun HomeScreen(
     onPinSession: (SessionSummary) -> Unit,
     onUnpinSession: (SessionSummary) -> Unit,
     onArchiveSession: (SessionSummary) -> Unit,
-    onRefresh: () -> Unit
+    onRefresh: () -> Unit,
+    onSearch: (String) -> Unit
 ) {
     HarnessNavigationContent(
         state = state,
@@ -104,7 +105,8 @@ fun HomeScreen(
         onPinSession = onPinSession,
         onUnpinSession = onUnpinSession,
         onArchiveSession = onArchiveSession,
-        onRefresh = onRefresh
+        onRefresh = onRefresh,
+        onSearch = onSearch
     )
 }
 

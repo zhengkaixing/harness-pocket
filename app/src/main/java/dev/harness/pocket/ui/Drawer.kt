@@ -85,7 +85,8 @@ fun HarnessDrawer(
     onPinSession: (SessionSummary) -> Unit,
     onUnpinSession: (SessionSummary) -> Unit,
     onArchiveSession: (SessionSummary) -> Unit,
-    onRefresh: () -> Unit
+    onRefresh: () -> Unit,
+    onSearch: (String) -> Unit
 ) {
     ModalDrawerSheet(
         modifier = Modifier
@@ -111,7 +112,8 @@ fun HarnessDrawer(
             onPinSession = onPinSession,
             onUnpinSession = onUnpinSession,
             onArchiveSession = onArchiveSession,
-            onRefresh = onRefresh
+            onRefresh = onRefresh,
+            onSearch = onSearch
         )
     }
 }
@@ -132,7 +134,8 @@ internal fun HarnessNavigationContent(
     onPinSession: (SessionSummary) -> Unit,
     onUnpinSession: (SessionSummary) -> Unit,
     onArchiveSession: (SessionSummary) -> Unit,
-    onRefresh: () -> Unit
+    onRefresh: () -> Unit,
+    onSearch: (String) -> Unit
 ) {
     var searchOpen by remember { mutableStateOf(false) }
     var query by rememberSaveable { mutableStateOf("") }
@@ -216,7 +219,10 @@ internal fun HarnessNavigationContent(
                         }
                         BasicTextField(
                             value = query,
-                            onValueChange = { query = it },
+                            onValueChange = {
+                                query = it
+                                onSearch(it)
+                            },
                             singleLine = true,
                             textStyle = TextStyle(color = Ink, fontSize = 13.sp),
                             cursorBrush = SolidColor(Blue),
@@ -225,6 +231,74 @@ internal fun HarnessNavigationContent(
                     }
                 }
                 Spacer(Modifier.height(8.dp))
+            }
+
+            if (searchOpen && query.isNotBlank()) {
+                when {
+                    state.searchLoading -> Text(
+                        "正在搜索会话内容…",
+                        color = Muted,
+                        fontSize = 12.sp,
+                        modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp)
+                    )
+                    state.searchError != null -> Text(
+                        state.searchError,
+                        color = Color(0xFFB3261E),
+                        fontSize = 12.sp,
+                        modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp)
+                    )
+                    state.searchResults.isEmpty() -> Text(
+                        "没有匹配的会话内容",
+                        color = Muted,
+                        fontSize = 12.sp,
+                        modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp)
+                    )
+                    else -> {
+                        Text(
+                            "内容匹配",
+                            color = Muted,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            modifier = Modifier.padding(start = 20.dp, top = 4.dp, bottom = 4.dp)
+                        )
+                        state.searchResults.take(8).forEach { hit ->
+                            val session = state.sessions.firstOrNull { it.sessionId == hit.sessionId }
+                            if (session != null) {
+                                Surface(
+                                    onClick = {
+                                        onClose()
+                                        onOpenSession(session)
+                                    },
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 16.dp, vertical = 3.dp),
+                                    shape = RoundedCornerShape(12.dp),
+                                    color = Color.White,
+                                    border = androidx.compose.foundation.BorderStroke(1.dp, Line)
+                                ) {
+                                    Column(Modifier.padding(horizontal = 12.dp, vertical = 9.dp)) {
+                                        Text(
+                                            session.title ?: "未命名会话",
+                                            color = Ink,
+                                            fontSize = 13.sp,
+                                            fontWeight = FontWeight.Medium,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                        Text(
+                                            hit.snippet.replace('\n', ' '),
+                                            color = InkSoft,
+                                            fontSize = 11.5.sp,
+                                            maxLines = 2,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                Spacer(Modifier.height(6.dp))
             }
 
             DrawerAction(Icons.Rounded.Add, "新对话") {

@@ -72,6 +72,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     private var pollJob: Job? = null
     private var previewJob: Job? = null
+    private var searchJob: Job? = null
     private var followSocket: WebSocket? = null
     private var followGeneration = 0
     private var followSessionId: String? = null
@@ -186,6 +187,30 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun refreshSessions() = loadSessions()
+
+    fun searchSessions(query: String) {
+        searchJob?.cancel()
+        if (query.isBlank()) {
+            _state.update { it.copy(searchResults = emptyList(), searchLoading = false, searchError = null) }
+            return
+        }
+        searchJob = viewModelScope.launch {
+            delay(250)
+            _state.update { it.copy(searchLoading = true, searchError = null) }
+            try {
+                val results = api.searchSessions(query.trim())
+                _state.update { it.copy(searchResults = results, searchLoading = false) }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: AuthException) {
+                handleAuthFailure(e.message ?: "登录已过期，请重新连接")
+            } catch (e: Exception) {
+                _state.update {
+                    it.copy(searchLoading = false, searchError = friendlyError(e))
+                }
+            }
+        }
+    }
 
     fun refreshHome() {
         refreshSessions()
