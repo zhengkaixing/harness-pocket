@@ -23,4 +23,19 @@
     <string name="nav_connected">Connected · %1$d sessions</string>
     <string name="nav_disconnected">Disconnected</string>
     <string name="nav_unnamed_session">Untitled session</string>
+    <string name="settings_title">Connection settings</string>
+    <string name="settings_server">Server</string>
+    <string name="settings_saved_hosts">Saved hosts</string>
+    <string name="settings_current">Current</string>
+    <string name="settings_switch">Switch</string>
+    <string name="settings_add_host">Add host</string>
+    <string name="settings_token">Access token</string>
+    <string name="settings_saved_local">Saved · local only</string>
+    <string name="settings_ntfy">Background push (ntfy topic, optional)</string>
+    <string name="settings_ntfy_hint">e.g. harness-pocket-abc123</string>
+    <string name="settings_ntfy_help">Subscribed while tasks are running</string>
+    <string name="settings_save">Save</string>
+    <string name="settings_done">Done</string>
+    <string name="settings_disconnect">Disconnect</string>
+    <string name="settings_version">Harness Pocket %1$s</string>
 </resources>

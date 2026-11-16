@@ -23,4 +23,19 @@
     <string name="nav_connected">已连接 · %1$d 个会话</string>
     <string name="nav_disconnected">未连接</string>
     <string name="nav_unnamed_session">未命名会话</string>
+    <string name="settings_title">连接设置</string>
+    <string name="settings_server">服务器</string>
+    <string name="settings_saved_hosts">已保存的主机</string>
+    <string name="settings_current">当前</string>
+    <string name="settings_switch">切换</string>
+    <string name="settings_add_host">添加新主机</string>
+    <string name="settings_token">访问令牌</string>
+    <string name="settings_saved_local">已保存 · 仅本机可见</string>
+    <string name="settings_ntfy">后台推送（ntfy 主题，可选）</string>
+    <string name="settings_ntfy_hint">例如 harness-pocket-abc123</string>
+    <string name="settings_ntfy_help">任务运行时订阅该主题</string>
+    <string name="settings_save">保存</string>
+    <string name="settings_done">完成</string>
+    <string name="settings_disconnect">断开连接</string>
+    <string name="settings_version">Harness Pocket %1$s</string>
 </resources>

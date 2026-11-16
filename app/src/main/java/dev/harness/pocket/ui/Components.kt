@@ -94,6 +94,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
@@ -105,6 +106,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import dev.harness.pocket.BuildConfig
+import dev.harness.pocket.R
 import dev.harness.pocket.data.AskAnswer
 import dev.harness.pocket.data.AskBatch
 import dev.harness.pocket.data.ChatFile
@@ -1693,15 +1695,15 @@ fun SettingsDialog(
         containerColor = Color.White,
         shape = RoundedCornerShape(24.dp),
         title = {
-            Text("连接设置", color = Ink, fontSize = 19.sp, fontWeight = FontWeight.Bold)
+            Text(stringResource(R.string.settings_title), color = Ink, fontSize = 19.sp, fontWeight = FontWeight.Bold)
         },
         text = {
             Column {
-                Text("服务器", color = Muted, fontSize = 11.sp, fontWeight = FontWeight.Medium)
+                Text(stringResource(R.string.settings_server), color = Muted, fontSize = 11.sp, fontWeight = FontWeight.Medium)
                 Spacer(Modifier.height(4.dp))
                 Text(baseUrl ?: "-", color = Ink, fontSize = 14.sp)
                 Spacer(Modifier.height(16.dp))
-                Text("已保存的主机", color = Muted, fontSize = 11.sp, fontWeight = FontWeight.Medium)
+                Text(stringResource(R.string.settings_saved_hosts), color = Muted, fontSize = 11.sp, fontWeight = FontWeight.Medium)
                 Spacer(Modifier.height(6.dp))
                 hosts.forEach { host ->
                     Row(
@@ -1713,10 +1715,10 @@ fun SettingsDialog(
                             Text(host.baseUrl, color = Muted, fontSize = 10.5.sp, maxLines = 1)
                         }
                         if (host.baseUrl == baseUrl) {
-                            Text("当前", color = Blue, fontSize = 10.5.sp)
+                            Text(stringResource(R.string.settings_current), color = Blue, fontSize = 10.5.sp)
                         } else {
                             TextButton(onClick = { onSwitchHost(host) }) {
-                                Text("切换", color = Blue, fontSize = 11.5.sp)
+                                Text(stringResource(R.string.settings_switch), color = Blue, fontSize = 11.5.sp)
                             }
                             IconButton(onClick = { onRemoveHost(host.baseUrl) }) {
                                 Icon(Icons.Rounded.DeleteOutline, contentDescription = "删除主机", tint = Muted, modifier = Modifier.size(18.dp))
@@ -1725,29 +1727,29 @@ fun SettingsDialog(
                     }
                 }
                 TextButton(onClick = onAddHost) {
-                    Text("添加新主机", color = Blue, fontSize = 12.sp)
+                    Text(stringResource(R.string.settings_add_host), color = Blue, fontSize = 12.sp)
                 }
                 Spacer(Modifier.height(12.dp))
-                Text("访问令牌", color = Muted, fontSize = 11.sp, fontWeight = FontWeight.Medium)
+                Text(stringResource(R.string.settings_token), color = Muted, fontSize = 11.sp, fontWeight = FontWeight.Medium)
                 Spacer(Modifier.height(4.dp))
-                Text("已保存 · 仅本机可见", color = Ink, fontSize = 14.sp)
+                Text(stringResource(R.string.settings_saved_local), color = Ink, fontSize = 14.sp)
                 Spacer(Modifier.height(14.dp))
-                Text("后台推送（ntfy 主题，可选）", color = Muted, fontSize = 11.sp, fontWeight = FontWeight.Medium)
+                Text(stringResource(R.string.settings_ntfy), color = Muted, fontSize = 11.sp, fontWeight = FontWeight.Medium)
                 Spacer(Modifier.height(4.dp))
                 var topic by remember(ntfyTopic) { mutableStateOf(ntfyTopic) }
                 OutlinedTextField(
                     value = topic,
                     onValueChange = { topic = it },
                     modifier = Modifier.fillMaxWidth(),
-                    placeholder = { Text("例如 harness-pocket-abc123") },
+                    placeholder = { Text(stringResource(R.string.settings_ntfy_hint)) },
                     singleLine = true,
                     textStyle = androidx.compose.ui.text.TextStyle(fontSize = 12.sp),
                     colors = harnessFieldColors()
                 )
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("任务运行时订阅该主题", color = Muted, fontSize = 10.sp, modifier = Modifier.weight(1f))
+                    Text(stringResource(R.string.settings_ntfy_help), color = Muted, fontSize = 10.sp, modifier = Modifier.weight(1f))
                     TextButton(onClick = { onSaveNtfy(topic) }) {
-                        Text("保存", color = Blue, fontSize = 11.5.sp)
+                        Text(stringResource(R.string.settings_save), color = Blue, fontSize = 11.5.sp)
                     }
                 }
                 Spacer(Modifier.height(8.dp))
@@ -1758,17 +1760,17 @@ fun SettingsDialog(
                         .background(Line)
                 )
                 Spacer(Modifier.height(12.dp))
-                Text("Harness Pocket ${BuildConfig.VERSION_NAME}", color = Muted, fontSize = 11.sp)
+                Text(stringResource(R.string.settings_version, BuildConfig.VERSION_NAME), color = Muted, fontSize = 11.sp)
             }
         },
         confirmButton = {
             TextButton(onClick = onDismiss) {
-                Text("完成", color = Blue, fontWeight = FontWeight.SemiBold)
+                Text(stringResource(R.string.settings_done), color = Blue, fontWeight = FontWeight.SemiBold)
             }
         },
         dismissButton = {
             TextButton(onClick = onDisconnect) {
-                Text("断开连接", color = Red)
+                Text(stringResource(R.string.settings_disconnect), color = Red)
             }
         }
     )
