@@ -34,6 +34,7 @@ import dev.harness.pocket.data.PromptPart
 import dev.harness.pocket.data.QuestionUpdate
 import dev.harness.pocket.data.SavedHost
 import dev.harness.pocket.data.SessionLiveState
+import dev.harness.pocket.data.SessionSearchHit
 import dev.harness.pocket.data.SessionSummary
 import dev.harness.pocket.data.ToolItem
 import dev.harness.pocket.data.UserMessage
@@ -207,8 +208,35 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             } catch (e: AuthException) {
                 handleAuthFailure(e.message ?: "登录已过期，请重新连接")
             } catch (e: Exception) {
-                _state.update {
-                    it.copy(searchLoading = false, searchError = friendlyError(e))
+                val message = e.message.orEmpty()
+                if (message.contains("search is disabled", ignoreCase = true) ||
+                    message.contains("openAt", ignoreCase = true)
+                ) {
+                    val q = query.trim()
+                    val local = _state.value.sessions.filter { session ->
+                        session.title?.contains(q, ignoreCase = true) == true ||
+                            session.cwd?.contains(q, ignoreCase = true) == true
+                    }
+                    _state.update {
+                        it.copy(
+                            searchLoading = false,
+                            searchResults = local.map { session ->
+                                SessionSearchHit(
+                                    sessionId = session.sessionId,
+                                    snippet = session.title ?: session.cwd.orEmpty()
+                                )
+                            },
+                            searchError = if (local.isEmpty()) {
+                                "服务器未启用内容搜索，也没有匹配标题的会话"
+                            } else {
+                                "服务器未启用内容搜索，已按标题筛选"
+                            }
+                        )
+                    }
+                } else {
+                    _state.update {
+                        it.copy(searchLoading = false, searchError = friendlyError(e))
+                    }
                 }
             }
         }
