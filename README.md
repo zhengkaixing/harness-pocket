@@ -403,7 +403,7 @@ Harness Pocket 是一个**非官方的原生 Android 客户端**，用来远程�
 
 ### 直接安装 APK
 
-本地预构建的 APK 在 `dist/HarnessPocket-0.47.0-debug.apk`（二进制不提交到 Git 仓库）；从源码重新构建的产物在：
+本地预构建的 APK 在 `dist/HarnessPocket-0.48.0-debug.apk`（二进制不提交到 Git 仓库）；从源码重新构建的产物在：
 
 ```text
 app/build/outputs/apk/debug/app-debug.apk
@@ -537,6 +537,13 @@ app/src/main/java/dev/harness/pocket/
 - [ ] 可配置的 HTTPS / 证书校验
 
 ## 更新日志
+
+### 0.48.0
+
+- 聊天输入区新增语音输入按钮：空输入时显示麦克风，调起系统语音识别并把结果填入输入框。
+- 需要设备提供语音识别服务；无服务时给出提示。
+
+<p align="center"><img src="docs/screenshots/chat-voice-input.png" width="42%" alt="语音输入按钮" /></p>
 
 ### 0.47.0
 

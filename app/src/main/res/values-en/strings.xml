@@ -168,4 +168,5 @@
     <string name="workspace_collapse">Collapse workspace</string>
     <string name="workspace_expand">Expand workspace</string>
     <string name="workspace_reorder">Reorder workspaces</string>
+    <string name="chat_voice">Voice input</string>
 </resources>

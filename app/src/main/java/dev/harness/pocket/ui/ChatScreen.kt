@@ -1,6 +1,12 @@
 package dev.harness.pocket.ui
 
 import android.graphics.BitmapFactory
+import android.content.Intent
+import android.speech.RecognizerIntent
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.ui.platform.LocalContext
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
@@ -51,6 +57,7 @@ import androidx.compose.material.icons.rounded.InsertDriveFile
 import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.Menu
+import androidx.compose.material.icons.rounded.Mic
 import androidx.compose.material.icons.rounded.MoreHoriz
 import androidx.compose.material.icons.rounded.PhotoCamera
 import androidx.compose.material.icons.rounded.PhotoLibrary
@@ -1774,6 +1781,18 @@ private fun ChatComposer(
     val focusManager = LocalFocusManager.current
     val keyboard = LocalSoftwareKeyboardController.current
     val dark = isSystemInDarkTheme()
+    val context = LocalContext.current
+    val voiceLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        val spoken = result.data
+            ?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)
+            ?.firstOrNull()
+            ?.trim()
+        if (!spoken.isNullOrBlank()) {
+            onDraftChange(if (draft.isBlank()) spoken else "$draft $spoken")
+        }
+    }
     val composerBackground = if (dark) {
         listOf(Color.Transparent, Color(0xFF0F131C), Color(0xFF0F131C))
     } else {
@@ -1865,6 +1884,29 @@ private fun ChatComposer(
                             Icon(
                                 Icons.Rounded.Fullscreen,
                                 contentDescription = stringResource(R.string.chat_fullscreen),
+                                tint = InkSoft,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                    }
+                    if (!sending && draft.isBlank() && attachments.isEmpty()) {
+                        Box(
+                            Modifier
+                                .size(34.dp)
+                                .clip(CircleShape)
+                                .clickable {
+                                    val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                                        putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                                        putExtra(RecognizerIntent.EXTRA_PROMPT, "语音输入")
+                                    }
+                                    runCatching { voiceLauncher.launch(intent) }
+                                        .onFailure { Toast.makeText(context, "当前设备没有语音识别服务", Toast.LENGTH_SHORT).show() }
+                                },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                Icons.Rounded.Mic,
+                                contentDescription = stringResource(R.string.chat_voice),
                                 tint = InkSoft,
                                 modifier = Modifier.size(18.dp)
                             )
