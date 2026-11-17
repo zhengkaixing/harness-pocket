@@ -20,6 +20,9 @@ plugin/card
     {"label": "B站", "value": "已发布 BV1FMW26oEfL"},
     {"label": "抖音", "value": "等待验证"},
     {"label": "微信", "value": "草稿已保存"}
+  ],
+  "actions": [
+    {"label": "打开发布页", "url": "https://example.com/publish"}
   ]
 }
 ```
@@ -29,8 +32,12 @@ plugin/card
 | `title` | string | no | Card heading |
 | `body` | string | no | Summary paragraph |
 | `items` | array | no | Key/value rows, rendered in order |
+| `actions` | array | no | Link buttons: `{"label":"...","url":"https://..."}` |
 
-If `title`, `body`, and `items` are all empty, the tool falls back to the normal
+Actions open with the system browser via `ACTION_VIEW`; only `http(s)` links
+should be used. Invalid or non-http URLs may be ignored by the platform.
+
+If `title`, `body`, `items`, and `actions` are all empty, the tool falls back to the normal
 tool card. Invalid JSON also falls back, so a broken plugin cannot break the
 conversation.
 
