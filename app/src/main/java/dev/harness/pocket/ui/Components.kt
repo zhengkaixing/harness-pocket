@@ -5,6 +5,7 @@ import android.util.Base64
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.rememberTransformableState
@@ -124,14 +125,16 @@ fun HarnessBackground(
     modifier: Modifier = Modifier,
     content: @Composable BoxScope.() -> Unit
 ) {
+    val dark = isSystemInDarkTheme()
+    val background = if (dark) {
+        listOf(Color(0xFF0F131C), Color(0xFF141A26), Color(0xFF0F131C))
+    } else {
+        listOf(Color(0xFFF8F9FD), Color(0xFFF3F6FF), Color(0xFFF7F8FC))
+    }
     Box(
         modifier
             .fillMaxSize()
-            .background(
-                Brush.verticalGradient(
-                    listOf(Color(0xFFF8F9FD), Color(0xFFF3F6FF), Color(0xFFF7F8FC))
-                )
-            )
+            .background(Brush.verticalGradient(background))
     ) {
         Box(
             Modifier

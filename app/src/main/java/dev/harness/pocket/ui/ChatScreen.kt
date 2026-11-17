@@ -5,6 +5,7 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -239,14 +240,16 @@ fun ChatScreen(
         return true
     }
 
+    val dark = isSystemInDarkTheme()
+    val chatBackground = if (dark) {
+        listOf(Color(0xFF0F131C), Color(0xFF151B28), Color(0xFF0F131C))
+    } else {
+        listOf(Color(0xFFF8F9FD), Color(0xFFF4F6FE), Color(0xFFF7F8FC))
+    }
     Column(
         Modifier
             .fillMaxSize()
-            .background(
-                Brush.verticalGradient(
-                    listOf(Color(0xFFF8F9FD), Color(0xFFF4F6FE), Color(0xFFF7F8FC))
-                )
-            )
+            .background(Brush.verticalGradient(chatBackground))
             .systemBarsPadding()
     ) {
         ChatTopBar(
@@ -1035,7 +1038,7 @@ private fun ChatTopBar(
                 .weight(1f)
                 .padding(horizontal = 8.dp),
             shape = RoundedCornerShape(16.dp),
-            color = Color.White.copy(alpha = 0.92f),
+            color = CardBg.copy(alpha = 0.94f),
             border = BorderStroke(1.dp, Line),
             shadowElevation = 1.dp
         ) {
@@ -1770,16 +1773,18 @@ private fun ChatComposer(
     val showFullscreen = draft.length > 80 || draft.count { it == '\n' } >= 3
     val focusManager = LocalFocusManager.current
     val keyboard = LocalSoftwareKeyboardController.current
+    val dark = isSystemInDarkTheme()
+    val composerBackground = if (dark) {
+        listOf(Color.Transparent, Color(0xFF0F131C), Color(0xFF0F131C))
+    } else {
+        listOf(Color.Transparent, Color(0xFFF7F9FD), Color(0xFFF7F9FD))
+    }
 
     Column(
         Modifier
             .fillMaxWidth()
             .imePadding()
-            .background(
-                Brush.verticalGradient(
-                    listOf(Color.Transparent, Color(0xFFF7F9FD), Color(0xFFF7F9FD))
-                )
-            )
+            .background(Brush.verticalGradient(composerBackground))
             .padding(start = 12.dp, end = 12.dp, top = 10.dp, bottom = 10.dp)
     ) {
         if (attachments.isNotEmpty()) {
@@ -1789,7 +1794,7 @@ private fun ChatComposer(
             Surface(
                 modifier = Modifier.weight(1f),
                 shape = RoundedCornerShape(22.dp),
-                color = Color.White,
+                color = CardBg,
                 shadowElevation = 2.dp,
                 border = BorderStroke(1.dp, Line)
             ) {
@@ -1801,7 +1806,7 @@ private fun ChatComposer(
                         Modifier
                             .size(30.dp)
                             .clip(CircleShape)
-                            .background(Color(0xFFF1F4FB))
+                            .background(CardAlt)
                             .clickable(enabled = !sending) {
                                 panelOpen = !panelOpen
                                 if (panelOpen) {
