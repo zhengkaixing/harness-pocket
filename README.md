@@ -541,6 +541,7 @@ app/src/main/java/dev/harness/pocket/
 ### 0.47.0
 
 - 保存 ntfy 主题后立即启动后台推送前台服务，无需先发送消息才订阅；退出应用后继续接收。
+- MuMu 实测：通知栏收到「Harness Pocket ntfy test 1117 works」，同时显示「Harness 后台推送已开启」。
 
 ### 0.46.0
 
