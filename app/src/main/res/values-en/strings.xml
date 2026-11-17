@@ -150,6 +150,8 @@
     <string name="tool_expand_group">Show tool calls</string>
     <string name="tool_collapse_group">Hide tool calls</string>
     <string name="tool_verb_run_command">Run command</string>
+    <string name="nav_archived">Archived (%1$d)</string>
+    <string name="nav_restore">Restore</string>
     <string name="archive_session">Archive session</string>
     <string name="common_close">Close</string>
     <string name="common_copied">Copied</string>

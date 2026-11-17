@@ -150,6 +150,8 @@
     <string name="tool_expand_group">展开工具调用</string>
     <string name="tool_collapse_group">收起工具调用</string>
     <string name="tool_verb_run_command">运行命令</string>
+    <string name="nav_archived">已归档（%1$d）</string>
+    <string name="nav_restore">恢复</string>
     <string name="archive_session">归档会话</string>
     <string name="common_close">关闭</string>
     <string name="common_copied">已复制</string>

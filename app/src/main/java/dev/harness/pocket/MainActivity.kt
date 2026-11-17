@@ -415,6 +415,7 @@ private fun AppRoot(
                     onPinSession = vm::togglePin,
                     onUnpinSession = vm::togglePin,
                     onArchiveSession = vm::archiveSession,
+                    onUnarchiveSession = vm::unarchiveSession,
                     onRefresh = vm::refreshHome,
                     onSearch = vm::searchSessions
                 )
@@ -500,6 +501,7 @@ private fun AppRoot(
                     onPinSession = vm::togglePin,
                     onUnpinSession = vm::togglePin,
                     onArchiveSession = vm::archiveSession,
+                    onUnarchiveSession = vm::unarchiveSession,
                     onRefresh = vm::refreshHome,
                     onSearch = vm::searchSessions
                 )

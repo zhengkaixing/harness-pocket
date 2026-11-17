@@ -23,6 +23,9 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.Archive
+import androidx.compose.material.icons.rounded.ExpandLess
+import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material.icons.rounded.ChatBubbleOutline
 import androidx.compose.material.icons.rounded.DragHandle
 import androidx.compose.material.icons.rounded.Folder
@@ -41,6 +44,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.ModalDrawerSheet
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
@@ -86,6 +90,7 @@ fun HarnessDrawer(
     onPinSession: (SessionSummary) -> Unit,
     onUnpinSession: (SessionSummary) -> Unit,
     onArchiveSession: (SessionSummary) -> Unit,
+    onUnarchiveSession: (SessionSummary) -> Unit,
     onRefresh: () -> Unit,
     onSearch: (String) -> Unit
 ) {
@@ -113,6 +118,7 @@ fun HarnessDrawer(
             onPinSession = onPinSession,
             onUnpinSession = onUnpinSession,
             onArchiveSession = onArchiveSession,
+            onUnarchiveSession = onUnarchiveSession,
             onRefresh = onRefresh,
             onSearch = onSearch
         )
@@ -135,6 +141,7 @@ internal fun HarnessNavigationContent(
     onPinSession: (SessionSummary) -> Unit,
     onUnpinSession: (SessionSummary) -> Unit,
     onArchiveSession: (SessionSummary) -> Unit,
+    onUnarchiveSession: (SessionSummary) -> Unit,
     onRefresh: () -> Unit,
     onSearch: (String) -> Unit
 ) {
@@ -157,6 +164,8 @@ internal fun HarnessNavigationContent(
         allSessions = visible,
         includeEmpty = query.isBlank()
     )
+    val archivedSessions = state.sessions.filter { it.sessionId in archivedIds }
+    var archivedOpen by remember { mutableStateOf(false) }
 
     Column(
         modifier = modifier
@@ -415,6 +424,36 @@ internal fun HarnessNavigationContent(
                                 tree = true,
                                 last = index == group.sessions.lastIndex
                             )
+                        }
+                    }
+                }
+            }
+
+            if (archivedSessions.isNotEmpty()) {
+                Spacer(Modifier.height(12.dp))
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .clickable { archivedOpen = !archivedOpen }
+                        .padding(horizontal = 20.dp, vertical = 9.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(Icons.Rounded.Archive, contentDescription = null, tint = Muted, modifier = Modifier.size(16.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text(stringResource(R.string.nav_archived, archivedSessions.size), color = Muted, fontSize = 11.sp, fontWeight = FontWeight.Medium)
+                    Spacer(Modifier.weight(1f))
+                    Icon(if (archivedOpen) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore, contentDescription = null, tint = Muted, modifier = Modifier.size(17.dp))
+                }
+                if (archivedOpen) {
+                    archivedSessions.forEach { session ->
+                        Row(
+                            Modifier.fillMaxWidth().padding(start = 20.dp, end = 12.dp, bottom = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(sessionTitle(session.title, session.blank), color = Ink, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                            TextButton(onClick = { onUnarchiveSession(session) }) {
+                                Text(stringResource(R.string.nav_restore), fontSize = 11.sp)
+                            }
                         }
                     }
                 }
