@@ -38,6 +38,17 @@ class TaskMonitorService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        val ntfyOnly = intent?.getBooleanExtra(EXTRA_NTFY_ONLY, false) == true
+        if (ntfyOnly) {
+            val topic = Prefs(this).ntfyTopic()
+            if (topic.isBlank()) {
+                stopSelf()
+                return START_NOT_STICKY
+            }
+            startForeground(ONGOING_ID, ntfyOnlyNotification())
+            if (ntfyJob == null) ntfyJob = scope.launch { subscribeNtfy(topic) }
+            return START_STICKY
+        }
         val sessionId = intent?.getStringExtra(EXTRA_SESSION_ID) ?: run {
             stopSelf()
             return START_NOT_STICKY
@@ -173,6 +184,18 @@ class TaskMonitorService : Service() {
         return null
     }
 
+    private fun ntfyOnlyNotification(): android.app.Notification {
+        return NotificationCompat.Builder(this, CHANNEL_ONGOING)
+            .setSmallIcon(R.drawable.ic_notification)
+            .setContentTitle("Harness 后台推送已开启")
+            .setContentText("正在监听 ntfy 主题")
+            .setOngoing(true)
+            .setOnlyAlertOnce(true)
+            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .setContentIntent(openIntent(""))
+            .build()
+    }
+
     private fun ongoingNotification(sessionId: String, title: String): android.app.Notification {
         return NotificationCompat.Builder(this, CHANNEL_ONGOING)
             .setSmallIcon(R.drawable.ic_notification)
@@ -269,6 +292,7 @@ class TaskMonitorService : Service() {
         const val EXTRA_SESSION_ID = "session_id"
         const val EXTRA_TITLE = "session_title"
         const val EXTRA_BASELINE_SEQ = "baseline_seq"
+        const val EXTRA_NTFY_ONLY = "ntfy_only"
 
         private const val CHANNEL_ONGOING = "harness_task_running"
         private const val CHANNEL_DONE = "harness_task_done"
@@ -276,6 +300,13 @@ class TaskMonitorService : Service() {
         private const val COMPLETION_ID = 9200
         private const val POLL_MS = 4_000L
         private const val MAX_WAIT_MS = 20 * 60 * 1_000L
+
+        fun startNtfy(context: Context) {
+            val intent = Intent(context, TaskMonitorService::class.java).apply {
+                putExtra(EXTRA_NTFY_ONLY, true)
+            }
+            ContextCompat.startForegroundService(context, intent)
+        }
 
         fun start(context: Context, sessionId: String, title: String, baselineSeq: Int) {
             val intent = Intent(context, TaskMonitorService::class.java).apply {

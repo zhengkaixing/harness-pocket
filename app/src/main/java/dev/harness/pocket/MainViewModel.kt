@@ -1546,6 +1546,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun saveNtfyTopic(topic: String) {
         prefs.saveNtfyTopic(topic)
         _state.update { it.copy(ntfyTopic = prefs.ntfyTopic()) }
+        if (topic.isNotBlank()) {
+            TaskMonitorService.startNtfy(getApplication())
+        }
     }
 
     fun removeHost(baseUrl: String) {
