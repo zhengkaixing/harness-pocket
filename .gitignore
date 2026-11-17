@@ -28,6 +28,9 @@ build/
 /mumu_host.png
 /*.png
 /dist/
+# Local push credentials, never commit
+/.gitee-token
+/.github-token
 
 # Logs
 *.log
