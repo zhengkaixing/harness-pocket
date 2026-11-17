@@ -76,6 +76,17 @@ class Prefs(context: Context) {
 
     fun lastBase(): String = sp.getString("base_url", null) ?: DEFAULT_BASE
 
+    fun deletedSessions(): Set<String> =
+        sp.getStringSet("deleted_sessions", emptySet())?.toSet().orEmpty()
+
+    fun deleteSession(sessionId: String) {
+        sp.edit().putStringSet("deleted_sessions", deletedSessions() + sessionId).apply()
+    }
+
+    fun restoreSession(sessionId: String) {
+        sp.edit().putStringSet("deleted_sessions", deletedSessions() - sessionId).apply()
+    }
+
     fun ntfyTopic(): String = sp.getString("ntfy_topic", null).orEmpty()
 
     fun saveNtfyTopic(topic: String) {

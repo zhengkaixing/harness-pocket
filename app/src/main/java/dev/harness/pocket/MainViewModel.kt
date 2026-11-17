@@ -93,7 +93,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 savedHosts = prefs.loadHosts(),
                 ntfyTopic = prefs.ntfyTopic(),
                 connection = saved,
-                workspaces = prefs.loadWorkspaces()
+                workspaces = prefs.loadWorkspaces(),
+                deletedSessionIds = prefs.deletedSessions().toList()
             )
             startApprovalObserver()
             refreshSavedConnection(saved)
@@ -104,7 +105,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 restoring = false,
                 savedBase = prefs.lastBase(),
                 savedHosts = prefs.loadHosts(),
-                ntfyTopic = prefs.ntfyTopic()
+                ntfyTopic = prefs.ntfyTopic(),
+                deletedSessionIds = prefs.deletedSessions().toList()
             )
         }
     }
@@ -775,6 +777,20 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 _state.update { it.copy(sessionsError = friendlyError(e)) }
             }
         }
+    }
+
+    fun deleteSession(session: SessionSummary) {
+        val id = session.sessionId
+        prefs.deleteSession(id)
+        val wasActive = _state.value.activeSession?.sessionId == id
+        _state.update {
+            it.copy(
+                deletedSessionIds = (it.deletedSessionIds + id).distinct(),
+                sessions = it.sessions.filterNot { s -> s.sessionId == id },
+                pinnedSessionIds = it.pinnedSessionIds.filterNot { p -> p == id }
+            )
+        }
+        if (wasActive) closeSession()
     }
 
     fun archiveSession(session: SessionSummary) {

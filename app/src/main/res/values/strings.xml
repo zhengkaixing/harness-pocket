@@ -64,6 +64,9 @@
     <string name="chat_enter_title">输入一个标题</string>
     <string name="common_save">保存</string>
     <string name="auto_delete_title">删除自动化任务</string>
+    <string name="delete_session_local">从本机列表删除</string>
+    <string name="delete_session_title">删除会话？</string>
+    <string name="delete_session_message">仅从本机列表移除，不会删除服务器上的会话。</string>
     <string name="common_delete">删除</string>
     <string name="auto_title">自动化任务</string>
     <string name="auto_subtitle">由会话中的定时提醒创建</string>

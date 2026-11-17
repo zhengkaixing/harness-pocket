@@ -88,6 +88,7 @@ fun HomeScreen(
     onUnpinSession: (SessionSummary) -> Unit,
     onArchiveSession: (SessionSummary) -> Unit,
     onUnarchiveSession: (SessionSummary) -> Unit,
+    onDeleteSession: (SessionSummary) -> Unit,
     onRefresh: () -> Unit,
     onSearch: (String) -> Unit
 ) {
@@ -107,6 +108,7 @@ fun HomeScreen(
         onUnpinSession = onUnpinSession,
         onArchiveSession = onArchiveSession,
         onUnarchiveSession = onUnarchiveSession,
+        onDeleteSession = onDeleteSession,
         onRefresh = onRefresh,
         onSearch = onSearch
     )

@@ -267,6 +267,7 @@ fun SessionMoreButton(
     pinned: Boolean,
     onTogglePin: () -> Unit,
     onArchive: () -> Unit,
+    onDelete: (() -> Unit)? = null,
     tint: Color = Muted,
     size: Dp = 30.dp
 ) {
@@ -312,6 +313,22 @@ fun SessionMoreButton(
                     onArchive()
                 }
             )
+            if (onDelete != null) {
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.delete_session_local), fontSize = 13.sp) },
+                    leadingIcon = {
+                        Icon(
+                            Icons.Rounded.DeleteOutline,
+                            contentDescription = null,
+                            modifier = Modifier.size(17.dp)
+                        )
+                    },
+                    onClick = {
+                        open = false
+                        onDelete()
+                    }
+                )
+            }
         }
     }
 }

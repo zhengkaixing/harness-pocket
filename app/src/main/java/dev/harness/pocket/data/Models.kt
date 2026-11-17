@@ -443,6 +443,7 @@ data class AppState(
     val selectedWorkspace: WorkspaceInfo? = null,
     val pinnedSessionIds: List<String> = emptyList(),
     val archivedSessionIds: List<String> = emptyList(),
+    val deletedSessionIds: List<String> = emptyList(),
     val resourcesVisible: Boolean = false,
     val resourceStatus: ResourceStatus? = null,
     val resourcesLoading: Boolean = false,

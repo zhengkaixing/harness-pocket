@@ -64,6 +64,9 @@
     <string name="chat_enter_title">Enter a title</string>
     <string name="common_save">Save</string>
     <string name="auto_delete_title">Delete automation</string>
+    <string name="delete_session_local">Remove from device</string>
+    <string name="delete_session_title">Remove session?</string>
+    <string name="delete_session_message">This removes it from this device only; the session remains on the server.</string>
     <string name="common_delete">Delete</string>
     <string name="auto_title">Automations</string>
     <string name="auto_subtitle">Created by scheduled reminders in a session</string>

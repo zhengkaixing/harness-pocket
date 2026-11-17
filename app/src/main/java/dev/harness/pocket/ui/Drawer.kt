@@ -37,6 +37,7 @@ import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Schedule
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Settings
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Divider
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -91,6 +92,7 @@ fun HarnessDrawer(
     onUnpinSession: (SessionSummary) -> Unit,
     onArchiveSession: (SessionSummary) -> Unit,
     onUnarchiveSession: (SessionSummary) -> Unit,
+    onDeleteSession: (SessionSummary) -> Unit,
     onRefresh: () -> Unit,
     onSearch: (String) -> Unit
 ) {
@@ -119,6 +121,7 @@ fun HarnessDrawer(
             onUnpinSession = onUnpinSession,
             onArchiveSession = onArchiveSession,
             onUnarchiveSession = onUnarchiveSession,
+            onDeleteSession = onDeleteSession,
             onRefresh = onRefresh,
             onSearch = onSearch
         )
@@ -142,6 +145,7 @@ internal fun HarnessNavigationContent(
     onUnpinSession: (SessionSummary) -> Unit,
     onArchiveSession: (SessionSummary) -> Unit,
     onUnarchiveSession: (SessionSummary) -> Unit,
+    onDeleteSession: (SessionSummary) -> Unit,
     onRefresh: () -> Unit,
     onSearch: (String) -> Unit
 ) {
@@ -150,7 +154,9 @@ internal fun HarnessNavigationContent(
     val expanded = remember { mutableStateMapOf<String, Boolean>() }
     val active = state.activeSession
     val archivedIds = state.archivedSessionIds.toSet()
-    val visible = state.sessions.filterNot { it.sessionId in archivedIds }
+    val deletedIds = state.deletedSessionIds.toSet()
+    val visible = state.sessions.filterNot { it.sessionId in archivedIds || it.sessionId in deletedIds }
+    var pendingDelete by remember { mutableStateOf<SessionSummary?>(null) }
     val pinnedSessions = state.pinnedSessionIds.mapNotNull { id ->
         visible.firstOrNull { it.sessionId == id }
     }
@@ -166,6 +172,23 @@ internal fun HarnessNavigationContent(
     )
     val archivedSessions = state.sessions.filter { it.sessionId in archivedIds }
     var archivedOpen by remember { mutableStateOf(false) }
+
+    pendingDelete?.let { target ->
+        AlertDialog(
+            onDismissRequest = { pendingDelete = null },
+            title = { Text(stringResource(R.string.delete_session_title)) },
+            text = { Text(stringResource(R.string.delete_session_message)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    pendingDelete = null
+                    onDeleteSession(target)
+                }) { Text(stringResource(R.string.common_delete)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingDelete = null }) { Text(stringResource(R.string.common_cancel)) }
+            }
+        )
+    }
 
     Column(
         modifier = modifier
@@ -708,6 +731,7 @@ private fun DrawerSessionRow(
     onClick: () -> Unit,
     onTogglePin: () -> Unit,
     onArchive: () -> Unit,
+    onDelete: (() -> Unit)? = null,
     indent: Dp = 0.dp,
     tree: Boolean = false,
     last: Boolean = false
@@ -770,6 +794,7 @@ private fun DrawerSessionRow(
             pinned = pinned,
             onTogglePin = onTogglePin,
             onArchive = onArchive,
+            onDelete = onDelete,
             tint = Muted,
             size = 27.dp
         )
