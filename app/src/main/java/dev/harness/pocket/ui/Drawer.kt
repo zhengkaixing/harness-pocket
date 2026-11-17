@@ -351,6 +351,15 @@ internal fun HarnessNavigationContent(
                 onSettings()
             }
 
+            if (state.sessionsError != null) {
+                Text(
+                    state.sessionsError.orEmpty(),
+                    color = Color(0xFFB42318),
+                    fontSize = 11.sp,
+                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp)
+                )
+            }
+
             Divider(
                 modifier = Modifier.padding(horizontal = 20.dp, vertical = 10.dp),
                 color = DrawerDivider

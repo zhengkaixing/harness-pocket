@@ -436,7 +436,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    fun newSession() = createSession(null)
+    fun newSession() {
+        createSession(_state.value.selectedWorkspace ?: _state.value.workspaces.firstOrNull())
+    }
 
     fun newSessionInWorkspace(workspace: WorkspaceInfo) = createSession(workspace)
 
