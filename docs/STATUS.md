@@ -25,7 +25,7 @@
 - **完整 i18n**：主要页面/导航已英文化；日志、部分错误提示和插件文案仍为中文。
 - **SSH / DSRemote**：需要独立连接层与主机密钥管理，未实现。
 - **完整插件运行时**：已支持 `plugin/card` 与 `actions` 结果卡；完整清单/表单/面板协议未实现。
-- **远端推送**：GitHub 在 0.45 后多次 `Empty reply from server`；Gitee 认证失败。
+- **远端推送**：GitHub 与 Gitee 已同步到 `c0997c3`，并推送 `v0.42.0`–`v0.47.0` 标签；Git 仍会打印 `credential-manager-core` 警告，但 HTTPS push 成功。
 
 ## 结论
 
